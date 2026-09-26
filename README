@@ -1,0 +1,4 @@
+Decompilation of the Gepard3D engine
+------------------------------------
+
+This project is decompilation of the original Panzers Phase 1 exe, with the end goal of creating a buildable source compatible with the original datafiles. The work is primarily being done in Ghidra, with clean implementation of some functions to validate understanding and build separate libraries for (eventually) making better tools for manipulating data files.
