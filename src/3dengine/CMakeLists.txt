@@ -30,7 +30,7 @@ target_include_directories(3dengine PUBLIC
 target_compile_definitions(3dengine PRIVATE _USE_MATH_DEFINES)
 target_compile_options(3dengine PRIVATE /FI"dxsdk_math_fix.h")
 
-target_include_directories(3dengine PRIVATE ${CMAKE_SOURCE_DIR}/sound)
+target_include_directories(3dengine PRIVATE ${PANZERS_SRC_DIR}/sound)
 target_link_libraries(3dengine PUBLIC core)
 
 if(DXSDK_DIR)

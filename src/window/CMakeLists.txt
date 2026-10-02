@@ -35,5 +35,5 @@ add_library(window STATIC
 )
 
 target_include_directories(window PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(window PRIVATE ${CMAKE_SOURCE_DIR}/sound)
+target_include_directories(window PRIVATE ${PANZERS_SRC_DIR}/sound)
 target_link_libraries(window PUBLIC core 3dengine common)

@@ -1,0 +1,26 @@
+# Build output
+build/
+build-*/
+out/
+
+# IDE / user files
+*.user
+.vs/
+.vscode/
+
+# Runtime output
+crash.txt
+*.log
+
+# Game data (never commit copyrighted assets)
+*.pak
+*.4d
+*.map
+*.bik
+*.tga
+*.wav
+*.mp3
+
+# Python
+__pycache__/
+*.pyc
