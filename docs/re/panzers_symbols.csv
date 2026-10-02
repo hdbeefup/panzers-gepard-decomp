@@ -1,0 +1,1410 @@
+address,name,evidence_string
+0x004d5090,FF02::C,FF02::C
+0x004d5090,FF02::C,[FF02::C]
+0x004d5090,FF05::C,FF05::C
+0x004d5090,FF05::C,[FF05::C]
+0x004e88b0,FileList::DeleteFiles,FileList::DeleteFiles: unlink (%s) failed.
+0x004f3ab0,NatPunchthroughClient::DisconnectClient,NatPunchthroughClient::DisconnectClient
+0x004f3ab0,NatPunchthroughClient::DisconnectClient,NatPunchthroughClient::DisconnectClient GUID - %s
+0x004f3ab0,NatPunchthroughClient::DisconnectClient,NatPunchthroughClient::DisconnectClient Target [%d] GUID - %s
+0x004f42d0,NatPunchthroughClient::OnConnectAtTime,[NatPunchthroughClient::OnConnectAtTime] targetAddress is %s
+0x004f4670,NatPunchthroughClient::OnGetMostRecentPort,[NatPunchthroughClient::OnGetMostRecentPort] most recent port sent: %d
+0x004f8b20,RakNet::TimeMS,"( RakNet::TimeMS timeMS, const SystemAddress target );"
+0x004f8b20,RakNet::TimeMS,"( const char *IP, RakNet::TimeMS milliseconds=0 );"
+0x0051e890,SMulti::IP,SMulti::IP address: %s
+0x0051e950,SMulti::Server,SMulti::Server : NOT ready
+0x0051e950,SMulti::Server,SMulti::Server : ready
+0x0051eb20,SMulti::Disconnect,SMulti::Disconnect: Client log out
+0x0051eb20,SMulti::Disconnect,SMulti::Disconnect: Server log out slotid: %d
+0x0051f090,SMulti::GetSlots,"bool SMulti::GetSlots() i= %d, LastSeenFramesOfLeavingPlayers = %d"
+0x0051f090,SMulti::GetSlots,bool SMulti::GetSlots() max = %d
+0x0051f240,Multi::HostMigration,Multi::HostMigration: Timeout continue the HostMigration
+0x0051f240,Multi::HostMigration,Multi::HostMigration: Timeout continue the game with %d players
+0x0051f8c0,SMulti::OnClientConnecting,SMulti::OnClientConnecting
+0x0051f8c0,SMulti::OnClientConnecting,SMulti::OnClientConnecting: Everyone here after host migration - let's go
+0x0051fcb0,SMulti::OnDownloadCancelled,SMulti::OnDownloadCancelled: UPLOADTYPE_ARMY
+0x0051fd40,SMulti::OnDownloadComplete,SMulti::OnDownloadComplete: UPLOADTYPE_ARMY
+0x0051fe20,SMulti::OnDownloadStart,SMulti::OnDownloadStart
+0x0051fe20,SMulti::OnDownloadStart,SMulti::OnDownloadStart: UPLOADTYPE_ARMY
+0x00520010,Multi::Receive,Multi::Receive: WHAT IS IT??
+0x00520010,SMulti::HandleAppMessages,SMulti::HandleAppMessages: Buffer overflow
+0x00520010,SMulti::HandleAppMessages,SMulti::HandleAppMessages: len > 1024
+0x00520010,SMulti::HandleAppMessages,SMulti::HandleAppMessages: len2 > 1024
+0x00520010,SMulti::HandleAppMessages,SMulti::HandleAppMessages: len3 > 1024
+0x00520010,SMulti::MSG_RESENDFRAMEDATA,SMulti::MSG_RESENDFRAMEDATA: Server: ujrakerni
+0x00520010,SMulti::OnMessageArrived,SMulti::OnMessageArrived: MSG_SERVERLOGOUT Start host migration!
+0x00520d50,SMulti::OnUploadComplete,SMulti::OnUploadComplete
+0x005212a0,SMulti::SendFrameData,SMulti::SendFrameData: len >1024
+0x005212a0,SMulti::SendFrameData,"SMulti::SendFrameData: total_len = %d, len = %d, len2 = %d, len3 = %d"
+0x005215e0,SMulti::ChangeGameSettings,SMulti::ChangeGameSettings()
+0x005215e0,SMulti::SendGameSettings,SMulti::SendGameSettings
+0x00521670,SMulti::SendMap,SMulti::SendMap
+0x00521790,SMulti::SendMeThisPacketAgain,"SMulti::SendMeThisPacketAgain: - Player: %d, send me this frame: %d again."
+0x00521e50,SMulti::StartHostMigration,SMulti::StartHostMigration()
+0x00521e50,SMulti::StartHostMigration,SMulti::StartHostMigration: 1 player left
+0x00521e50,SMulti::StartHostMigration,SMulti::StartHostMigration: Cannot create server
+0x00521e50,SMulti::StartHostMigration,"SMulti::StartHostMigration: New ServerSlotId = %d, remaining players = %d"
+0x00521e50,SMulti::StartHostMigration,SMulti::StartHostMigration: Send knock to new Server IP id: %s
+0x00521e50,SMulti::StartHostMigration,SMulti::StartHostMigration: Simple logout: Game not started
+0x00521e50,SMulti::StartHostMigration,SMulti::StartHostMigration: Starting new Server
+0x00522220,SList::operator,SList::operator->: no current item
+0x005235e0,NatManager::HostMigrated,"[NAT] NatManager::HostMigrated to %x from %x, I am new host %d"
+0x0052cc60,::AuthenticateCDKeyCallback,PE export ?AuthenticateCDKeyCallback@@YAXPAXHPBD0@Z
+0x0052cfa0,SGameSpy::Connect,SGameSpy::Connect - failure. This game's backend services are temporarily unavailable. Please try again later.
+0x0052cfa0,SGameSpy::Connect,SGameSpy::Connect - failure. This game's backend services are unavailable.
+0x0052cfa0,SGameSpy::Connect,SGameSpy::Connect - peerInitialize: failure
+0x0052cfa0,SGameSpy::Connect,SGameSpy::Connect - peerSetTitle: failure
+0x0052cfa0,SGameSpy::Connect,SGameSpy::Connect() Peer != NULL
+0x0052cfa0,SGameSpy::Connect,PE export ?Connect@SGameSpy@@QAEXXZ
+0x0052d430,SGameSpy::CreateMsgTxtIni,PE export ?CreateMsgTxtIni@SGameSpy@@QAEXXZ
+0x0052e050,SGameSpy::Init,PE export ?Init@SGameSpy@@QAEXXZ
+0x0052e120,SGameSpy::InitStagingRoom,PE export ?InitStagingRoom@SGameSpy@@QAEXXZ
+0x0052e1f0,SGameSpy::InitTitleRoom,PE export ?InitTitleRoom@SGameSpy@@QAEXXZ
+0x00530270,SGameSpy::RefreshServers,PE export ?RefreshServers@SGameSpy@@QAEXXZ
+0x00530c80,SGameSpy::SetTipOfTheDay,PE export ?SetTipOfTheDay@SGameSpy@@QAEXXZ
+0x00534bf0,SNetwork::SNetwork,SNetwork::SNetwork: No active IP interface has been found
+0x00534bf0,SNetwork::SNetwork,SNetwork::SNetwork: create Socket failed
+0x00534bf0,SNetworkUDP::SNetworkUDP,SNetworkUDP::SNetworkUDP: Corrupted IP interface list
+0x00535280,Network::Shutting,Network::Shutting down Network object
+0x00535850,Network::Closing,Network::Closing connection %d
+0x00535850,Network::Connection,Network::Connection closed: NextFreeHostIndex %d
+0x00535850,Network::Trying,"Network::Trying to close connection %d, but Connections is not online"
+0x00535b90,Network::Sending,"Network::Sending knock to socket %d, ip: %s, port %d (localId = %d)"
+0x00535cc0,Network::CreateServer,Network::CreateServer()
+0x00535cc0,Network::Creating,"Network::Creating server on socket %d, addrLen %d, ip %s, port %d"
+0x00535cc0,Network::ERROR,Network::ERROR: bind() failed at CreateWinServer (listenScoket)
+0x00535e20,Network::NextFreeHostIndex,Network::NextFreeHostIndex: %d
+0x00535f10,SList::Delete,SList::Delete: no current item
+0x00535f10,SList::operator,SList::operator++: already at the tail of the list
+0x00535f10,SList::operator,SList::operator->: no current item
+0x00535f10,SNetwork::ManageGuaranteedMessage,SNetwork::ManageGuaranteedMessage: Dropping guaranteed message %d because it's too early
+0x00535f10,SNetwork::ManageGuaranteedMessage,SNetwork::ManageGuaranteedMessage: Got guaranteed message %d which is already processed
+0x00536280,Network::FATAL,Network::FATAL ERROR: Didn't find any required protocols
+0x00536280,Network::FATAL,Network::FATAL ERROR: WSAStartup failed (error = %d)
+0x00536280,Network::FATAL,Network::FATAL ERROR: WinSock2 DLL does not support the correct version (%d.%d)
+0x00536280,Network::Network,Network::Network Initalize started...
+0x00536280,Network::Protocol,Network::Protocol bufferSize = %d
+0x00536280,Network::WSAStartup,Network::WSAStartup OK
+0x005368c0,SList::Delete,SList::Delete: no current item
+0x005368c0,SList::operator,SList::operator++: already at the tail of the list
+0x005368c0,SList::operator,SList::operator->: no current item
+0x005368c0,SNetwork::GetMessage,SNetwork::GetMessage() ERROR: %d 
+0x005368c0,SNetwork::GetMessage,SNetwork::GetMessage() Invalid packet (size=%d)
+0x005368c0,SNetwork::Refresh,SNetwork::Refresh: Egyszer mar megvolt ez az uzenet most hova lett???
+0x005368c0,SNetwork::Refresh,SNetwork::Refresh: Resend %d (hianyzik)
+0x005368c0,SNetwork::Refresh,SNetwork::Refresh: Resend %d (nagyobb sorszamu mint ami odaert)
+0x005374f0,SList::operator,SList::operator++: already at the tail of the list
+0x005374f0,SList::operator,SList::operator->: no current item
+0x005374f0,SNetwork::Write,SNetwork::Write() ERROR: %d 
+0x005374f0,SNetwork::Write,SNetwork::Write() Resource temporarily unavailable (retrying)
+0x005374f0,SNetwork::Write,SNetwork::Write() WRITE ERROR
+0x005374f0,SNetwork::Write,SNetwork::Write: Too many garanteed messages! (%d)
+0x005377d0,SNetwork::WriteTo,SNetwork::WriteTo() ERROR: %d 
+0x005377d0,SNetwork::WriteTo,SNetwork::WriteTo() Resource temporarily unavailable (retrying)
+0x005377d0,SNetwork::WriteTo,SNetwork::WriteTo() WRITE ERROR
+0x005392a0,SDropList::GetItemData,SDropList::GetItemData: Invalid index
+0x005392e0,SDropList::GetText,SDropList::GetText: Invalid index
+0x00539770,SDropList::GetItemData,SDropList::GetItemData: Invalid index
+0x005397b0,SDropList::SetText,SDropList::SetText: Invalid index
+0x00539f50,SDXWindow::NextFullScreenMode,SDXWindow::NextFullScreenMode: Setting mode: %d x %d
+0x0053a040,SDXWindow::OnDestroy,SDXWindow::OnDestroy: releasing scene
+0x0053a1b0,SDXWindow::OnSize,"SDXWindow::OnSize(%d, %d)"
+0x0053a1b0,SViewport::Resize,FPU control word (after SViewport::Resize): 0x%04X
+0x0053a1b0,Viewport::Resize,FPU control word (before Viewport::Resize): 0x%04X
+0x0053a250,SDXWindow::PrevFullScreenMode,SDXWindow::PrevFullScreenMode: Setting mode: %d x %d
+0x0053b5c0,SInputDialog::Create,SInputDialog::Create: Unsupported messagebox type
+0x0053c440,SListBox::GetColor,SListBox::GetColor: Invalid index
+0x0053c490,SListBox::GetFileName,SListBox::GetFileName: Invalid index
+0x0053c520,SListBox::GetItemData,SListBox::GetItemData: Invalid index
+0x0053c580,SListBox::GetText,SListBox::GetText: Invalid index
+0x0053cab0,SListBox::SetColor,SListBox::SetColor: Invalid index
+0x0053cb20,SListBox::SetFileName,SListBox::SetFileName: Invalid index
+0x0053cb70,SListBox::GetItemData,SListBox::GetItemData: Invalid index
+0x0053cbc0,SListBox::SetText,SListBox::SetText: Invalid index
+0x0053d6f0,SSaveLoadListBox::GetColor,SSaveLoadListBox::GetColor: Invalid index
+0x0053dbc0,SSaveLoadListBox::SetColor,SSaveLoadListBox::SetColor: Invalid index
+0x0053e3b0,SMessageBox::Create,SMessageBox::Create: Unsupported messagebox type
+0x0053f970,SSaveLoadListBox::GetColor,SSaveLoadListBox::GetColor: Invalid index
+0x0053f9c0,SSaveLoadListBox::GetFileName,SSaveLoadListBox::GetFileName: Invalid index
+0x0053fa70,SSaveLoadListBox::GetText,SSaveLoadListBox::GetText: Invalid index
+0x0053fb10,SSaveLoadListBox::GetTime,SSaveLoadListBox::GetTime: Invalid index
+0x0053fff0,SSaveLoadListBox::SetColor,SSaveLoadListBox::SetColor: Invalid index
+0x00540060,SSaveLoadListBox::SetFileName,SSaveLoadListBox::SetFileName: Invalid index
+0x005400b0,SSaveLoadListBox::SetText,SSaveLoadListBox::SetText: Invalid index
+0x00540150,SSaveLoadListBox::GetTime,SSaveLoadListBox::GetTime: Invalid index
+0x005430e0,SWidget::~SWidget,SWidget::~SWidget: Children widgets should be removed first
+0x00543390,SStack::Peek,SStack::Peek: stack is empty
+0x00543390,SWidget::GetEventTarget,SWidget::GetEventTarget: Can't post to widget that captured the mouse
+0x00543630,SWidget::InsertChild,SWidget::InsertChild: Invalid parameter
+0x005437e0,SWidget::RemoveChild,SWidget::RemoveChild: Invalid parameter
+0x00544a50,SWindow::EventFrame,SWindow::EventFrame: Invalid event frame
+0x00544d60,SWindow::PlaybackEvents,SWindow::PlaybackEvents: %s: not an event file
+0x00544d60,SWindow::RecordEvents,SWindow::RecordEvents
+0x00544e60,SWindow::RecordEvents,SWindow::RecordEvents
+0x00544fe0,SWindow::SetModalWidget,SWindow::SetModalWidget: There can be only one modal widget.
+0x005450e0,SWindow::UnsetModalWidget,SWindow::UnsetModalWidget: This widget wasn't modal.
+0x00546490,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005468e0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005471d0,SBuildingUnit::CreateCaptureFlag,SBuildingUnit::CreateCaptureFlag() - invalid Player Color
+0x005471d0,SBuildingUnit::CreateCaptureFlag,SBuildingUnit::CreateCaptureFlag() - invalid Player Race
+0x00547910,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00547a90,SSingleUnit::EC_Default,SSingleUnit::EC_Default - invalid UDC_...
+0x00547e90,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005482e0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00548b40,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00548d30,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00549b70,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0054a380,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0054acd0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0054afc0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0054b910,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0054c960,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0054ca80,SBuildingUnit::SetCurrentTarget,SBuildingUnit::SetCurrentTarget: Unknown target type
+0x0054ca80,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0054cd70,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0054cf40,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0054d380,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0054ded0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0054ded0,SUnit::Unload,SUnit::Unload - This unit idx is not in the StoredUnits array
+0x0054e480,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00550d20,SDriver::CopyGlobalPathFromBossDriver,SDriver::CopyGlobalPathFromBossDriver - boss_driver is NULL
+0x00551cb0,SDriver::FindGlobalPath,SDriver::FindGlobalPath(): Target is NULL
+0x00551cb0,SDriver::FindGlobalPath,SDriver::FindGlobalPath(): Target type not implemented
+0x005530b0,SDriver::GetGhostPosition,SDriver::GetGhostPosition - bad server_frame
+0x00553100,SDriver::GetLocalPathGoalPoint,SDriver::GetLocalPathGoalPoint - GlobalWayPointsArray.GetSize() == 0
+0x005534d0,SDriver::GetWayPoint,SDriver::GetWayPoint - Target->Type != TARGET_UNIT
+0x005534d0,SDriver::GetWayPoint,SDriver::GetWayPoint(): Target is NULL
+0x00553700,SDriver::Ghost_FirstStep,SDriver::Ghost_FirstStep() - Unit->GhostFrames.GetSize() != 0
+0x00553700,SDriver::Ghost_FirstStep,SDriver::Ghost_FirstStep() - Unit->GhostFrames.GetTopIndex() != Unit->GhostFrames.GetBottomIndex()
+0x00553c00,SDriver::Ghost_NextStep,SDriver::Ghost_NextStep() - GlobalWayPointsArray.Remove(0) but it is an empty array.
+0x00553c00,SDriver::Ghost_NextStep,SDriver::Ghost_NextStep() - Invalid PointType when a unit reached the end of a LocalWayPointsArray and there was a collision at the last point.
+0x00553c00,SDriver::Ghost_NextStep,SDriver::Ghost_NextStep() - Invalid PointType when a unit reached the end of a LocalWayPointsArray.
+0x00553c00,SDriver::Ghost_NextStep,SDriver::Ghost_NextStep() - No WP after changing manoeuvre!
+0x00553c00,SDriver::Ghost_NextStep,SDriver::Ghost_NextStep() - Unit->GhostFrames.GetBottomIndex() > GhostState.ManoeuvreOpeningFrame
+0x00553c00,SDriver::Ghost_NextStep,SDriver::Ghost_NextStep() - Unit->GhostFrames.GetTopIndex() != i
+0x00553c00,SDriver::Ghost_NextStep,SDriver::Ghost_NextStep() 2. - Unit->GhostFrames.GetTopIndex() != i
+0x00553c00,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005547d0,SDriver::Ghost_Reset_Temporary,SDriver::Ghost_Reset_Temporary() - Unit->GhostFrames.GetSize() != 1
+0x00554870,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00554fc0,SDriver::HasTheUnitArrivedAtTheWayPoint,SDriver::HasTheUnitArrivedAtTheWayPoint - Arrival.Radius <= 0
+0x00554fc0,SDriver::HasTheUnitArrivedAtTheWayPoint,SDriver::HasTheUnitArrivedAtTheWayPoint - We should stop at WAYPOINT_NEAR_TO_POINT.
+0x00554fc0,SDriver::HasTheUnitArrivedAtTheWayPoint,SDriver::HasTheUnitArrivedAtTheWayPoint: Unknown waypoint type (%d)
+0x00555450,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00555ba0,SPChildUnitDriver::Init,SPChildUnitDriver::Init - bad DriverType
+0x00555d30,SPFlyingDriver::Init,SPFlyingDriver::Init - bad DriverType
+0x00555ee0,SPPanzersParachuteDriver::Init,SPPanzersParachuteDriver::Init - bad DriverType
+0x00555fc0,SPPanzersSquadDriver::Init,SPPanzersSquadDriver::Init - bad DriverType
+0x005560a0,SPPanzersSquadMemberDriver::Init,SPPanzersSquadMemberDriver::Init - bad DriverType
+0x00556180,SPProjectileDriver::Init,SPProjectileDriver::Init - bad DriverType
+0x005562c0,SPSquadDriver::Init,SPSquadDriver::Init - bad DriverType
+0x00556410,SPSquadMemberDriver::Init,SPSquadMemberDriver::Init - bad DriverType
+0x00556560,SPTrainDriver::Init,SPTrainDriver::Init - bad DriverType
+0x00556680,SPTurnInAngleDriver::Init,SPTurnInAngleDriver::Init - bad DriverType
+0x00556800,SPTurnInPlaceDriver::Init,SPTurnInPlaceDriver::Init - bad DriverType
+0x00556970,SPWalkerDriver::Init,SPWalkerDriver::Init - bad DriverType
+0x00556ac0,SDriver::InitLocalWayPointsArray,SDriver::InitLocalWayPointsArray(): Target is NULL
+0x00557260,SDriver::IsSpinStopNecessary,SDriver::IsSpinStopNecessary - Unknown waypoint type (%d)
+0x00557400,SDriver::IsTheGhostInStoppingDistance,SDriver::IsTheGhostInStoppingDistance: Unknown waypoint type (%d)
+0x00557a80,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00557ec0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005582a0,SDriver::MoveTowardNextWayPoint,SDriver::MoveTowardNextWayPoint - Target->Type != TARGET_UNIT
+0x005582a0,SDriver::MoveTowardNextWayPoint,SDriver::MoveTowardNextWayPoint(): Target is NULL
+0x005582a0,SDriver::MoveTowardNextWayPoint,SDriver::MoveTowardNextWayPoint: Waypoint type unimplemented (%d)
+0x00558a60,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00558a60,SPanzersSquadMemberDriver::MoveTowardNextWayPoint,SPanzersSquadMemberDriver::MoveTowardNextWayPoint: Target type not implemented
+0x005598b0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0055a740,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0055b0b0,SDriver::SetNextWP,SDriver::SetNextWP - 1. frame.ManoeuvreIdx < 0
+0x0055b0b0,SDriver::SetNextWP,SDriver::SetNextWP - 2. frame.ManoeuvreIdx < 0
+0x0055b0b0,SDriver::SetNextWP,SDriver::SetNextWP - frame.WayPointIdx < 0
+0x0055b3e0,SDriver::SetUnitSpinSpeed,SDriver::SetUnitSpinSpeed - bad DriverType
+0x0055d0c0,SFlyingUnit::ServerRefresh,SFlyingUnit::ServerRefresh: No driver target
+0x0055d0c0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0055e440,SGameLogic::SGameLogic,SGameLogic::SGameLogic: Invalid coordinates %d %d
+0x0055e440,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00561110,SGameLogic::BackupCampaignUnits,SGameLogic::BackupCampaignUnits::SaveArmy
+0x00561110,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005624fc,SMarket::SaveArmy,SMarket::SaveArmy: Error saving army file. %s
+0x00562760,SGameLogic::CanSeeGroundUnit,SGameLogic::CanSeeGroundUnit: Player[%d] (editor: %d) has no VisMap
+0x00562fb0,SGameLogic::CheckSendQSize,SGameLogic::CheckSendQSize() tul nagy a meret %d
+0x005630c0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005638f0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005640b0,SGameLogic::CollectActiveLocations,SGameLogic::CollectActiveLocations: Too many active locations! (%d)
+0x005642d0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00564440,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00564510,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00564660,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00564720,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00564870,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00564910,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005649e0,SGameLogic::CreateAnimatedModel,SGameLogic::CreateAnimatedModel: '%s' not found.
+0x005649e0,SGameLogic::CreateAnimatedModel,SGameLogic::CreateAnimatedModel: Cannot load model: %s
+0x00565e10,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005674c0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00567760,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00567d40,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00568300,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00568740,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00568bc0,SGameLogic::ExecuteScriptStatement,SGameLogic::ExecuteScriptStatement: Failed to load effect %s
+0x00568bc0,SGameLogic::ExecuteScriptStatement,SGameLogic::ExecuteScriptStatement: Not enough parameters: %s
+0x00568bc0,SGameLogic::ExecuteScriptStatement,SGameLogic::ExecuteScriptStatement: Unknown command: %s
+0x00568bc0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00568bc0,SString::operator,SString::operator[]: invalid index (%d)
+0x0056a480,SGameLogic::StaticMessage,SGameLogic::StaticMessage(): Invalid coloridx.
+0x0056a710,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0056a710,SString::operator,SString::operator[]: invalid index (%d)
+0x0056aa10,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0056abe0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0056acf0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0056adc0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0056ae90,SGameLogic::GetMovementGroupCompressed,SGameLogic::GetMovementGroupCompressed: Invalid movement group %d
+0x0056af10,SGameLogic::GetMovementGroupConvoy,SGameLogic::GetMovementGroupConvoy: Invalid movement group %d
+0x0056af90,SGameLogic::GetMovementGroupFormationDir,SGameLogic::GetMovementGroupFormationDir: Invalid movement group %d
+0x0056b010,SGameLogic::GetMovementGroupMoveSpeed,SGameLogic::GetMovementGroupMoveSpeed: Invalid movement group %d
+0x0056b090,SGameLogic::GetMovementGroupSquadsGlobalState,SGameLogic::GetMovementGroupSquadsGlobalState: Invalid movement group %d
+0x0056b110,SGameLogic::GetMovementGroupUnitDistSqrFromTarget,SGameLogic::GetMovementGroupUnitDistSqrFromTarget: Invalid movement group %d
+0x0056b240,SGameLogic::GetMovementGroupUnitFormationPos,SGameLogic::GetMovementGroupUnitFormationPos: Invalid movement group %d
+0x0056b3e0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0056cff0,SGameLogic::EC_HeavyBomber,SGameLogic::EC_HeavyBomber: Can't compute start position
+0x0056d1d0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0056d2a0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0056d490,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0056d540,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0056d860,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0056e500,SGameLogic::CreateAnimatedModel,SGameLogic::CreateAnimatedModel: Cannot load model: %s
+0x0056eb50,SGameLogic::LoadGameState,SGameLogic::LoadGameState: Unsupported chunk tag 0x%08X (%c%c%c%c)
+0x0056eb50,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0056f0d0,SGameLogic::RunTriggers,SGameLogic::RunTriggers: Cannot open %s
+0x0056f530,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0056f9e0,SGameLogic::LoadScript,SGameLogic::LoadScript
+0x0056f9e0,SString::operator,SString::operator[]: invalid index (%d)
+0x0056fd70,SSubtitler::ParseSubFile,SSubtitler::ParseSubFile: Invalid sub file %s
+0x0056ff30,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005708f0,SGameLogic::ModifyMovementGroupUnitsFormationPos,SGameLogic::ModifyMovementGroupUnitsFormationPos: Invalid movement group %d
+0x00570f30,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00571090,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00571c70,SGameLogic::PlaceAllUnits,"SGameLogic::PlaceAllUnits() player: %d, units: %d"
+0x00571c70,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00572ec0,SGameLogic::PlaceUnits,"SGameLogic::PlaceUnits player: %d, units: %d"
+0x00572ec0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005739b8,SGameLogic::ProcessPacket,SGameLogic::ProcessPacket: Invalid command packet
+0x00576130,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00576490,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00576a70,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00576d80,SGameLogic::Refresh,SGameLogic::Refresh: Invalid FPU control word (0x%04X).
+0x00576d80,SGameLogic::Refresh,SGameLogic::Refresh: World->Units[i]->StoredMembers.GetSize() == 0
+0x00576d80,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00579510,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00579ab0,SGameLogic::RunTriggers,SGameLogic::RunTriggers/ACTION_CREATE: World->FindEmptySpace tul messze talalt helyet
+0x00579ab0,SGameLogic::RunTriggers,SGameLogic::RunTriggers/ACTION_CREATE_UNIT_2: World->FindEmptySpace tul messze talalt helyet
+0x00579ab0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0057e600,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0057e6f0,SGameLogic::SendConvoyMovementGroupFollowers,SGameLogic::SendConvoyMovementGroupFollowers: Invalid movement group %d
+0x0057e6f0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0057e8b0,SGameLogic::SetMovementGroupFormationDir,SGameLogic::SetMovementGroupFormationDir: Invalid movement group %d
+0x0057e8b0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0057efd0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0057f200,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0057f580,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0057fa10,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0057faf0,SGameLogic::SetMovementGroupBiggestUnit,"SGameLogic::SetMovementGroupBiggestUnit - BiggestUnitIdx=%d, Name=%s"
+0x0057faf0,SGameLogic::SetMovementGroupBiggestUnit,SGameLogic::SetMovementGroupBiggestUnit: Invalid movement group %d
+0x0057faf0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0057fcb0,SGameLogic::SetMovementGroupBossUnit,"SGameLogic::SetMovementGroupBossUnit - BossUnitIdx=%d, Name=%s"
+0x0057fcb0,SGameLogic::SetMovementGroupBossUnit,SGameLogic::SetMovementGroupBossUnit: Invalid movement group %d
+0x0057fcb0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0057ff40,SGameLogic::SetMovementGroupFormationDir,SGameLogic::SetMovementGroupFormationDir: Invalid movement group %d
+0x0057ffc0,SGameLogic::SetMovementGroupFormationDir,SGameLogic::SetMovementGroupFormationDir: Invalid movement group %d
+0x00580040,SGameLogic::SetMovementGroupMoveSpeed,SGameLogic::SetMovementGroupMoveSpeed: Invalid movement group %d
+0x005800d0,SGameLogic::RefreshMovementGroup,SGameLogic::RefreshMovementGroup: Invalid movement group %d
+0x005800d0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00580260,SGameLogic::SetMovementGroupMoveSpeed,SGameLogic::SetMovementGroupMoveSpeed: Invalid movement group %d
+0x00580320,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00580540,SGameLogic::StartPacketPlayback,SGameLogic::StartPacketPlayback
+0x00580540,SGameLogic::StartPacketPlayback,SGameLogic::StartPacketPlayback: Old Rec version (EXA)
+0x00580540,SGameLogic::StartPacketPlayback,SGameLogic::StartPacketPlayback: Unsupported file version
+0x005805c0,SGameLogic::StartPacketRecording,SGameLogic::StartPacketRecording
+0x00580600,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00580600,SString::operator,SString::operator[]: invalid index (%d)
+0x005815e0,SGameLogic::StaticMessage,SGameLogic::StaticMessage(): Invalid coloridx.
+0x00581930,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00581ae0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00581c50,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00582080,SGameLogic::UpdateActiveLocations,SGameLogic::UpdateActiveLocations() Invalid active location
+0x005824b0,SGameLogic::UpdateMovementGroupSlowestMoveSpeed,SGameLogic::UpdateMovementGroupSlowestMoveSpeed - SlowestMoveSpeed=%f
+0x005824b0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00582770,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00583b60,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00584240,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005847e0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00584d00,SGunner::ServerRefresh,SGunner::ServerRefresh: Projectile speed is not finite!
+0x005870f0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00588820,SInGameAnimLogic::CacheLoad,SInGameAnimLogic::CacheLoad: memory cache #%d is not initialized
+0x005889ea,SInGameAnimLogic::QuickLoad,SInGameAnimLogic::QuickLoad: Error loading save game: %s
+0x00589370,SInGameAnimLogic::GetCameraNearPlane,"SInGameAnimLogic::GetCameraNearPlane() was called, with an invalid cam nr. (incoming parameter: camnr>=NUMBER_OF_CAMERAS || camnr<0 (defined in ingameanimlogic.h))"
+0x005893a0,SInGameAnimLogic::GetCameraNearPlane,"SInGameAnimLogic::GetCameraNearPlane() was called, with an invalid cam nr. (incoming parameter: camnr>=NUMBER_OF_CAMERAS || camnr<0 (defined in ingameanimlogic.h))"
+0x005893d0,SInGameAnimLogic::GetCameraType,"SInGameAnimLogic::GetCameraType() was called, with an invalid cam nr. (incoming parameter: camnr>=NUMBER_OF_CAMERAS || camnr<0 (defined in ingameanimlogic.h))"
+0x00589400,SString::operator,SString::operator[]: invalid index (%d)
+0x00589970,SInGameAnimLogic::GetCameraType,"SInGameAnimLogic::GetCameraType() was called, with an invalid cam nr. (incoming parameter: camnr>=NUMBER_OF_CAMERAS || camnr<0 (defined in ingameanimlogic.h))"
+0x00589d90,SInGameAnimLogic::LoadProject,SInGameAnimLogic::LoadProject
+0x00589d90,SInGameAnimLogic::SetCameraType,"SInGameAnimLogic::SetCameraType() was called, with an invalid cam nr. (incoming parameter: camnr>=NUMBER_OF_CAMERAS || camnr<0 (defined in ingameanimlogic.h))"
+0x0058a7d0,SString::operator,SString::operator[]: invalid index (%d)
+0x0058acd9,SInGameAnimLogic::QuickLoad,SInGameAnimLogic::QuickLoad: Error loading save game: %s
+0x0058ae50,SString::operator,SString::operator[]: invalid index (%d)
+0x0058c290,SString::operator,SString::operator[]: invalid index (%d)
+0x0058c360,SInGameAnimLogic::SetCameraNearPlane,"SInGameAnimLogic::SetCameraNearPlane() was called, with an invalid cam nr. (incoming parameter: camnr>=NUMBER_OF_CAMERAS || camnr<0 (defined in ingameanimlogic.h))"
+0x0058c390,SInGameAnimLogic::SetCameraNearPlane,"SInGameAnimLogic::SetCameraNearPlane() was called, with an invalid cam nr. (incoming parameter: camnr>=NUMBER_OF_CAMERAS || camnr<0 (defined in ingameanimlogic.h))"
+0x0058c3c0,SInGameAnimLogic::SetCameraType,"SInGameAnimLogic::SetCameraType() was called, with an invalid cam nr. (incoming parameter: camnr>=NUMBER_OF_CAMERAS || camnr<0 (defined in ingameanimlogic.h))"
+0x0058d4e0,SWayPointWithManoeuvres::CreateManoeuvres,SWayPointWithManoeuvres::CreateManoeuvres - Bad driver_type
+0x0058d4e0,SWayPointWithManoeuvres::CreateManoeuvres,SWayPointWithManoeuvres::CreateManoeuvres - idx!=0
+0x0058d4e0,SWayPointWithManoeuvres::CreateManoeuvres,SWayPointWithManoeuvres::CreateManoeuvres(): NewTarget is NULL
+0x0058e350,SWayPointWithManoeuvres::SortManoeuvres,SWayPointWithManoeuvres::SortManoeuvres - sizeof ManoeuvresArrayFlag is too small!
+0x00591d50,SCampaign::SetArmyFileName,SCampaign::SetArmyFileName: ArmyFileName can only be set in Multi mode.
+0x00591d50,SCampaign::SetArmyName,SCampaign::SetArmyName: ArmyName can only be set in Multi mode.
+0x00591dd0,SCampaign::GetArmyFileName,SCampaign::GetArmyFileName: GameMode is not Multi.
+0x00591e00,SCampaign::GetArmyName,SCampaign::GetArmyName: GameMode is not Multi.
+0x00592040,SCampaign::GetMapName,SCampaign::GetMapName: GameMode not set
+0x005925d0,SCampaign::GetName,SCampaign::GetName: GameMode not set
+0x00592b20,SCampaign::InitCampaignMode,SCampaign::InitCampaignMode: GameMode can only be initialized once.
+0x00592d20,SCampaign::InitDemoMode,SCampaign::InitDemoMode: GameMode can only be initialized once.
+0x005944d0,SCampaign::InitScenarioMode,SCampaign::InitScenarioMode: GameMode can only be initialized once.
+0x00594540,SPanzersCampaign::InitTriggerTexts,SPanzersCampaign::InitTriggerTexts
+0x00594540,SPanzersCampaign::InitTriggerTexts,SPanzersCampaign::InitTriggerTexts: %s: Syntax error
+0x00594540,SPanzersCampaign::InitTutorialTexts,SPanzersCampaign::InitTutorialTexts: %s: Syntax error
+0x00594540,SPanzersCampaign::InitTutorialTexts,SPanzersCampaign::InitTutorialTexts: %s: Unsupported tag: %s
+0x00594ab0,SCampaign::InitTutorialMode,SCampaign::InitTutorialMode: GameMode can only be initialized once.
+0x00594c94,SPanzersCampaign::IsAValidGameMapFile,SPanzersCampaign::IsAValidGameMapFile: Error - %s
+0x00594dc0,SCampaign::LetChatroomDone,SCampaign::LetChatroomDone: Menu order problem.
+0x00594e00,SCampaign::LetMapDone,SCampaign::LetMapDone: Menu order problem.
+0x00594e00,SPanzersCampaign::LetMapDone,PE export ?LetMapDone@SPanzersCampaign@@QAEXXZ
+0x00594e70,SCampaign::LetResultsDone,SCampaign::LetResultsDone: Menu order problem.
+0x00594e70,SPanzersCampaign::LetResultsDone,PE export ?LetResultsDone@SPanzersCampaign@@QAEXXZ
+0x00594f70,SPanzersCampaign::LoadGame,SPanzersCampaign::LoadGame()
+0x00594f70,SPanzersCampaign::LoadGame,PE export ?LoadGame@SPanzersCampaign@@QAE_NPBD@Z
+0x0059530f,SPanzersCampaign::LoadGame,SPanzersCampaign::LoadGame: Error loading save game: %s
+0x00595330,SPanzersCampaign::LoadGameBefore,PE export ?LoadGameBefore@SPanzersCampaign@@QAEXPBD@Z
+0x005955b3,SPanzersCampaign::LoadGameStart,SPanzersCampaign::LoadGameStart: Error loading save game: %s
+0x0059575e,SPanzersCampaign::LoadGameMapFileName,SPanzersCampaign::LoadGameMapFileName: Error loading save game: %s
+0x005959b1,SPanzersCampaign::LoadReplay,SPanzersCampaign::LoadReplay: Error loading save game: %s
+0x005959d0,SLoadMenu::LoadReplayNamesNames,SLoadMenu::LoadReplayNamesNames
+0x00595f13,SLoadMenu::LoadReplayNames,SLoadMenu::LoadReplayNames: Error loading replay. %s
+0x00595fa0,SLoadMenu::LoadSavedGameNames,SLoadMenu::LoadSavedGameNames
+0x00595fa0,SPanzersCampaign::LoadSavedGameNames,PE export ?LoadSavedGameNames@SPanzersCampaign@@QAEXAAV?$SDArray@USLoadSaveName@@@@@Z
+0x0059656d,SLoadMenu::LoadSavedGameNames,SLoadMenu::LoadSavedGameNames: Error loading saved game. %s
+0x005966a0,SPanzersCampaign::SaveGame,PE export ?SaveGame@SPanzersCampaign@@QAE_NPBD0@Z
+0x005969a0,SPanzersCampaign::SaveGameStartMission,SPanzersCampaign::SaveGameStartMission() - failed
+0x00596b30,SPanzersCampaign::SaveGameBefore,PE export ?SaveGameBefore@SPanzersCampaign@@QAE_NXZ
+0x00596e30,SPanzersCampaign::SaveGameStartMission,SPanzersCampaign::SaveGameStartMission() - failed
+0x00597120,SCampaign::SetArmyFileName,SCampaign::SetArmyFileName: ArmyFileName can only be set in Multi mode.
+0x00597150,SCampaign::SetArmyName,SCampaign::SetArmyName: ArmyName can only be set in Multi mode.
+0x00597480,SPanzersCampaign::SetMissionSP,SPanzersCampaign::SetMissionSP: MissionSP can only be set in Multi mode.
+0x005974b0,SCampaign::SetRace,SCampaign::SetRace: Race can only be set in Multi mode.
+0x00597510,SPanzersCampaign::StartPacketPlayback,SPanzersCampaign::StartPacketPlayback: Unsupported file version
+0x00597510,SPanzersCampaign::StartReplay,SPanzersCampaign::StartReplay
+0x005977b3,SPanzersCampaign::LoadGame,SPanzersCampaign::LoadGame: Error loading save game: %s
+0x005979d0,SPanzersSquadMemberUnit::AI_Heartbeat,### SPanzersSquadMemberUnit::AI_Heartbeat - IDE NEM KELLENE BEJONNI !!!
+0x00597a10,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00597e80,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00597e80,SUnit::EC_Attack,SUnit::EC_Attack: Attacking projectile
+0x00598070,SPanzersSquadMemberUnit::EC_ChangeActiveDriver,SPanzersSquadMemberUnit::EC_ChangeActiveDriver: bad active_driver
+0x005980b0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00598250,SPanzersSquadMemberUnit::EC_ChangeMainGunner,SPanzersSquadMemberUnit::EC_ChangeMainGunner: bad active_gunner
+0x00598280,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00598770,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005988d0,SPanzersSquadMemberUnit::GetMaxMoveSpeed,SPanzersSquadMemberUnit::GetMaxMoveSpeed() - forbidden function
+0x00598ab0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00599260,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005992d0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00599450,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00599d60,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00599d60,SPanzersSquadUnit::EC_Attack,SPanzersSquadUnit::EC_Attack: PanzersSquad is trying to attack it's own member.
+0x0059a500,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059a730,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059a7a0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059a860,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059a960,SPanzersSquadUnit::EC_Default,SPanzersSquadUnit::EC_Default - invalid UDC_...
+0x0059aa20,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059acd0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059af90,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059b120,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059b2d0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059b3d0,SPanzersSquadUnit::GetARandomMemberIdx,"SPanzersSquadUnit::GetARandomMemberIdx (IHaveToDie = %s, Hidden = %s)"
+0x0059b4a0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059b650,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059b650,SPanzersSquadUnit::GetLowestMaxRange,SPanzersSquadUnit::GetLowestMaxRange() - StoredMembers.GetSize() == 0
+0x0059b990,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059ba90,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059bc10,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059bc10,SPanzersSquadUnit::GetMaxMoveSpeed,SPanzersSquadUnit::GetMaxMoveSpeed() - global_state == -1
+0x0059bd10,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059be20,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059bff0,SPanzersSquadUnit::GetSquadMemberRelativePosition,SPanzersSquadUnit::GetSquadMemberRelativePosition
+0x0059c0d0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059c1e0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059c2a0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059c470,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059c470,SPanzersSquadUnit::Init,SPanzersSquadUnit::Init - StoredMembers[i] < 0
+0x0059c470,SPanzersSquadUnit::SetRelativePositions,SPanzersSquadUnit::SetRelativePositions - Unknown formation_type
+0x0059ca40,SPanzersSquadUnit::Init,SPanzersSquadUnit::Init - StoredMembers[i] < 0
+0x0059ca40,SPanzersSquadUnit::SetRelativePositions,SPanzersSquadUnit::SetRelativePositions - Unknown formation_type
+0x0059d130,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059d2f0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059d4e0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059d670,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059d720,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059d720,SPanzersSquadUnit::OnDriverReachedTarget,"SPanzersSquadUnit::OnDriverReachedTarget - No Currenttarget, unit:%s, idx:%d"
+0x0059dfe0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059e0d0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059ede0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059ef00,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059f580,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059f580,SPanzersSquadUnit::SetCurrentTarget,SPanzersSquadUnit::SetCurrentTarget: Unknown target type
+0x0059f580,SPanzersSquadUnit::SetRelativePositions,SPanzersSquadUnit::SetRelativePositions - Unknown formation_type
+0x0059fd00,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x0059fda0,SPanzersSquadUnit::SetMembersRadius,SPanzersSquadUnit::SetMembersRadius() - StoredMembers.GetSize() == 0
+0x0059fe30,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005a0060,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005a0450,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005a0740,SPanzersSquadUnit::SetRelativeNormalPositions,SPanzersSquadUnit::SetRelativeNormalPositions() - StoredMembers.GetSize() == 0
+0x005a09d0,SPanzersSquadUnit::SetRelativePositions,SPanzersSquadUnit::SetRelativePositions - Unknown formation_type
+0x005a0a10,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005a0ac0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005a0ac0,SPanzersSquadUnit::SetSquadMemberRelativePosition,SPanzersSquadUnit::SetSquadMemberRelativePosition
+0x005a0d30,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005a0de0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005a0f30,SPanzersSquadUnit::SetUnitSize,SPanzersSquadUnit::SetUnitSize() - StoredMembers.GetSize() == 0
+0x005a0fc0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005a1140,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005a1220,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005a1740,SHeapList::operator,SHeapList::operator->: no current item
+0x005a1820,SHeapList::GetDataPointer,SHeapList::GetDataPointer: no current item
+0x005a1820,SHeapList::operator,SHeapList::operator->: no current item
+0x005a1a80,SHeapList::Delete,SHeapList::Delete: no current item
+0x005a1d30,SHeapList::operator,SHeapList::operator->: no current item
+0x005a1d30,SHeapList::operator,SHeapList::operator[]: invalid index (%d)
+0x005a2020,SAStar::MakePathPointsList,SAStar::MakePathPointsList: Can't step.
+0x005a2920,SHeapList::Delete,SHeapList::Delete: the specified item is not a valid list item
+0x005a2920,SHeapList::GetDataPointer,SHeapList::GetDataPointer: no current item
+0x005a2920,SHeapList::operator,SHeapList::operator++: already at the tail of the list
+0x005a2920,SHeapList::operator,SHeapList::operator->: no current item
+0x005a2b90,SHeapList::operator,SHeapList::operator->: no current item
+0x005a2b90,SHeapList::operator,SHeapList::operator[]: invalid index (%d)
+0x005a2fb0,SHeapList::operator,SHeapList::operator[]: invalid index (%d)
+0x005a2ff0,SHeapList::operator,SHeapList::operator->: no current item
+0x005a3270,SHeapList::Delete,SHeapList::Delete: the specified item is not a valid list item
+0x005a3270,SHeapList::GetDataPointer,SHeapList::GetDataPointer: no current item
+0x005a3270,SHeapList::operator,SHeapList::operator++: already at the tail of the list
+0x005a3270,SHeapList::operator,SHeapList::operator->: no current item
+0x005a6050,SPBuildingUnit::Init,SPBuildingUnit::Init - bad ClassType
+0x005a6160,SPFlyingUnit::Init,SPFlyingUnit::Init - bad UnitType
+0x005a61d0,SPPanzersSquadUnit::Init,SPPanzersSquadUnit::Init - bad ClassType
+0x005a6280,SPProjectileUnit::Init,SPProjectileUnit::Init - bad ClassType
+0x005a62d0,SPSingleUnit::Init,SPSingleUnit::Init - bad ClassType
+0x005a6580,SPTrainUnit::Init,SPTrainUnit::Init - bad UnitType
+0x005a6c30,Waster::Init,Waster::Init - bad UnitType
+0x005a6f10,SPUnit::InitDrivers,SPUnit::InitDrivers - Unknown drivertype
+0x005a8780,SPUnit::LoadResources,"SPUnit::LoadResources: PModelIdx < 0 , %s"
+0x005a9cc0,SRunningGear::Init,SRunningGear::Init: Couldn't load texture: %s
+0x005abf50,SUnit::EC_Ammo,SUnit::EC_Ammo: Repair projectile
+0x005ac0d0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ac1a0,SSingleUnit::EC_Default,SSingleUnit::EC_Default - invalid UDC_...
+0x005ac650,SUnit::EC_Repair,SUnit::EC_Repair: Repair projectile
+0x005ac7d0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005acb30,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005acbd0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005acd30,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ace90,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ad070,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ad150,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ad150,SSingleUnit::Init,SSingleUnit::Init - BuiltInDriverNodeIdx < 0 Unitname:%s
+0x005ad150,SSingleUnit::Init,"SSingleUnit::Init - PUnit->ArmorType == ARMOURTYPE_INFANTRY, Name=%s"
+0x005ad9f0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ad9f0,SSingleUnit::Init,SSingleUnit::Init - BuiltInDriverNodeIdx < 0 Unitname:%s
+0x005ad9f0,SSingleUnit::Init,SSingleUnit::Init(): Invalid mesh ('%s') specified for unit '%s'.
+0x005ae370,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ae370,SSingleUnit::InitAfterInitAfterLoad,SSingleUnit::InitAfterInitAfterLoad - BuiltInDriverNodeIdx < 0 Unitname:%s
+0x005ae970,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005aec70,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005aed30,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005aed30,SSingleUnit::OnDriverReachedTarget,"SSingleUnit::OnDriverReachedTarget - No Currenttarget, unit:%s, idx:%d"
+0x005af2c0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005af890,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005af890,SSingleUnit::RefreshMisc,SSingleUnit::RefreshMisc - StoredMembers[i].NodeAttach is true.
+0x005b0420,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005b08b0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005b0f00,STrainUnit::CalcTowedUnitPosAndDir,STrainUnit::CalcTowedUnitPosAndDir - towed_unit->PUnit->ClassType != CLASSTYPE_TRAIN
+0x005b0f00,SUnit::GhostFrames_AddTop,"SUnit::GhostFrames_AddTop - towed_hole_node_idx < 0, Unitname:%s"
+0x005b16f0,STrainUnit::MarkCurrentBlockMap,STrainUnit::MarkCurrentBlockMap - Model == NULL
+0x005b1d50,STriggerAction::GetPropertyMask,STriggerAction::GetPropertyMask: Invalid type (%d)
+0x005b1f30,STriggerCondition::GetPropertyMask,STriggerCondition::GetPropertyMask: Invalid type (%d)
+0x005b2400,STriggerEvent::GetPropertyMask,STriggerEvent::GetPropertyMask: Invalid type (%d)
+0x005b24e0,STriggerAction::Save,STriggerAction::Save: Invalid flag
+0x005b2670,STriggerCondition::Save,STriggerCondition::Save: Invalid flag
+0x005b2750,STriggerEvent::GetPropertyMask,STriggerEvent::GetPropertyMask: Invalid type (%d)
+0x005b4720,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005b5090,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005b5810,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005b5c10,SUnit::GhostFrames_AddTop,"SUnit::GhostFrames_AddTop - towed_hole_node_idx < 0, Unitname:%s"
+0x005b6040,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005b7040,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005b76e0,SUnit::CollectInvalidTargets,SUnit::CollectInvalidTargets() - CurrentTarget is null.
+0x005b78a0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005b7c50,STarget::ConsumePath,STarget::ConsumePath: No path
+0x005b7d70,SUnit::InitModel,SUnit::InitModel: No Prototype!!!!
+0x005b7e40,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005b82b0,SUnit::EC_AssaultBuilding,SUnit::EC_AssaultBuilding: Attacking projectile
+0x005b82b0,SUnit::EC_AssaultBuilding,SUnit::EC_AssaultBuilding: Trying to attack a squad member unit instead of a squad.
+0x005b8440,SUnit::EC_Attack,SUnit::EC_Attack: Attacking projectile
+0x005b8440,SUnit::EC_Attack,SUnit::EC_Attack: Trying to attack a squad member unit instead of a squad.
+0x005b8660,SUnit::EC_AttackMove,SUnit::EC_AttackMove: Negative pos
+0x005b87f0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005b8ab0,SSingleUnit::EC_Default,SSingleUnit::EC_Default - invalid UDC_...
+0x005b8b10,SUnit::EC_Die,SUnit::EC_Die() - PUnit->ClassType == CLASSTYPE_CHILDUNIT
+0x005b8ba0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005b8ba0,SUnit::EC_Follow,SUnit::EC_Follow: Attacking projectile
+0x005b9a20,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005b9da0,SUnit::GetGhostPosition,SUnit::GetGhostPosition - ActiveDriver < 0
+0x005b9fc0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ba0b0,STarget::GetPathNodeDir,STarget::GetPathNodeDir: No path
+0x005ba2b0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ba430,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ba5a0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ba610,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ba680,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ba6f0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ba8e0,SUnit::SetActiveDriver,SUnit::SetActiveDriver: Invalid value.
+0x005bace0,SUnit::SetActiveDriver,SUnit::SetActiveDriver: Invalid value.
+0x005baf30,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005bb6b0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005bbd30,SUnit::Load,SUnit::Load: (%s) Number of drivers doesn't match
+0x005bbd30,SUnit::Load,SUnit::Load: (%s) Number of gunners doesn't match
+0x005bc2d0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005bc2d0,SUnit::MakeDescription,SUnit::MakeDescription: Stored unit couldn't create a description
+0x005bc2d0,SUnit::MakeDescription,SUnit::MakeDescription: Towed unit couldn't create a description
+0x005bc9d0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005bcb60,SUnit::OnDriverReachedTarget,"SUnit::OnDriverReachedTarget - No Currenttarget, unit:%s, idx:%d"
+0x005bcb60,SUnit::OnDriverReachedTarget,"SUnit::OnDriverReachedTarget: CurrentTarget was path, PrimaryTarget is different"
+0x005bcd20,SUnit::OnDriverStucked,"SUnit::OnDriverStucked - No Currenttarget, unit:%s, idx:%d"
+0x005bce40,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005bd210,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005bd210,STarget::Refresh,STarget::Refresh(): Target Point  is not finite!
+0x005bd610,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005be140,SUnit::RemoveStoredMember,SUnit::RemoveStoredMember - bad member idx:%d
+0x005be320,SUnit::Save,SUnit::Save: internal error
+0x005bee90,SUnit::ServerRefresh,"SUnit::ServerRefresh: There's a PrimaryTarget but no CurrentTarget. Unitname: %s, idx:%d, Frame:%d"
+0x005bf280,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005bf280,SUnit::ServerRefreshAmmo,SUnit::ServerRefreshAmmo: Projectile speed is not finite!
+0x005bfa50,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005bfa50,SUnit::ServerRefreshMedic,SUnit::ServerRefreshMedic: Projectile speed is not finite!
+0x005c01e0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005c01e0,SUnit::ServerRefreshRepair,SUnit::ServerRefreshRepair: Projectile speed is not finite!
+0x005c01e0,SUnit::SetActiveDriver,SUnit::SetActiveDriver: Invalid value.
+0x005c0cb0,SUnit::SetActiveDriver,SUnit::SetActiveDriver: Invalid value.
+0x005c0d10,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005c1220,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005c1460,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005c1630,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005c1630,SUnit::SetPlayer,SUnit::SetPlayer - Player < 0
+0x005c1980,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005c1f60,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005c2040,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005c2270,SUnit::SlotsDecreaseAmount,SUnit::SlotsDecreaseAmount() Nem fogyaszthato (%d)
+0x005c2390,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005c2df0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005c30d0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005c30d0,SUnit::SetActiveDriver,SUnit::SetActiveDriver: Invalid value.
+0x005c30d0,SUnit::StoreUnit,SUnit::StoreUnit - StoreUnit has not got '%s' mesh.
+0x005c30d0,SUnit::StoreUnit,SUnit::StoreUnit - Unknown UNIT_IN_VEHICLE_ANIM_ substring
+0x005c30d0,SUnit::StoreUnit,SUnit::StoreUnit - storedmembers_array_idx>UnitsInVehicle.GetSize()
+0x005c3dd0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005c4080,SUnit::TakeDamage,SUnit::TakeDamage ChildUnit
+0x005c51d0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005c6130,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005c7d90,SUnitAnimation::GetGlobalStateChangingText,SUnitAnimation::GetGlobalStateChangingText - bad GlobalState.ActiveState
+0x005c7d90,SUnitAnimation::GetGlobalStateChangingText,SUnitAnimation::GetGlobalStateChangingText - bad GlobalState.NextState
+0x005c7f90,SUnitAnimation::GetGlobalStateStandText_From_Number,SUnitAnimation::GetGlobalStateStandText_From_Number
+0x005c86e0,SPWalkerAnimation::Init,SPWalkerAnimation::Init  -  indx != idx
+0x005c93a0,SVehicleAnimation::InitModel,SVehicleAnimation::InitModel: No gun%dm0 in unit %s
+0x005ce2a0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ce2a0,SWalkerAnimation::UpdateModel,SWalkerAnimation::UpdateModel() - Unit->SubStateString is not empty
+0x005cfc10,SPPropertyArray::SPPropertyArray,SPPropertyArray::SPPropertyArray(): Invalid initial array size default value.
+0x005cfc10,SPPropertyArray::SPPropertyArray,SPPropertyArray::SPPropertyArray(): Invalid initial array size range values.
+0x005d0e70,SUnitRegistry::GetPUnit,"SUnitRegistry::GetPUnit - PUnit = NULL, UnitName = %s "
+0x005d1050,SUnitRegistry::LoadUnitFiles,PE export ?LoadUnitFiles@SUnitRegistry@@QAEXPBD_N@Z
+0x005d1050,SUnitRegistry::SUnitRegistry,SUnitRegistry::SUnitRegistry - %s has bad UnitType: %d
+0x005d2090,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005d2880,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005d2f90,SWorld::SWorld,SWorld::SWorld: LoadModelPrototype failed: units/flag/Russian-hero.4D
+0x005d2f90,SWorld::SWorld,SWorld::SWorld: LoadModelPrototype failed: units/flag/US-hero.4D
+0x005d2f90,SWorld::SWorld,SWorld::SWorld: LoadModelPrototype failed: units/flag/german-hero.4D
+0x005d5510,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005d5510,SWorld::RemoveRiver,SWorld::RemoveRiver(): Invalid index specified.
+0x005d5510,SWorld::RemoveRoad,SWorld::RemoveRoad(): Invalid index specified.
+0x005d5510,SWorld::RemoveRoadJunction,SWorld::RemoveRoadJunction(): Invalid index specified.
+0x005d5510,SWorld::~SWorld,SWorld::~SWorld
+0x005d5510,SWorld::~SWorld,SWorld::~SWorld: %s
+0x005d5510,SWorld::~SWorld,SWorld::~SWorld: releasing scene
+0x005d68e0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005d95b0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005d9750,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005d9980,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005da050,SWorld::CheckStaticBlockMapInternal,SWorld::CheckStaticBlockMapInternal: Not optimized for unit_small_size = %d
+0x005ddc30,SWorld::ComputeCamera,SWorld::ComputeCamera: unknown camera mode
+0x005e0cf0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005e0d70,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005e27a0,SWorld::CreateRiverNode,SWorld::CreateRiverNode(): Invalid index specified.
+0x005e27a0,SWorld::CreateRiverNode,SWorld::CreateRiverNode(): Invalid nearest river node index specified.
+0x005e2c20,SWorld::CreateRoadNode,SWorld::CreateRoadNode(): Invalid index specified.
+0x005e2c20,SWorld::CreateRoadNode,SWorld::CreateRoadNode(): Invalid nearest road node index specified.
+0x005e2da0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005e2da0,SWorld::CreateUnit,SWorld::CreateUnit: Cannot create stored unit '%s'
+0x005e2da0,SWorld::CreateUnit,SWorld::CreateUnit: Cannot create towed unit '%s'
+0x005e3170,SWorld::CreateUnit,SWorld::CreateUnit(): ScriptID is empty.
+0x005e3170,SWorld::CreateUnit,SWorld::CreateUnit: Unit position is not finite!
+0x005e3660,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005e3990,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005e4870,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005e5580,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005e5700,SWorld::FindEmptySpace,SWorld::FindEmptySpace: Negative pos
+0x005e58d0,SWorld::FindEmptySpace,"SWorld::FindEmptySpace - did not find empty space. Pos: x:%f, z:%f"
+0x005e58d0,SWorld::FindEmptySpace,SWorld::FindEmptySpace: Negative pos
+0x005e63e0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005e65f0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005e65f0,SWorld::FixBridges,SWorld::FixBridges: HeightMapLayer2 is already enabled.
+0x005e69e0,SWorld::GetAreaFiller,SWorld::GetAreaFiller - !AreaFiller
+0x005e70e0,SWorld::GetGlobalAStar,SWorld::GetGlobalAStar - !GlobalAStar
+0x005e7110,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005e74e0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005e7960,SWorld::GetLocalAStar,SWorld::GetLocalAStar - !GlobalAStar
+0x005e7990,SWorld::GetNearestPathNode,SWorld::GetNearestPathNode: Invalid path
+0x005e98e0,SWorld::GetPositionOnRoad,SWorld::GetPositionOnRoad(): Invalid index specified.
+0x005e98e0,SWorld::GetPositionOnRoad,SWorld::GetPositionOnRoad(): Road is not tesselated.
+0x005e9e50,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005eb9f0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ebac0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ebee0,SWorld::GetTriggerVariableLongName,SWorld::GetTriggerVariableLongName(): Invalid special variable index.
+0x005ebee0,SWorld::GetTriggerVariableLongName,SWorld::GetTriggerVariableLongName(): Invalid variable index.
+0x005ec0c0,SWorld::GetTriggerVariableShortName,SWorld::GetTriggerVariableShortName(): Invalid special variable index.
+0x005ec0c0,SWorld::GetTriggerVariableShortName,SWorld::GetTriggerVariableShortName(): Invalid variable index.
+0x005ec2a0,SWorld::GetTriggerVariableValue,SWorld::GetTriggerVariableValue(): Invalid special variable index.
+0x005ec2a0,SWorld::GetTriggerVariableValue,SWorld::GetTriggerVariableValue(): Invalid variable index.
+0x005ec5b0,SEditorWorld::GetWeather,SEditorWorld::GetWeather(): Invalid index.
+0x005ec840,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ec840,SWorld::IncreaseUnitXP,SWorld::IncreaseUnitXP nincs attacker 
+0x005eca50,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ecdf0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ecdf0,SString::operator,SString::operator[]: invalid index (%d)
+0x005ecdf0,SWorld::InitFlyingFox,SWorld::InitFlyingFox(): Invalid wire-point.
+0x005ee040,SDoodad::Initialize,SDoodad::Initialize: Couldn't load object: %s
+0x005ee040,SWorld::Initialize,SWorld::Initialize: Couldn't load object: %s
+0x005eec90,SWorld::Initialize,SWorld::Initialize: %d doodads
+0x005ef440,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ef660,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ef6d0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005ef760,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005f1680,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005f1680,SWWirePoint::Load,SWWirePoint::Load(): MeshIdx < 0
+0x005f1680,SWWirePoint::Load,SWWirePoint::Load(): UnitIdx < 0
+0x005f1680,SWWirePoint::Load,SWWirePoint::Load(): UnitScriptID is empty.
+0x005f1860,SWeather::Load,SWeather::Load: Invalid lite array size.
+0x005f1f6a,SWorld::Load,SWorld::Load: Error loading status stream: %s
+0x005f3820,SHeapTRB::Remove,SHeapTRB::Remove: invalid index (%d)
+0x005f3820,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005f3d60,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005f3d60,SWorld::LoadWires,SWorld::LoadWires(): MeshIdx < 0
+0x005f3d60,SWorld::LoadWires,SWorld::LoadWires(): UnitIdx == -1
+0x005f3d60,SWorld::LoadWires,SWorld::LoadWires(): UnitType != CLASSTYPE_BUILDING
+0x005f3d60,SWorld::LoadWires,SWorld::LoadWires(): WirePointIdx < 0
+0x005f5000,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005f57f0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005f5970,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005f5c70,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005f6bf0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005f6bf0,SWorld::RefreshFlyingFox,SWorld::RefreshFlyingFox(): Invalid flyingfox truck unit.
+0x005f7920,SHeapTRB::Remove,SHeapTRB::Remove: invalid index (%d)
+0x005f7af0,SWorld::RemoveDWire,SWorld::RemoveDWire(): Invalid index specified.
+0x005f7f10,SWorld::RemoveRiver,SWorld::RemoveRiver(): Invalid index specified.
+0x005f7f60,SWorld::RemoveRoad,SWorld::RemoveRoad(): Invalid index specified.
+0x005f7fa0,SWorld::RemoveRoadJunction,SWorld::RemoveRoadJunction(): Invalid index specified.
+0x005f7fe0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005f8060,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005f8200,SWorld::RemoveWire,SWorld::RemoveWire(): Invalid index specified.
+0x005fa9a0,SGameLogic::SGameLogic,SGameLogic::SGameLogic: Invalid coordinates %d %d
+0x005fafe3,SWorld::Save,SWorld::Save: Error saving status stream: %s
+0x005fb440,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005fb630,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005fb810,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005fc050,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005fc5b0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005fc860,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005fcb10,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005fcd10,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005fd030,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005fd2f0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005fdaf0,SWorld::SetDefaultWeather,SWorld::SetDefaultWeather: Invalid index.
+0x005fdfd0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005fe0e0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005fec80,SWorld::SetTriggerVariableValue,SWorld::SetTriggerVariableValue(): Invalid special variable index.
+0x005fec80,SWorld::SetTriggerVariableValue,SWorld::SetTriggerVariableValue(): Invalid variable index.
+0x005fee00,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x005fee00,SWorld::ShowUnitRange,SWorld::ShowUnitRange: Internal error (j(%d) != NumMaxRangeShaders(%d))
+0x005ffc10,SWorld::RemoveWire,SWorld::RemoveWire(): Invalid index specified.
+0x005fff20,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00600f90,SWorld::UnfixBridges,SWorld::UnfixBridges: HeightMapLayer2 is not enabled.
+0x00601060,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00604620,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00605930,SWorld::UpdateDWire,SWorld::UpdateDWire(): Invalid index specified.
+0x00607d60,SWorld::UpdateRiver,SWorld::UpdateRiver(): Invalid index specified.
+0x00607df0,SWorld::UpdateRoad,SWorld::UpdateRoad(): Invalid index specified.
+0x00607eb0,SWorld::UpdateRoadJunction,SWorld::UpdateRoadJunction(): Invalid index (%d) specified.
+0x00607f50,SWorld::UpdateSpeech,SWorld::UpdateSpeech(): Concert is NULL.
+0x00608600,SWorld::UpdateWaterMap,SWorld::UpdateWaterMap(): WaterMap or HeightMap is NULL.
+0x00608f40,SWorld::UpdateWire,SWorld::UpdateWire(): Invalid index specified.
+0x006090e0,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00609760,SGameWorld::InitCameraSpline,SGameWorld::InitCameraSpline
+0x00609760,SGameWorld::InitCameraSpline,SGameWorld::InitCameraSpline: cannot open rec file: %s
+0x0060af20,SChatRoomMenu::Create,SChatRoomMenu::Create() - Beginning of Create().
+0x0060af20,SChatRoomMenu::Create,SChatRoomMenu::Create() - End of Create().
+0x0060af20,SChatRoomMenu::Create,PE export ?Create@SChatRoomMenu@@QAEXXZ
+0x0060c320,SList::Delete,SList::Delete: no current item
+0x0060c3b0,SChatRoomMenu::IsMap,PE export ?IsMap@SChatRoomMenu@@AAE_NPBD@Z
+0x0060c3b0,SChatRoomMenu::LoadMiniMap,SChatRoomMenu::LoadMiniMap -> Can't open %s map file.
+0x0060c4cc,SChatRoomMenu::LoadMiniMap,SChatRoomMenu::LoadMiniMap. Map loading error: %s
+0x0060c500,SChatRoomMenu::LoadArmyNames,SChatRoomMenu::LoadArmyNames
+0x0060cb83,SChatRoomMenu::LoadArmyNames,SChatRoomMenu::LoadArmyNames: Error loading army: %s
+0x0060cc90,SChatRoomMenu::LoadCurrentArmy,SChatRoomMenu::LoadCurrentArmy
+0x0060cfae,SChatRoomMenu::LoadCurrentArmy,SChatRoomMenu::LoadCurrentArmy: Error loading army: %s
+0x0060d010,SChatRoomMenu::LoadGamesSpyDeckArmy,SChatRoomMenu::LoadGamesSpyDeckArmy()
+0x0060d338,SChatRoomMenu::LoadGamesSpyDeckArmy,SChatRoomMenu::LoadGamesSpyDeckArmy(): Error loading army: %s
+0x0060d3b0,SChatRoomMenu::LoadMiniMap,SChatRoomMenu::LoadMiniMap -> Can't open %s map file.
+0x0060d62b,SChatRoomMenu::LoadMiniMap,SChatRoomMenu::LoadMiniMap. Map loading error: %s
+0x0060d6b0,ChatRoomMenu::PlayerNameDropList,ChatRoomMenu::PlayerNameDropList
+0x0060f6e0,SChatRoomMenu::OnAction,SChatRoomMenu::OnAction() Menu problem
+0x0060fa50,SList::operator,SList::operator->: no current item
+0x00611b90,SGameSpyListBox::operator,SGameSpyListBox::operator[]: Invalid index
+0x00612190,SGameSpyListBox::GetGameName,SGameSpyListBox::GetGameName: Invalid index
+0x00612220,SGameSpyListBox::GetMaxPlayers,SGameSpyListBox::GetMaxPlayers: Invalid index
+0x00613e70,SGameSpyPlayerListBox::GetColor,SGameSpyPlayerListBox::GetColor: Invalid index
+0x00613ed0,SGameSpyPlayerListBox::GetFlags,SGameSpyPlayerListBox::GetFlags: Invalid index
+0x00615390,SGameSpyStagingRoom::Create,SGameSpyStagingRoom::Create() - Beginning of Create().
+0x00615390,SGameSpyStagingRoom::Create,SGameSpyStagingRoom::Create() - End of Create().
+0x006169d0,SGameSpyTitleRoom::Create,SGameSpyTitleRoom::Create() - Beginning of Create().
+0x00619c90,SGameView::Create,SGameView::Create: end %f
+0x00619c90,SGameView::Create,SGameView::Create: start %f
+0x0061e500,SGameView::CreateSubViewports,SGameView::CreateSubViewports: Subports have already been created!
+0x0061e680,SGameView::DestroySubViewports,SGameView::DestroySubViewports: Not all subports have been destroyed!
+0x006201c0,SGameView::LoadMap,SGameView::LoadMap() Campaing == NULL
+0x00625d80,SGameView::SetPanelMode,SGameView::SetPanelMode: No SubViewports
+0x00626690,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00626c40,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00628430,SHeapTRB::operator,SHeapTRB::operator[]: invalid index (%d)
+0x00628430,SList::Delete,SList::Delete: no current item
+0x00628430,SList::operator,SList::operator->: no current item
+0x0062ec90,SHelpMenu::Create,SHelpMenu::Create
+0x00639000,SScenarioMenu::Create,SScenarioMenu::Create() - Invalid filename: %s
+0x0063a700,STopListMenu::DisplayStat,PE export ?DisplayStat@STopListMenu@@AAEXXZ
+0x0063b2d0,SSingleMenu::LoadScenarioMenu,PE export ?LoadScenarioMenu@SSingleMenu@@AAEXXZ
+0x0063b560,SMainCreditMenu::NextPicture,PE export ?NextPicture@SMainCreditMenu@@AAEXXZ
+0x0063e260,STopListMenu::RefreshMissionListbox,PE export ?RefreshMissionListbox@STopListMenu@@AAEXXZ
+0x006407d0,SMarket::Create,SMarket::Create: Ez az egyeg elfogveszni
+0x006407d0,SMarket::Create,SMarket::Create: Subports have already been created!
+0x00644c10,SMarketListBox::GetColor,SMarketListBox::GetColor: Invalid index
+0x00644c70,SMarketListBox::GetFileName,SMarketListBox::GetFileName: Invalid index
+0x00644d00,SMarketListBox::GetItemData,SMarketListBox::GetItemData: Invalid index
+0x00644d40,SMarketListBox::GetPrice,SMarketListBox::GetPrice: Invalid index
+0x00644e60,SMarketListBox::GetText,SMarketListBox::GetText: Invalid index
+0x006450c0,SMarket::LoadUnitInfo,SMarket::LoadUnitInfo() Nincs member
+0x006450c0,SMarket::LoadUnitInfo,SMarket::LoadUnitInfo: %s has an equipment it shouldn't have!
+0x006492d0,SMarketListBox::GetItemData,SMarketListBox::GetItemData: Invalid index
+0x0064a180,SMarket::SaveArmy,SMarket::SaveArmy
+0x0064a497,SMarket::SaveArmy,SMarket::SaveArmy: Error saving army file. %s
+0x0064a625,SMarket::SaveArmy,SMarket::SaveArmy: Error saving army file. %s
+0x0064a8ce,SMarket::SaveArmy,SMarket::SaveArmy: Error saving army file. %s
+0x0064a950,SMarketListBox::GetItemData,SMarketListBox::GetItemData: Invalid index
+0x0064ae40,SMarketListBox::SetColor,SMarketListBox::SetColor: Invalid index
+0x0064aeb0,SMarketListBox::SetFileName,SMarketListBox::SetFileName: Invalid index
+0x0064af00,SMarketListBox::GetItemData,SMarketListBox::GetItemData: Invalid index
+0x0064b110,SMarketListBox::GetPrice,SMarketListBox::GetPrice: Invalid index
+0x0064b2d0,SMarketListBox::SetText,SMarketListBox::SetText: Invalid index
+0x0064b380,SList::Delete,SList::Delete: no current item
+0x0064b380,SList::operator,SList::operator->: no current item
+0x0064b940,SMarketListBox::GetPrice,SMarketListBox::GetPrice: Invalid index
+0x0064b940,SMarketListBox::SetColor,SMarketListBox::SetColor: Invalid index
+0x0064d390,SSettings::CHECKCDKEY,PE export ?CHECKCDKEY@SSettings@@QAE_NPBD@Z
+0x0064d390,SString::operator,SString::operator[]: invalid index (%d)
+0x0064d950,SString::operator,SString::operator[]: invalid index (%d)
+0x0064e090,SString::operator,SString::operator[]: invalid index (%d)
+0x0064e330,SSettings::Initalize,SSettings::Initalize() %s
+0x0064fdd0,SString::operator,SString::operator[]: invalid index (%d)
+0x00652cc9,SOptions::WriteOptionsIni,SOptions::WriteOptionsIni. %s
+0x00653250,SSkirmishChatRoomMenu::Create,SSkirmishChatRoomMenu::Create() - Beginning of Create().
+0x00653250,SSkirmishChatRoomMenu::Create,SSkirmishChatRoomMenu::Create() - End of Create().
+0x00653250,SSkirmishChatRoomMenu::Create,PE export ?Create@SSkirmishChatRoomMenu@@QAEXXZ
+0x00653ee0,SChatRoomMenu::LoadMiniMap,SChatRoomMenu::LoadMiniMap -> Can't open %s map file.
+0x00653ee0,SSkirmishChatRoomMenu::IsMap,PE export ?IsMap@SSkirmishChatRoomMenu@@QAE_NPBD@Z
+0x00653ffc,SChatRoomMenu::LoadMiniMap,SChatRoomMenu::LoadMiniMap. Map loading error: %s
+0x00654030,SSkirmishChatRoomMenu::LoadArmyNames,SSkirmishChatRoomMenu::LoadArmyNames
+0x006546a6,SSkirmishChatRoomMenu::LoadArmyNames,SSkirmishChatRoomMenu::LoadArmyNames: Error loading army: %s
+0x006547b0,SSkirmishChatRoomMenu::LoadCurrentArmy,SSkirmishChatRoomMenu::LoadCurrentArmy
+0x00654ad0,SSkirmishChatRoomMenu::LoadCurrentArmy,SSkirmishChatRoomMenu::LoadCurrentArmy: Error loading army: %s
+0x00654b30,SChatRoomMenu::LoadMiniMap,SChatRoomMenu::LoadMiniMap -> Can't open %s map file.
+0x00654dab,SChatRoomMenu::LoadMiniMap,SChatRoomMenu::LoadMiniMap. Map loading error: %s
+0x00654df0,SkirmishChatRoomMenu::PlayerNameDropList,SkirmishChatRoomMenu::PlayerNameDropList
+0x00656d50,SSuperWindow::SSuperWindow,SSuperWindow::SSuperWindow: %s was not found
+0x00656d50,SSuperWindow::SSuperWindow,SSuperWindow::SSuperWindow: Not found home path in %s
+0x00657460,SSuperWindow::ConnectToHostFromCommandLine,SSuperWindow::ConnectToHostFromCommandLine END
+0x00657460,SSuperWindow::ConnectToHostFromCommandLine,SSuperWindow::ConnectToHostFromCommandLine START
+0x006576f0,SSuperWindow::CreateHostFromCommandLine,SSuperWindow::CreateHostFromCommandLine END
+0x006576f0,SSuperWindow::CreateHostFromCommandLine,SSuperWindow::CreateHostFromCommandLine START
+0x00657910,SSuperWindow::Create,SSuperWindow::Create: Bad font handle.
+0x00657910,SSuperWindow::Initialize,PE export ?Initialize@SSuperWindow@@AAEXXZ
+0x00657ef0,SSuperWindow::LoadBinkVideo,SSuperWindow::LoadBinkVideo: BinkBufferOpen() failed.
+0x00657ef0,SSuperWindow::LoadBinkVideo,SSuperWindow::LoadBinkVideo: BinkBufferSetScale() failed.
+0x00657ef0,SSuperWindow::LoadBinkVideo,SSuperWindow::LoadBinkVideo: BinkOpen(%s) failed.
+0x00658050,SSuperWindow::LoadChatRoomView,SSuperWindow::LoadChatRoomView: releasing scene
+0x00658160,SSuperWindow::LoadGameSpyStagingRoom,SSuperWindow::LoadGameSpyStagingRoom END
+0x00658160,SSuperWindow::LoadGameSpyStagingRoom,SSuperWindow::LoadGameSpyStagingRoom START
+0x00658230,SSuperWindow::LoadGameSpyTitleRoom,SSuperWindow::LoadGameSpyTitleRoom END
+0x00658230,SSuperWindow::LoadGameSpyTitleRoom,SSuperWindow::LoadGameSpyTitleRoom START
+0x00658300,SSuperWindow::LoadMainCreditMenu,SSuperWindow::LoadMainCreditMenu: releasing scene
+0x006583e0,SSuperWindow::LoadMainMenu,SSuperWindow::LoadMainMenu: releasing scene
+0x00658500,SSuperWindow::LoadMainOptionsMenu,SSuperWindow::LoadMainOptionsMenu END
+0x00658500,SSuperWindow::LoadMainOptionsMenu,SSuperWindow::LoadMainOptionsMenu START
+0x00658500,SSuperWindow::SMainOptionsMenuMenu,SSuperWindow::SMainOptionsMenuMenu: releasing scene
+0x00658a30,SSuperWindow::LoadMultiPreMenu,SSuperWindow::LoadMultiPreMenu END
+0x00658a30,SSuperWindow::LoadMultiPreMenu,SSuperWindow::LoadMultiPreMenu START
+0x00658a30,SSuperWindow::SMultiPreMenuMenu,SSuperWindow::SMultiPreMenuMenu: releasing scene
+0x00658b10,SSuperWindow::LoadNextCampaignView,SSuperWindow::LoadNextCampaignView: Campaign unitialized
+0x00658e70,SSuperWindow::LoadSkirmishChatRoomView,SSuperWindow::LoadSkirmishChatRoomView: releasing scene
+0x00659250,SSuperWindow::OnAction,GV_ ... SSuperWindow::OnAction()
+0x00659250,SSuperWindow::OnAction,GV_GAMEOVER ... SSuperWindow::OnAction()
+0x00659250,SSuperWindow::OnAction,SSuperWindow::OnAction - unknow CAMPAIGN_SAVEGAMETYPE
+0x00659250,SSuperWindow::OnAction,SSuperWindow::OnAction() GV_ERROR : What is?
+0x00659250,SSuperWindow::OnAction,SSuperWindow::OnAction: Map loaded
+0x00659250,SSuperWindow::OnAction,SSuperWindow::OnAction: releasing scene
+0x0065b470,SSuperWindow::Play,SSuperWindow::Play() - Invalid CD Key
+0x0065c070,SVersion::GetVersionString,PE export ?GetVersionString@SVersion@@QAE?AVSString@@H@Z
+0x0065c470,SLogger::SLogger,SLogger::SLogger: Open failed: %s
+0x0065d3b0,SStack::Peek,SStack::Peek: stack is empty
+0x0065d3f0,SStack::Peek,SStack::Peek: stack is empty
+0x0065d430,SStack::Peek,SStack::Peek: stack is empty
+0x0065d460,SStack::Pop,SStack::Pop: stack is empty
+0x0065db10,SStack::Pop,SStack::Pop: stack is empty
+0x0065e360,SFileSystem::CopyFile,SFileSystem::CopyFile
+0x0065ee70,SFileSystem::LookupArchive,SFileSystem::LookupArchive: Invalid parameters
+0x0065f0a0,SFileSystem::OpenAppend,SFileSystem::OpenAppend: Couldn't open (%s): %s
+0x0065f1e0,SFileSystem::OpenArchive,SFileSystem::OpenArchive: %s: Not a 'PACK' file
+0x0065f1e0,SFileSystem::OpenArchive,SFileSystem::OpenArchive: %s: Not a Stormregion file
+0x0065f1e0,SFileSystem::OpenArchive,SFileSystem::OpenArchive: %s: Read error
+0x0065f1e0,SFileSystem::OpenArchive,SFileSystem::OpenArchive: Couldn't open (%s)
+0x0065f7a0,SFileSystem::OpenWrite,SFileSystem::OpenWrite: Couldn't open (%s): %s
+0x0065fe80,SProperties::Load,SProperties::Load
+0x006601c0,SProperties::FindSection,SProperties::FindSection: '%s': Internal error
+0x006602c0,SProperties::FindVariable,SProperties::FindVariable: '%s': Internal error
+0x006607d0,SProperties::Load,SProperties::Load
+0x00660840,SProperties::ParseFileData,SProperties::ParseFileData: '%s': Dublicate variable (%s::%s)
+0x00660840,SProperties::ParseFileData,SProperties::ParseFileData: '%s': Duplicate section (%s)
+0x00660840,SProperties::ParseFileData,SProperties::ParseFileData: '%s': Empty section name
+0x00660840,SProperties::ParseFileData,SProperties::ParseFileData: '%s': Empty variable name
+0x00660840,SProperties::ParseFileData,"SProperties::ParseFileData: '%s': SyntaxError, garbage after section name"
+0x00660840,SProperties::ParseFileData,"SProperties::ParseFileData: '%s': SyntaxError, missing '='"
+0x00660840,SProperties::ParseFileData,"SProperties::ParseFileData: '%s': SyntaxError, missing ']'"
+0x00660840,SProperties::ParseFileData,SProperties::ParseFileData: '%s': Variable without section definition
+0x006616b0,STimer::AdvanceManualTimer,STimer::AdvanceManualTimer: Manual timer is not enabled.
+0x00661700,SStack::Pop,SStack::Pop: stack is empty
+0x00661700,STimer::EndPeriod,STimer::EndPeriod no matching StartPeriod
+0x00661770,SStack::Pop,SStack::Pop: stack is empty
+0x00661770,STimer::EndPeriod,STimer::EndPeriod no matching StartPeriod
+0x00661f90,SPPropertyColor::SPPropertyColor,SPPropertyColor::SPPropertyColor(): Invalid initial default value.
+0x006621e0,SPPropertyExpr::SPPropertyExpr,SPPropertyExpr::SPPropertyExpr(): Invalid initial default value.
+0x006621e0,SPPropertyExpr::SPPropertyExpr,SPPropertyExpr::SPPropertyExpr(): Invalid initial range values.
+0x00662330,SPPropertyFloat::SPPropertyFloat,SPPropertyFloat::SPPropertyFloat(): Invalid initial default value.
+0x00662330,SPPropertyFloat::SPPropertyFloat,SPPropertyFloat::SPPropertyFloat(): Invalid initial range values.
+0x00662430,SPPropertyInt::SPPropertyInt,SPPropertyInt::SPPropertyInt(): Invalid initial default value.
+0x00662430,SPPropertyInt::SPPropertyInt,SPPropertyInt::SPPropertyInt(): Invalid initial range values.
+0x00662520,SPPropertyMulti::SPPropertyMulti,SPPropertyMulti::SPPropertyMulti(): Invalid property-tree. PROPERTY_TYPE_MULTI properties should only contain PROPERTY_TYPE_STRUCT properies...
+0x00664960,SPProperty::CreateInstance,SPProperty::CreateInstance(): Invalid instance type.
+0x00665370,SPropertyStruct::GetArrayItem,SPropertyStruct::GetArrayItem(): Invalid array property index.
+0x00665370,SPropertyTrack::GetArraySize,SPropertyTrack::GetArraySize(): Invalid property-tree.
+0x006654a0,SPropertyTrack::GetArraySize,SPropertyTrack::GetArraySize(): Invalid property-tree.
+0x00665560,SPropertyStruct::GetBool,SPropertyStruct::GetBool(): Invalid property-tree.
+0x00665610,SPropertyStruct::GetBool,SPropertyStruct::GetBool(): Invalid property-tree.
+0x006656d0,SPropertyStruct::GetColor,SPropertyStruct::GetColor(): Invalid property-tree.
+0x00665780,SPropertyStruct::GetColor,SPropertyStruct::GetColor(): Invalid property-tree.
+0x006658a0,SPropertyStruct::GetEnum,SPropertyStruct::GetEnum(): Invalid property-tree.
+0x00665950,SPropertyStruct::GetEnum,SPropertyStruct::GetEnum(): Invalid property-tree.
+0x00665a70,SPropertyStruct::GetExpr,SPropertyStruct::GetExpr(): Invalid property-tree.
+0x00665b50,SPropertyStruct::GetFloat,SPropertyStruct::GetFloat(): Invalid property-tree.
+0x00665c00,SPropertyStruct::GetFloat,SPropertyStruct::GetFloat(): Invalid property-tree.
+0x00665d30,SPropertyEnum::GetIndex,SPropertyEnum::GetIndex(): Invalid value.
+0x00665da0,SPropertyStruct::GetInt,SPropertyStruct::GetInt(): Invalid property-tree.
+0x00665e50,SPropertyStruct::GetInt,SPropertyStruct::GetInt(): Invalid property-tree.
+0x00665f10,SPropertyStruct::GetMultiIndex,SPropertyStruct::GetMultiIndex(): Invalid property-tree.
+0x00665fc0,SPropertyStruct::GetMultiIndex,SPropertyStruct::GetMultiIndex(): Invalid property-tree.
+0x00666080,SPropertyStruct::GetMultiSubStruct,SPropertyStruct::GetMultiSubStruct(): Invalid property-tree.
+0x00666190,SPropertyStruct::GetMultiSubStruct,SPropertyStruct::GetMultiSubStruct(): Invalid property-tree.
+0x006662a0,SPropertyStruct::GetString,SPropertyStruct::GetString(): Invalid property-tree.
+0x00666360,SPropertyStruct::GetString,SPropertyStruct::GetString(): Invalid property-tree.
+0x00666430,SPropertyStruct::GetStruct,SPropertyStruct::GetStruct(): Invalid property-tree.
+0x006664e0,SPropertyStruct::GetStruct,SPropertyStruct::GetStruct(): Invalid property-tree.
+0x00666590,SPropertyTrack::GetTrack,SPropertyTrack::GetTrack(): Invalid property-tree.
+0x00666640,SPropertyTrack::GetTrack,SPropertyTrack::GetTrack(): Invalid property-tree.
+0x006666f0,SPropertyArray::Load,SPropertyArray::Load(): Invalid sub-property index...
+0x00667cf0,SPropertyTrack::GetTrackFloat,SPropertyTrack::GetTrackFloat(): Invalid property-tree.
+0x00668c80,SPropertyTrack::SetTrackFloat,SPropertyTrack::SetTrackFloat(): Invalid property-tree.
+0x00668dd0,SPropertyStruct::SetBool,SPropertyStruct::SetBool(): Invalid property-tree.
+0x00668ea0,SPropertyStruct::SetColor,SPropertyStruct::SetColor(): Invalid property-tree.
+0x00669160,SPropertyStruct::SetEnum,SPropertyStruct::SetEnum(): Invalid property-tree.
+0x00669310,SPropertyStruct::SetFloat,SPropertyStruct::SetFloat(): Invalid property-tree.
+0x00669410,SPropertyEnum::SetIndex,SPropertyEnum::SetIndex(): Invalid index.
+0x006694c0,SPropertyStruct::SetInt,SPropertyStruct::SetInt(): Invalid property-tree.
+0x00669900,SPropertyStruct::SetString,SPropertyStruct::SetString(): Invalid property-tree.
+0x00669d60,SBitmap::BitBlt,SBitmap::BitBlt: Invalid alignment for compressed format
+0x00669d60,SBitmap::BitBlt,SBitmap::BitBlt: Unsupported conversion
+0x0066a1a0,SBitmap::Blend,SBitmap::Blend: Only 32 bit bitmap can be converted
+0x0066a1a0,SBitmap::Blend,SBitmap::Blend: Source size doesn't match
+0x0066e300,SBitmap::Blur,SBitmap::Blur: Only 32 bit bitmap can be converted
+0x0066e990,SBitmap::InitPixelFormat,SBitmap::InitPixelFormat: Bitmap format unsupported
+0x0066ed10,SBitmap::MakeAlphaFromGrayscale,SBitmap::MakeAlphaFromGrayscale: Only 32 bit bitmap can be converted
+0x0066ed90,SBitmap::MakeAlphaFromWhite,SBitmap::MakeAlphaFromWhite: Only 32 bit bitmap can be converted
+0x0066ee80,SBitmap::MakeNormalMap,SBitmap::MakeNormalMap: Must be power of 2
+0x0066ee80,SBitmap::MakeNormalMap,SBitmap::MakeNormalMap: Unsupported conversion
+0x0066f100,SBitmap::NextMipLevel,SBitmap::NextMipLevel: 1x1 Bitmap cannot be shrinked
+0x0066f100,SBitmap::NextMipLevel,SBitmap::NextMipLevel: Bitmap size is unsupported (%d x %d)
+0x0066f100,SBitmap::NextMipLevel,SBitmap::NextMipLevel: Unsupported format
+0x0066f8c0,SBitmap::Rotate,SBitmap::Rotate: Bitmap must be square
+0x0066f8c0,SBitmap::Rotate,SBitmap::Rotate: Bitmap should be 32 bit
+0x0066fa80,SBitmap::SaveTGA,SBitmap::SaveTGA: Bitmap format unsupported
+0x00671420,STrackPositionIndependent::STrackPositionIndependent,STrackPositionIndependent::STrackPositionIndependent: Invalid sub-controller
+0x006716d0,STrackRotationEuler::STrackRotationEuler,STrackRotationEuler::STrackRotationEuler: Invalid sub-controller
+0x00676c20,SGepard::SGepard,SGepard::SGepard:  Duplicate Gepard creation
+0x006771d0,SGepard::~SGepard,SGepard::~SGepard: %d VertexDeclarations leaked on shutdown
+0x006771d0,SGepard::~SGepard,SGepard::~SGepard: %d scenes are leaked on shutdown
+0x006771d0,SGepard::~SGepard,SGepard::~SGepard: Deleted instead of release
+0x006771d0,SGepard::~SGepard,SGepard::~SGepard: DynamicVBFormats leaked on shutdown (Quantity: %d)
+0x006771d0,SGepard::~SGepard,SGepard::~SGepard: Leaked %d textures
+0x006771d0,SGepard::~SGepard,SGepard::~SGepard: Leaked texture (%s)
+0x006771d0,SGepard::~SGepard,SGepard::~SGepard: ViewportStack leaked on shutdown
+0x006771d0,SGepard::~SGepard,SGepard::~SGepard: Viewports leaked on shutdown
+0x00677a40,SString::operator,SString::operator[]: invalid index (%d)
+0x00677f90,SGepard::AdvanceDynamicIB,SGepard::AdvanceDynamicIB: Buffer is locked.
+0x00677fc0,SGepard::AdvanceDynamicVB,SGepard::AdvanceDynamicVB: Buffer is locked.
+0x006786c0,SGepard::CreateDynamicIB,SGepard::CreateDynamicIB: CreateIndexBuffer failed
+0x00678730,SGepard::CreateDynamicVB,SGepard::CreateDynamicVB: CreateIndexBuffer failed
+0x006787a0,SGepard::CreateDynamicVBFormat,SGepard::CreateDynamicVBFormat: Unsupported FVF
+0x00678890,SGepard::CreateEmptyTexture,SGepard::CreateEmptyTexture: %d: Depth unsupported
+0x00678890,SGepard::CreateEmptyTexture,SGepard::CreateEmptyTexture: (%d x %d): Height must be power of 2
+0x00678890,SGepard::CreateEmptyTexture,SGepard::CreateEmptyTexture: (%d x %d): Width must be power of 2
+0x00678890,SGepard::CreateEmptyTexture,SGepard::CreateEmptyTexture: CreateTexture
+0x00678d50,SMesh::CreatePixelShader,SMesh::CreatePixelShader: Error assembling Pixel shader: %s
+0x00678e60,SGepard::CreatePixelShader,SGepard::CreatePixelShader: CreatePixelShader failed
+0x00678e60,SGepard::CreatePixelShader,SGepard::CreatePixelShader: Invalid id: %d
+0x00678fa0,SGepard::CreateShadowTexture,SGepard::CreateShadowTexture: (%d x %d): Height must be power of 2
+0x00678fa0,SGepard::CreateShadowTexture,SGepard::CreateShadowTexture: (%d x %d): Width must be power of 2
+0x00678fa0,SGepard::CreateShadowTexture,SGepard::CreateShadowTexture: CreateTexture
+0x00679150,SGepard::CreateTextureFromBitmap,SGepard::CreateTextureFromBitmap: %s: Bitmap format unsupported
+0x00679150,SGepard::CreateTextureFromBitmap,SGepard::CreateTextureFromBitmap: %s: Height must be power of 2
+0x00679150,SGepard::CreateTextureFromBitmap,SGepard::CreateTextureFromBitmap: %s: Width must be power of 2
+0x00679150,SGepard::CreateTextureFromBitmap,SGepard::CreateTextureFromBitmap: CreateTexture
+0x00679770,SGepard::CreateTextureFromDXT,SGepard::CreateTextureFromDXT
+0x00679770,SGepard::CreateTextureFromDXT,SGepard::CreateTextureFromDXT: CreateTexture '%s'
+0x00679cd6,SGepard::CreateTextureFromDXT,SGepard::CreateTextureFromDXT: Error loading %s: %s
+0x00679d00,SGepard::CreateVertexDeclaration,SGepard::CreateVertexDeclaration: CreateVertexDeclaration failed
+0x00679da0,SMesh::CreateVertexShader,SMesh::CreateVertexShader: Error assembling vertex shader: %s
+0x00679eb0,SGepard::CreateVertexShader,SGepard::CreateVertexShader: CreateVertexShader failed
+0x00679eb0,SGepard::CreateVertexShader,SGepard::CreateVertexShader: Invalid id: %d
+0x00679f20,SGepard::DestroyAnimPrototypes,SGepard::DestroyAnimPrototypes: Leaked %d anim prototypes.
+0x0067a160,SGepard::DestroyModelPrototypes,SGepard::DestroyModelPrototypes: Leaked %d model prototypes.
+0x0067a490,SGepard::DrawDynamicVB,SGepard::DrawDynamicVB: Buffer is locked.
+0x0067a550,SGepard::DrawDynamicVBIB,SGepard::DrawDynamicVBIB: IB is locked.
+0x0067a550,SGepard::DrawDynamicVBIB,SGepard::DrawDynamicVBIB: VB is locked.
+0x0067a650,SGepard::DrawIndexedDynamicVB,SGepard::DrawIndexedDynamicVB: Buffer is locked.
+0x0067a7d0,SGepard::GetCap,SGepard::GetCap: Invalid cap %d
+0x0067a800,SGepard::GetCardInfo,SGepard::GetCardInfo: Card supports non-power-of-2 textures
+0x0067a800,SGepard::GetCardInfo,SGepard::GetCardInfo: Disabling non-power-of-2 textures with buggy nVidia drivers!
+0x0067a800,SGepard::GetCardInfo,SGepard::GetCardInfo: Only power-of-2 textures supported
+0x0067c380,SGepard::GetOption,SGepard::GetOption: Invalid option %d
+0x0067cd30,SGepard::InitTextureFormats,SGepard::InitTextureFormats: No texture formats available for 1bit-alpha textures
+0x0067cd30,SGepard::InitTextureFormats,SGepard::InitTextureFormats: No texture formats available for full-alpha textures
+0x0067cd30,SGepard::InitTextureFormats,SGepard::InitTextureFormats: No texture formats available for hi-quality alpha textures
+0x0067cd30,SGepard::InitTextureFormats,SGepard::InitTextureFormats: No texture formats available for hi-quality opaque textures
+0x0067cd30,SGepard::InitTextureFormats,SGepard::InitTextureFormats: No texture formats available for opaque textures
+0x0067d1c0,SGepard::Initialize,SGepard::Initialize: Choosing PS1.4 based shadow buffering.
+0x0067d1c0,SGepard::Initialize,SGepard::Initialize: Choosing PS2.0 based shadow buffering.
+0x0067d1c0,SGepard::Initialize,SGepard::Initialize: Choosing compatible shadow buffering.
+0x0067d1c0,SGepard::Initialize,SGepard::Initialize: Choosing depth texture shadow buffering.
+0x0067d1c0,SGepard::Initialize,SGepard::Initialize: CreateDevice
+0x0067d1c0,SGepard::Initialize,SGepard::Initialize: Detected pixel shader version: %d
+0x0067d1c0,SGepard::Initialize,SGepard::Initialize: Direct3DCreate8 failed
+0x0067d1c0,SGepard::Initialize,SGepard::Initialize: Full screen startup is not currently supported
+0x0067d1c0,SGepard::Initialize,SGepard::Initialize: GetAdapterDisplayMode
+0x0067d1c0,SGepard::Initialize,SGepard::Initialize: GetAdapterIdentifier
+0x0067d1c0,SGepard::Initialize,SGepard::Initialize: GetDeviceCaps
+0x0067d1c0,SGepard::Initialize,SGepard::Initialize: Maximum texture size is too small (%d x %d)
+0x0067d1c0,SGepard::Initialize,SGepard::Initialize: Primary viewport is not the first created
+0x0067ea30,SGepard::LoadTexture,SGepard::LoadTexture: %s: Texture is corrupt
+0x0067ea30,SGepard::LoadTexture,SGepard::LoadTexture: %s: Texture is not found
+0x0067ea30,SString::operator,SString::operator[]: invalid index (%d)
+0x0067efc0,SGepard::LockDynamicIB,SGepard::LockDynamicIB: Already locked.
+0x0067efc0,SGepard::LockDynamicIB,SGepard::LockDynamicIB: IDirect3DIndexBuffer8::Lock
+0x0067efc0,SGepard::LockDynamicIB,SGepard::LockDynamicIB: IndexBuffer is too small.
+0x0067f080,SGepard::LockDynamicIB,SGepard::LockDynamicIB: Already locked.
+0x0067f080,SGepard::LockDynamicIB,SGepard::LockDynamicIB: IDirect3DIndexBuffer8::Lock
+0x0067f080,SGepard::LockDynamicIB,SGepard::LockDynamicIB: IndexBuffer is too small.
+0x0067f150,SGepard::LockDynamicVB,SGepard::LockDynamicVB: Already locked.
+0x0067f150,SGepard::LockDynamicVB,SGepard::LockDynamicVB: Bad index (%d).
+0x0067f150,SGepard::LockDynamicVB,SGepard::LockDynamicVB: IDirect3DVertexBuffer8::Lock
+0x0067f150,SGepard::LockDynamicVB,SGepard::LockDynamicVB: VertexBuffer is too small.
+0x0067f270,SGepard::LockDynamicVB,SGepard::LockDynamicVB: Already locked.
+0x0067f270,SGepard::LockDynamicVB,SGepard::LockDynamicVB: Bad index (%d).
+0x0067f270,SGepard::LockDynamicVB,SGepard::LockDynamicVB: IDirect3DVertexBuffer8::Lock
+0x0067f270,SGepard::LockDynamicVB,SGepard::LockDynamicVB: VertexBuffer is too small.
+0x0067f4b0,SGepard::RegisterTexture,SGepard::RegisterTexture: GetLevelDesc failed
+0x0067f800,SGepard::ReloadTexture,SGepard::ReloadTexture: Index mismatch
+0x0067f800,SGepard::ReloadTexture,SGepard::ReloadTexture: Reload failed
+0x0067fde0,SGepard::CreateDynamicIB,SGepard::CreateDynamicIB: CreateIndexBuffer failed
+0x0067fde0,SGepard::CreateDynamicVB,SGepard::CreateDynamicVB: CreateIndexBuffer failed
+0x0067fde0,SGepard::ResetDevice,SGepard::ResetDevice: Reset failed
+0x00680620,SGepard::SetLights,SGepard::SetLights: Unsupported light type
+0x00680910,SGepard::SetOption,SGepard::SetOption: Invalid option %d
+0x00680ac0,SGepard::SetPixelShader,SGepard::SetPixelShader: SetPixelShader failed
+0x00680ac0,SGepard::SetPixelShader,SGepard::SetPixelShader: invalid index
+0x00680e80,SGepard::SetVertexDeclaration,SGepard::SetVertexDeclaration: SetFVF failed
+0x00680e80,SGepard::SetVertexDeclaration,SGepard::SetVertexDeclaration: SetVertexDeclaration failed
+0x00680e80,SGepard::SetVertexDeclaration,SGepard::SetVertexDeclaration: invalid index
+0x00680f40,SGepard::SetVertexShader,SGepard::SetVertexShader: SetVertexShader failed
+0x00680f40,SGepard::SetVertexShader,SGepard::SetVertexShader: invalid index
+0x00681010,SGepard::SwitchModelPrototypeNodes,SGepard::SwitchModelPrototypeNodes: One of the nodes has a parent
+0x00681010,SGepard::SwitchModelPrototypeNodes,SGepard::SwitchModelPrototypeNodes: node1 >= node2
+0x00681400,SGepard::UnlockDynamicIB,SGepard::UnlockDynamicIB: Not locked.
+0x00681440,SGepard::UnlockDynamicVB,SGepard::UnlockDynamicVB: Not locked.
+0x006814b0,SGepard::UnselectViewport,SGepard::UnselectViewport: called without SelectViewport
+0x006814b0,SStack::Pop,SStack::Pop: stack is empty
+0x00681540,SGepard::UpdateTexture,SGepard::UpdateTexture: Invalid texture
+0x00681630,SGepard::UpdateTextureFromBitmap,SGepard::UpdateTextureFromBitmap: Invalid texture index %d.
+0x00681710,SConcert::Concert,SConcert::Concert: CreateSoundBuffer failed
+0x00681710,SConcert::Concert,SConcert::Concert: DirectSoundCreate failed
+0x00681710,SConcert::Concert,SConcert::Concert: No directx compatible soundcard found
+0x00681710,SConcert::Concert,SConcert::Concert: QueryInterface failed
+0x00681710,SConcert::Concert,SConcert::Concert: SetCooperativeLevel failed
+0x00681710,SConcert::SConcert,SConcert::SConcert: Duplicate Concert creation
+0x00681b80,SConcert::~SConcert,SConcert::~SConcert: Deleted instead of release
+0x00681b80,SConcert::~SConcert,SConcert::~SConcert: Sounds leaked on shutdown
+0x00682110,SConcert::CreateSound,SConcert::CreateSound: SetMinDistance failed
+0x00682110,SConcert::CreateSound,SConcert::CreateSound: SetPosition failed
+0x006822e0,SConcert::CreateSound,SConcert::CreateSound: SetPan failed
+0x006822e0,SConcert::CreateSound,SConcert::CreateSound: SetVolume failed
+0x00682630,SConcert::GetDigitalDriver,SConcert::GetDigitalDriver()
+0x00682670,SWave::LoadMP3,SWave::LoadMP3: Sample too short
+0x00682d50,SConcert::PlaySound,SConcert::PlaySound: SetMinDistance failed
+0x00682d50,SConcert::PlaySound,SConcert::PlaySound: SetPosition failed
+0x00682eb0,SConcert::PlaySound,SConcert::PlaySound: SetPan failed
+0x00682eb0,SConcert::PlaySound,SConcert::PlaySound: SetVolume failed
+0x00683200,SConcert::CreateSoundFromWave,SConcert::CreateSoundFromWave: Buffer size mismatch
+0x00683200,SConcert::CreateSoundFromWave,SConcert::CreateSoundFromWave: CreateSoundBuffer failed
+0x00683200,SConcert::CreateSoundFromWave,SConcert::CreateSoundFromWave: Lock failed
+0x00683200,SConcert::CreateSoundFromWave,SConcert::CreateSoundFromWave: Unlock failed
+0x00683200,SConcert::PrecacheSound,SConcert::PrecacheSound: unknown file type: %s
+0x00683c10,SConcert::SetSoundVolume,SConcert::SetSoundVolume: SetVolume failed
+0x00683ce0,SConcert::SetVolume,SConcert::SetVolume: SetMinDistance failed
+0x00683ce0,SConcert::SetVolume,SConcert::SetVolume: SetVolume failed
+0x00683ff0,SConcert::SpawnSound,SConcert::SpawnSound: DuplicateSoundBuffer failed
+0x00683ff0,SConcert::SpawnSound,SConcert::SpawnSound: QueryInterface failed
+0x00684220,SConcert::Update,SConcert::Update: GetStatus failed
+0x00684300,SMilesConcert::SMilesConcert,SMilesConcert::SMilesConcert() finished succesfully.
+0x00684300,SMilesConcert::SMilesConcert,SMilesConcert::SMilesConcert(): 3D sound provider (%s) initialization failed: %s.
+0x00684300,SMilesConcert::SMilesConcert,SMilesConcert::SMilesConcert(): 3D sound provider (Miles Fast 2D Positional Audio) initialization failed: %s.
+0x00684300,SMilesConcert::SMilesConcert,SMilesConcert::SMilesConcert(): Concert already exists
+0x00684300,SMilesConcert::SMilesConcert,SMilesConcert::SMilesConcert(): Digital driver initialization failed: %s.
+0x00684300,SMilesConcert::SMilesConcert,SMilesConcert::SMilesConcert(): Enumerating 3D sound providers:
+0x00684300,SMilesConcert::SMilesConcert,SMilesConcert::SMilesConcert(): Listener initialization failed.
+0x00684300,SMilesConcert::SMilesConcert,SMilesConcert::SMilesConcert(): Miles Sound System version %s
+0x006848b0,SMilesConcert::~SMilesConcert,SMilesConcert::~SMilesConcert(): Deleted instead of release.
+0x00684df0,SMilesConcert::StartStreamingPlayback,SMilesConcert::StartStreamingPlayback(): Playing '%s'...
+0x00684df0,SMilesConcert::StartStreamingPlayback,SMilesConcert::StartStreamingPlayback(): Stream initialization failed.
+0x00686220,SMilesConcert::PrecacheSound,"SMilesConcert::PrecacheSound(): Can't load ""%s""."
+0x00686220,SMilesConcert::PrecacheSound,"SMilesConcert::PrecacheSound(): Load failed: ""%s""."
+0x00686220,SMilesConcert::PrecacheSound,"SMilesConcert::PrecacheSound(): Unknown file type: """"."
+0x00686960,SMilesConcert::SMilesConcert,SMilesConcert::SMilesConcert(): 3D sound provider (%s) initialization failed: %s.
+0x00686960,SMilesConcert::SMilesConcert,SMilesConcert::SMilesConcert(): 3D sound provider (Miles Fast 2D Positional Audio) initialization failed: %s.
+0x00686960,SMilesConcert::SMilesConcert,SMilesConcert::SMilesConcert(): Listener initialization failed.
+0x00687300,SMilesConcert::SpawnSound,SMilesConcert::SpawnSound(): Can't load '%s': %s
+0x006874f0,SMilesConcert::StartStreamingPlayback,SMilesConcert::StartStreamingPlayback(): Miles_DigitalDriver is NULL.
+0x006874f0,SMilesConcert::StartStreamingPlayback,SMilesConcert::StartStreamingPlayback(): Playlist is empty.
+0x00687550,SMilesConcert::StopStreamingPlayback,SMilesConcert::StopStreamingPlayback(): Fadeout not supported.
+0x006893e0,SViewport::~SViewport,SViewport::~SViewport: Viewport deleted before its child!
+0x00689710,SViewport::AllocOffscreenBuffers,SViewport::AllocOffscreenBuffers: CreateDepthStencilSurface failed
+0x00689710,SViewport::AllocOffscreenBuffers,SViewport::AllocOffscreenBuffers: CreateDepthStencilTexture failed
+0x00689710,SViewport::AllocOffscreenBuffers,SViewport::AllocOffscreenBuffers: CreateRenderTargetTexture failed
+0x00689710,SViewport::AllocOffscreenBuffers,SViewport::AllocOffscreenBuffers: GetSurfaceLevel
+0x00689710,SViewport::CreateSurface,SViewport::CreateSurface: CreateRenderTarget failed
+0x00689d50,SViewport::ChooseDepthStencilFormat,SViewport::ChooseDepthStencilFormat: Stecil-buffer is not available
+0x00689f10,SViewport::Clear,SViewport::Clear: Clear failed
+0x0068ab40,SViewport::SelectSubport,SViewport::SelectSubport: Invalid sub viewport index: %d
+0x0068ada0,SViewport::CreateWindowedViewport,SViewport::CreateWindowedViewport: CreateAdditionalSwapChain
+0x0068ada0,SViewport::CreateWindowedViewport,SViewport::CreateWindowedViewport: CreateDevice
+0x0068b0f0,SViewport::SelectSubport,SViewport::SelectSubport: Invalid sub viewport index: %d
+0x0068b5b0,SViewport::FrontBufferScreenshot,SViewport::FrontBufferScreenshot: CreateOffscreenPlainSurface failed
+0x0068bfe0,SViewport::Present,SViewport::Present: GetSwapChain failed
+0x0068c220,SViewport::Clear,SViewport::Clear: Clear failed
+0x0068c220,SViewport::Render,SViewport::Render\IDirect3DDevice::BeginScene
+0x0068c220,SViewport::Render,SViewport::Render\IDirect3DDevice::EndScene
+0x0068c4e0,Gepard::ResetDevice,FPU control word (after Gepard::ResetDevice): 0x%04X
+0x0068c4e0,Gepard::ResetDevice,FPU control word (before Gepard::ResetDevice): 0x%04X
+0x0068c4e0,SViewport::Resize,SViewport::Resize: Not yet implemented for secondary windows
+0x0068c770,SViewport::Select,SViewport::Select: Invalid call for subports.
+0x0068c770,SViewport::Select,SViewport::Select: SetDepthStencilSurface failed
+0x0068c770,SViewport::Select,SViewport::Select: SetRenderTarget failed
+0x0068c8e0,SViewport::SelectSubport,SViewport::SelectSubport: Invalid sub viewport index: %d
+0x0068ca00,SViewport::SetFullScreenMode,SViewport::SetFullScreenMode: Invalid call for offscreen viewport
+0x0068ca00,SViewport::SetFullScreenMode,SViewport::SetFullScreenMode: Not yet implemented for secondary windows
+0x0068d0d0,SViewport::SetPosition,SViewport::SetPosition(): Invalid ViewportMode.
+0x0068d6d0,SViewport::SetWindowedMode,SViewport::SetWindowedMode: Invalid call for offscreen viewport
+0x0068e100,SViewport::Unselect,SViewport::Unselect: GetDepthStencilSurface failed
+0x0068e100,SViewport::Unselect,SViewport::Unselect: GetRenderTarget failed
+0x0068e100,SViewport::Unselect,SViewport::Unselect: Invalid call for subports.
+0x0068e440,SPAnim::~SPAnim,SPAnim::~SPAnim: Deleted anim prototype with nonzero reference-count: %s
+0x0068e4c0,SPModel::~SPModel,SPModel::~SPModel: Deleted model prototype with nonzero reference-count: %s
+0x006912b0,SPModel::Load4DFile,SPModel::Load4DFile: Couldn't open %s
+0x006912b0,SPModel::Load4DFile,SPModel::Load4DFile: Expected sequence descriptor
+0x006912b0,SPModel::Load4DFile,SPModel::Load4DFile: Loading 4D Scene file: %s
+0x006912b0,SPModel::Load4DFile,SPModel::Load4DFile: Too many indices
+0x006912b0,SPModel::Load4DFile,SPModel::Load4DFile: Too many vertices
+0x006912b0,SPModel::Load4DFile,SPModel::Load4DFile: Unknown vertex format
+0x006912b0,SString::operator,SString::operator[]: invalid index (%d)
+0x00692cd3,SPModel::Load4DFile,SPModel::Load4DFile: Error loading %s: %s
+0x00692d10,SPAnim::LoadAnimFile,SPAnim::LoadAnimFile
+0x00693163,SPAnim::LoadAnimFile,SPAnim::LoadAnimFile: Error loading %s: %s
+0x00693190,SPModel::LoadGeoFile,SPModel::LoadGeoFile: %s: unknown geometry type.
+0x00693190,SPModel::LoadGeoFile,SPModel::LoadGeoFile: not the 1st mesh
+0x00693550,SPModel::LoadSequences,SPModel::LoadSequences: Expected sequence controller descriptor
+0x00693550,SPModel::LoadSequences,SPModel::LoadSequences: Expected sequence descriptor
+0x00693550,SPModel::LoadSequences,SPModel::LoadSequences: Node '%s' not found in animation
+0x00693f20,SPAnim::Release,SPAnim::Release: Anim prototype has 0 reference
+0x00693f40,SPModel::Release,SPModel::Release: Model prototype has 0 reference
+0x006941e0,SPixie::SPixie,SPixie::SPixie(): PProperty_Effects is not NULL (effect-prototype tree already exists).
+0x006941e0,SPixie::SPixie,SPixie::SPixie: Duplicate Pixie creation
+0x0069cb90,SPixie::~SPixie,SPixie::~SPixie(): Deleted instead of release.
+0x0069cb90,SPixie::~SPixie,"SPixie::~SPixie(): Leaked effect prototype: ""%s"""
+0x0069d660,SPEffect::Init,SPEffect::Init(): Method not implemented.
+0x0069d680,SPEffect::Init,SPEffect::Init(): Method not implemented.
+0x0069d6a0,SPixie::InitEffectPrototype,SPixie::InitEffectPrototype(): Invalid effect prototype property.
+0x0069dc80,SPixie::LoadEffectPrototype,SPixie::LoadEffectPrototype(): TimeStamp mismatch.
+0x0069e5a0,SPixie::RefreshEffectPrototype,SPixie::RefreshEffectPrototype(): Effect property-tree is NULL.
+0x0069f710,SPixie::UnregisterEffect,SPixie::UnregisterEffect(): Invalid index specified.
+0x006a0440,SScene::DestroyLight,SScene::DestroyLight: Invalid light idx (%d)
+0x006a0440,SScene::~SScene,SScene::~SScene
+0x006a0440,SScene::~SScene,SScene::~SScene: Deleted instead of release
+0x006a0440,SScene::~SScene,SScene::~SScene: GroundTrails leaked on shutdown
+0x006a0440,SScene::~SScene,SScene::~SScene: SmokeTrails leaked on shutdown
+0x006a7940,SScene::CreateLake,SScene::CreateLake: Buffer overrun
+0x006a89d0,SScene::CreateModel,SScene::CreateModel: Invalid prototype index
+0x006a8bc0,SScene::CreateModel,SScene::CreateModel: Invalid prototype index
+0x006aa890,SScene::DestroyLight,SScene::DestroyLight: Invalid light idx (%d)
+0x006aac20,SScene::GenerateShadowBuffer,SScene::GenerateShadowBuffer\IDirect3DDevice::BeginScene
+0x006aac20,SScene::GenerateShadowBuffer,SScene::GenerateShadowBuffer\IDirect3DDevice::EndScene
+0x006b7760,SScene::RenderScene,SScene::RenderScene\IDirect3DDevice::BeginScene
+0x006b7760,SScene::RenderScene,SScene::RenderScene\IDirect3DDevice::EndScene
+0x006b7b30,SScene::RenderSmokeTrails,SScene::RenderSmokeTrails: Structure is damaged
+0x006b8b10,SScene::RenderWires,SScene::RenderWires(): vertidx > sum_numvertices
+0x006ba810,SScene::ReplaceModel,SScene::ReplaceModel: Invalid prototype index
+0x006bab60,SScene::SetLightColor,SScene::SetLightColor: Invalid light idx (%d)
+0x006babe0,SScene::SetLightDirection,SScene::SetLightDirection: Invalid light idx (%d)
+0x006baca0,SScene::SetLightPosition,SScene::SetLightPosition: Invalid light idx (%d)
+0x006c05d0,SScene::UpdateWire,SScene::UpdateWire(): Invalid index specified.
+0x006c0b40,SScene::UpdateWire,SScene::UpdateWire(): Invalid index specified.
+0x006c0e50,SSurfaceBitmap::SSurfaceBitmap,SSurfaceBitmap::SSurfaceBitmap: LockRect
+0x006c0f20,STextureBitmap::STextureBitmap,STextureBitmap::STextureBitmap: LockRect
+0x006c1660,SAnimation::NextFrame,SAnimation::NextFrame: Code buffer overrun
+0x006c1660,SAnimation::NextFrame,SAnimation::NextFrame: Data buffer overrun
+0x006c1660,SAnimation::NextFrame,SAnimation::NextFrame: Invalid code
+0x006c18e0,SMpegAudioDecoder::SMpegAudioDecoder,SMpegAudioDecoder::SMpegAudioDecoder: MpegAudioPrecalculate was not called.
+0x006c1980,SMpegAudioDecoder::DecodeFrame,SMpegAudioDecoder::DecodeFrame: Layer type not supported.
+0x006c1af0,SStreamingPlayer::SStreamingPlayer,SStreamingPlayer::SStreamingPlayer: Invalid playlist
+0x006c1c90,SStreamingPlayer::DataCallback,SStreamingPlayer::DataCallback: Playback parameter changed during stream!!!
+0x006c1c90,SStreamingPlayer::DataCallback,SStreamingPlayer::DataCallback: num_saples changed (%d -> %d)
+0x006c1fd0,SStreamingPlayer::PlaybackThread,SStreamingPlayer::PlaybackThread: Buffer size mismatch
+0x006c1fd0,SStreamingPlayer::PlaybackThread,SStreamingPlayer::PlaybackThread: CreateSoundBuffer failed
+0x006c1fd0,SStreamingPlayer::PlaybackThread,SStreamingPlayer::PlaybackThread: Lock failed
+0x006c1fd0,SStreamingPlayer::PlaybackThread,SStreamingPlayer::PlaybackThread: Play failed
+0x006c1fd0,SStreamingPlayer::PlaybackThread,SStreamingPlayer::PlaybackThread: SetVolume failed
+0x006c1fd0,SStreamingPlayer::PlaybackThread,SStreamingPlayer::PlaybackThread: Unlock failed
+0x006c2500,SBoard::SBoard,SBoard::SBoard: CreateOffscreenPlainSurface failed
+0x006c2500,SBoard::SBoard,SBoard::SBoard: Duplicate Board creation
+0x006c2500,SBoard::SetHardwareMouseCursor,SBoard::SetHardwareMouseCursor: Enabled
+0x006c2960,SBoard::~SBoard,SBoard::~SBoard: %d frames leaked on shutdown.
+0x006c2960,SBoard::~SBoard,SBoard::~SBoard: Deleted instead of release
+0x006c2f80,SBoard::SetText,SBoard::SetText: Invalid font idx
+0x006c2f80,SString::operator,SString::operator[]: invalid index (%d)
+0x006c3ab0,SBoard::CreateFrame,SBoard::CreateFrame: Parent id (%d) is not valid.
+0x006c3e30,SBoard::CreateTextBitmap,SBoard::CreateTextBitmap() ::SetTextColor == CLR_INVALID
+0x006c3e30,SBoard::CreateTextBitmap,SBoard::CreateTextBitmap() CreateDIBSection == NULL
+0x006c3e30,SBoard::CreateTextBitmap,SBoard::CreateTextBitmap() DeleteObject() == NULL
+0x006c3e30,SBoard::CreateTextBitmap,SBoard::CreateTextBitmap() GetTextExtentPoint32 == NULL
+0x006c3e30,SBoard::CreateTextBitmap,SBoard::CreateTextBitmap() GetTextMetrics == NULL
+0x006c3e30,SBoard::CreateTextBitmap,SBoard::CreateTextBitmap() SelectObject == NULL
+0x006c3e30,SBoard::CreateTextBitmap,SBoard::CreateTextBitmap() SetBkColor == CLR_INVALID
+0x006c3e30,SBoard::CreateTextBitmap,SBoard::CreateTextBitmap() SetBkMode == NULL
+0x006c3e30,SBoard::CreateTextBitmap,SBoard::CreateTextBitmap() TextOut == NULL
+0x006c4930,SBoard::CreateTrueTypeFont,SBoard::CreateTrueTypeFont() Bitmap font is not present %d
+0x006c4930,SBoard::CreateTrueTypeFont,SBoard::CreateTrueTypeFont() GetTextMetrics == NULL
+0x006c4930,SBoard::CreateTrueTypeFont,SBoard::CreateTrueTypeFont() Hdc == NULL
+0x006c4930,SBoard::CreateTrueTypeFont,SBoard::CreateTrueTypeFont() Invalid font name
+0x006c4930,SBoard::CreateTrueTypeFont,SBoard::CreateTrueTypeFont() SelectObject == NULL
+0x006c4c50,SBoard::DestroyFrame,SBoard::DestroyFrame: Frame structure is damaged
+0x006c5260,SBoard::GetFontHeight,SBoard::GetFontHeight: Invalid font index
+0x006c5260,SBoard::SetText,SBoard::SetText: Invalid font idx
+0x006c5430,SBoard::GetText,SBoard::GetText: Not a text frame
+0x006c5530,SBoard::GetTextExtent,SBoard::GetTextExtent: Invalid font index
+0x006c5530,SBoard::SetText,SBoard::SetText: Invalid font idx
+0x006c5960,SBoard::SetAnim,SBoard::SetAnim: Not an anim frame
+0x006c59e0,SBoard::LoadCursorSet,SBoard::LoadCursorSet
+0x006c5ad0,SBoard::LoadCustomFont,SBoard::LoadCustomFont
+0x006c5de0,SBoard::LoadFixedFont,SBoard::LoadFixedFont
+0x006c5de0,SBoard::LoadFixedFont,SBoard::LoadFixedFont: %s: Too few glyphs in the bitmap
+0x006c61a0,SBoard::LoadFontFileFont,SBoard::LoadFontFileFont
+0x006c65e8,SBoard::LoadFontFileFont,SBoard::LoadFontFileFont: Error loading %s: %s
+0x006c6620,SBoard::LoadProportionalFont,SBoard::LoadProportionalFont
+0x006c6620,SBoard::LoadProportionalFont,SBoard::LoadProportionalFont: %s: Bitmap format unsupported
+0x006c6620,SBoard::LoadProportionalFont,SBoard::LoadProportionalFont: %s: Too few glyphs in the bitmap
+0x006c6cf0,SBoard::LoadSingleFont,SBoard::LoadSingleFont
+0x006c7150,BSMaterial::SetTexture,BSMaterial::SetTexture: Invalid texture index: %d
+0x006c7150,SStack::Pop,SStack::Pop: stack is empty
+0x006caa60,SBoard::SetBoxColor,SBoard::SetBoxColor: Not a box frame
+0x006cab60,SBoard::SetHardwareMouseCursor,SBoard::SetHardwareMouseCursor: Disabled
+0x006cab60,SBoard::SetHardwareMouseCursor,SBoard::SetHardwareMouseCursor: Enabled
+0x006caca0,SBoard::SetMinimapGlyph,SBoard::SetMinimapGlyph: Not a Minimap frame
+0x006caf00,SBoard::SetSpriteGlyph,SBoard::SetSpriteGlyph: Not a sprite frame
+0x006cb130,SBoard::SetText,SBoard::SetText: Invalid font idx
+0x006cb130,SBoard::SetText,SBoard::SetText: Not a text frame
+0x006cb730,SBoard::SetTextColor,SBoard::SetTextColor: Not a text frame
+0x006cb880,SBoard::SetAnim,SBoard::SetAnim
+0x006cb880,SBoard::SetAnim,SBoard::SetAnim: Not an anim frame
+0x006cbbe0,SBoard::SetAnim,SBoard::SetAnim: Not an anim frame
+0x006cc9b0,SMaterial::GetTexture,SMaterial::GetTexture: Invalid texture index: %d
+0x006ccdc0,SMesh::~SMesh,SMesh::~SMesh: Locked mesh is deleted
+0x006cd070,SMesh::CreateIndexBuffer,SMesh::CreateIndexBuffer: CreateIndexBuffer failed
+0x006cd1f0,SMesh::CreateVertexBuffer,SMesh::CreateVertexBuffer: CreateVertexBuffer failed
+0x006cd290,SMesh::CreateVertexBuffer,SMesh::CreateVertexBuffer: Invalid vertex type no XYZ.
+0x006cd290,SMesh::CreateVertexBuffer,SMesh::CreateVertexBuffer: Invalid vertex type.
+0x006cd890,SMesh::Draw,SMesh::Draw: Materials is NULL
+0x006cd890,SMesh::Draw,SMesh::Draw: SetStreamSource failed
+0x006cd890,SMesh::Draw,SMesh::Draw: pIndexBuffer is NULL
+0x006cd890,SMesh::Draw,SMesh::Draw: pVertexBuffer is NULL
+0x006cdb70,SMesh::Draw,SMesh::Draw: SetStreamSource failed
+0x006cdb70,SMesh::DrawShadow,SMesh::DrawShadow: Materials is NULL
+0x006cdb70,SMesh::DrawShadow,SMesh::DrawShadow: pIndexBuffer is NULL
+0x006cdb70,SMesh::DrawShadow,SMesh::DrawShadow: pVertexBuffer is NULL
+0x006ce6a0,SMesh::Draw,SMesh::Draw: SetStreamSource failed
+0x006ce6a0,SMesh::Draw,SMesh::Draw: pIndexBuffer is NULL
+0x006ce6a0,SMesh::Draw,SMesh::Draw: pVertexBuffer is NULL
+0x006ce790,SMesh::GetFaces,SMesh::GetFaces: Index buffer is not locked
+0x006ce790,SMesh::GetFaces,SMesh::GetFaces: No index buffer
+0x006ceda0,SAnimesh::CreateVertexBuffer,SAnimesh::CreateVertexBuffer: CreateVertexBuffer failed
+0x006ceda0,SAnimesh::CreateVertexBuffer,SAnimesh::CreateVertexBuffer: Unsupported vertex type
+0x006cef00,SMesh::Draw,SMesh::Draw: SetStreamSource failed
+0x006cf140,SMesh::Draw,SMesh::Draw: SetStreamSource failed
+0x006cf500,SMesh::Draw,SMesh::Draw: SetStreamSource failed
+0x006cf9c0,SMesh::Draw,SMesh::Draw: SetStreamSource failed
+0x006cfe00,SMesh::Draw,SMesh::Draw: SetStreamSource failed
+0x006d0400,SMesh::Draw,SMesh::Draw: SetStreamSource failed
+0x006d0d30,SSkinnedMesh::CreateVertexBuffer,SSkinnedMesh::CreateVertexBuffer: CreateVertexBuffer failed
+0x006d0d30,SSkinnedMesh::CreateVertexBuffer,SSkinnedMesh::CreateVertexBuffer: Unsupported vertex type
+0x006d0e30,SMesh::Draw,SMesh::Draw: SetStreamSource failed
+0x006d2200,SMesh::Draw,SMesh::Draw: SetStreamSource failed
+0x006d37b0,SCollisionBSPTree::Load,SCollisionBSPTree::Load: Too many BSP nodes
+0x006d37b0,SCollisionBSPTree::Load,SCollisionBSPTree::Load: Unsupported BSP tree format
+0x006d3950,SCollisionConvexPoly::Load,SCollisionConvexPoly::Load: Too many indices
+0x006d3950,SCollisionConvexPoly::Load,SCollisionConvexPoly::Load: Too many vertices
+0x006d3950,SCollisionConvexPoly::Load,SCollisionConvexPoly::Load: Unsupported polygon type
+0x006d3950,SCollisionConvexPoly::Load,SCollisionConvexPoly::Load: Unsupported vertex type
+0x006d3be0,SCollisionAABB::TestLineSection,SCollisionAABB::TestLineSection: not implemented
+0x006d3c70,SCollisionConvexPoly::TestLineSection,SCollisionConvexPoly::TestLineSection: not implemented
+0x006d50c0,SModel::~SModel,SModel::~SModel: Object deleted instead of release
+0x006d5940,SModel::AttachChild,SModel::AttachChild: Invalid node index
+0x006d7340,SModel::DetachChild,SModel::DetachChild: Child was not attached
+0x006d7340,SModel::DetachChild,SModel::DetachChild: Invalid node index
+0x006d7f70,SModel::GetSequenceIndex,SModel::GetSequenceIndex: Internal error
+0x006d82b0,SModel::Initialize,SModel::Initialize: Incompatible low-poly model (frame count doesn't match)
+0x006d82b0,SModel::Initialize,SModel::Initialize: Incompatible low-poly model (node count doesn't match)
+0x006d82b0,SModel::Initialize,SModel::Initialize: Incompatible low-poly model (sequence count doesn't match)
+0x006d82b0,SModel::Initialize,SModel::Initialize: Incompatible low-poly model (sequence type doesn't match)
+0x006d8830,SModel::Render,SModel::Render: Too many bones (%d)
+0x006d9570,SModel::RenderShadow,SModel::RenderShadow: Too many bones (%d)
+0x006dba80,SModel::Update,SModel::Update: Light type is not yet implemented
+0x006df690,SEffectSet::UnregisterEffect,SEffectSet::UnregisterEffect(): Invalid index specified.
+0x006dfc60,SPFlare::Init,"SPFlare::Init(): Can't load texture ""effects/media/%s"" for effect ""%s""."
+0x006dfc60,SPFlare::Init,"SPFlare::Init(): No texture specified for effect ""%s""."
+0x006dfc60,SPFlare::Init,SPFlare::Init(): Pixie->FlareDynamicVB is NULL.
+0x006e3e90,SGepard::GetCosinusValue,SGepard::GetCosinusValue: invalid degree
+0x006e5eb0,SPParticles::Init,SPParticles::Init(): FIXME Invalid effect version...
+0x006e6890,SPParticles::Init,SPParticles::Init: Cannot load %s
+0x006e6890,SPParticles::Init,SPParticles::Init: Nem lett textura megadva!
+0x006e6890,SPParticles::Init,"SPParticles::Init: cannot load texture ""%s"""
+0x006e6890,SString::operator,SString::operator[]: invalid index (%d)
+0x006ea3c0,SPDecalEffect::Init,"SPDecalEffect::Init(): Can't load texture ""effects/media/%s"" for effect ""%s""."
+0x006ea3c0,SPDecalEffect::Init,"SPDecalEffect::Init(): No texture specified for effect ""%s""."
+0x006eac50,SPRain::Init,"SPRain::Init(): Can't load texture ""effects/media/%s"" for effect ""%s""."
+0x006eac50,SPRain::Init,"SPRain::Init(): No texture specified for effect ""%s""."
+0x006eac50,SPRain::Init,SPRain::Init(): Unable to create dynamic vertex-buffer.
+0x006ebb20,SPSnowfall::Init,"SPSnowfall::Init(): Can't load texture ""effects/media/%s"" for effect ""%s""."
+0x006ebb20,SPSnowfall::Init,"SPSnowfall::Init(): No texture specified for effect ""%s""."
+0x006ebb20,SPSnowfall::Init,SPSnowfall::Init(): Unable to create dynamic vertex-buffer.
+0x006eef30,SPSandstorm::Init,"SPSandstorm::Init(): Can't load texture ""effects/media/%s"" for effect ""%s""."
+0x006eef30,SPSandstorm::Init,"SPSandstorm::Init(): No texture specified for effect ""%s""."
+0x006eef30,SPSandstorm::Init,SPSandstorm::Init(): Unable to create dynamic vertex-buffer.
+0x006efde0,STerrain::STerrain,STerrain::STerrain: Plane should be multiple of parcels (%dx%d)
+0x006f5740,STerrain::LoadSketchTexture,STerrain::LoadSketchTexture()
+0x006f7810,STerrain::RenderRoads,STerrain::RenderRoads(): RoadJunctions[%d].Parcels[%d]: No vertices...
+0x006f7810,STerrain::RenderRoads,STerrain::RenderRoads(): Roads[%d].Parcels[%d]: No vertices...
+0x006f95b0,STerrain::UpdateRoad,STerrain::UpdateRoad(): Invalid index specified.
+0x006f95b0,STerrain::UpdateRoad,STerrain::UpdateRoad(): Unable to generate texture coords.
+0x006f95b0,STerrain::UpdateRoad,STerrain::UpdateRoad(): too many indices...
+0x006f95b0,STerrain::UpdateRoad,STerrain::UpdateRoad(): too many vertices...
+0x00704d10,SDecodeBuffer::Close,SDecodeBuffer::Close: HeadBlock locked.
+0x00704d30,SDecodeBuffer::LockHeadBlock,SDecodeBuffer::LockHeadBlock: HeadBlock already locked.
+0x00704d80,SDecodeBuffer::LockTailBlock,SDecodeBuffer::LockTailBlock: TailBlock already locked.
+0x00704df0,SDecodeBuffer::UnlockHeadBlock,SDecodeBuffer::UnlockHeadBlock: HeadBlock was not locked.
+0x00704e30,SDecodeBuffer::UnlockTailBlock,SDecodeBuffer::UnlockTailBlock: TailBlock was not locked.
+0x007089e0,SParcel2::DrawCompact,SParcel2::DrawCompact: Materials is NULL
+0x007089e0,SParcel2::DrawCompact,SParcel2::DrawCompact: pIndexBuffer is NULL
+0x007089e0,SParcel2::DrawCompact,SParcel2::DrawCompact: pVertexBuffer should be NULL
+0x00708ee0,SParcel::DrawLayered,SParcel::DrawLayered: pIndexBuffer is NULL
+0x00709d20,SBlockMapParcel::DrawParcel,SBlockMapParcel::DrawParcel: pIndexBuffer is NULL
+0x0070a930,SParcel::DrawSketch,SParcel::DrawSketch: pIndexBuffer is NULL
+0x0070b050,SWireframeParcel::DrawWireframe,SWireframeParcel::DrawWireframe: lpIndexBuffer is NULL
+0x0074d100,TcpServer::do_listen,TcpServer::do_listen
+0x0075ff90,RGGameInfoCache::handlePacket,RGGameInfoCache::handlePacket(...) was called with a null pointer. All function arguments have to be valid pointers.
+0x00761360,TransFile::read,TransFile::read - ERROR_DECODE_ROW_FAIL
+0x00761360,TransFile::read,TransFile::read - WReadFail
+0x00761360,TransFile::read,TransFile::read - headerDecodeFail
+0x007618a0,TransFile::save,TransFile::save - failed to write to file :: %s
+0x00761da0,TransFile::decodeSingleRow,TransFile::decodeSingleRow - ldata incorrect size
+0x00764350,File::open,File::open: %ws
+0x007c7290,SConvexPoly::DereferenceEdgeFromFace,SConvexPoly::DereferenceEdgeFromFace: Error
+0x007c7390,SConvexPoly::FillEdges,SConvexPoly::FillEdges: Error
+0x007c7610,SConvexPoly::Intersect,SConvexPoly::Intersect: Error
+0x007c7610,SConvexPoly::Intersect,SConvexPoly::Intersect: Validity failed
+,Clipper::GetClipList,region passed to Clipper::GetClipList is too small.
+,IDirectMusic::SetDirectSound,IDirectMusic::SetDirectSound has already been called. It may not be changed while in use.
+,IDirectMusic::SetDirectSound,The port could not be created because no DirectSound has been specified. Specify a DirectSound interface via the IDirectMusic::SetDirectSound method; pass NULL to have DirectMusic manage usage of DirectSound.
+,IDirectMusicBand::Download,"Return value from IDirectMusicBand::Download() which indicates that some of the instruments safely downloaded, but others failed. This usually occurs when some instruments are on PChannels not supported by the performance or port."
+,IDirectMusicGraph::StampPMsg,"Returned from IDirectMusicGraph::StampPMsg(), this indicates that the PMsg is already stamped with the last tool in the graph. The returned PMsg's tool pointer is now NULL."
+,IDirectMusicPerformance::AllocPMsg,"The DMUS_PMSG was either not allocated by the performance via IDirectMusicPerformance::AllocPMsg(), or it was already freed via IDirectMusicPerformance::FreePMsg()."
+,IDirectMusicPerformance::Init,There is no master clock in the performance. Be sure to call IDirectMusicPerformance::Init().
+,IDirectMusicPerformance::MIDIToMusic,"Returned from IDirectMusicPerformance::MIDIToMusic(),  and IDirectMusicPerformance::MusicToMIDI(), this indicates  that the note conversion generated a note value that is above 127, so it has been bumped down one or more octaves to be in the proper MIDI range of 0 through 127.  Note that this is valid for MIDIToMusic() when using play modes DMUS_PLAYMODE_FIXEDTOCHORD and DMUS_PLAYMODE_FIXEDTOKEY, both of which store MIDI values in wMusicValue. With MusicToMIDI(), it is valid for all play modes. Ofcourse, DMUS_PLAYMODE_FIXED will never return this success code."
+,IDirectMusicPerformance::MIDIToMusic,"Returned from IDirectMusicPerformance::MIDIToMusic(),  and IDirectMusicPerformance::MusicToMIDI(), this indicates  that the note conversion generated a note value that is below 0,  so it has been bumped up one or more octaves to be in the proper MIDI range of 0 through 127.  Note that this is valid for MIDIToMusic() when using play modes DMUS_PLAYMODE_FIXEDTOCHORD and DMUS_PLAYMODE_FIXEDTOKEY, both of which store MIDI values in wMusicValue. With MusicToMIDI(), it is valid for all play modes. Ofcourse, DMUS_PLAYMODE_FIXED will never return this success code."
+,IDirectMusicPerformance::MusicToMIDI,"Returned from IDirectMusicPerformance::MusicToMIDI(), this indicates  that no note has been calculated because the music value has the note  at a position higher than the top note of the chord. This applies only to DMUS_PLAYMODE_NORMALCHORD play mode. This success code indicates that the caller should not do anything with the note. It is not meant to be played against this chord."
+,IDirectMusicPerformance::SendPMsg,The DMUS_PMSG has already been sent to the performance object via IDirectMusicPerformance::SendPMsg().
+,IDirectMusicTool::ProcessPMsg,Return value from IDirectMusicTool::ProcessPMsg() which indicates to the performance that it should cue the PMsg again automatically.
+,IDirectMusicTool::ProcessPMsg,Return value from IDirectMusicTool::ProcessPMsg() which indicates to the performance that it should free the PMsg automatically.
+,IDirectMusicTrack::Play,Return value from IDirectMusicTrack::Play() which indicates to the segment that the track has no more data after mtEnd.
+,IPinFlowControl::Block,IPinFlowControl::Block() has been called on another thread.  The current thread cannot make any assumptions about this pin's block state.
+,IPinFlowControl::Block,This thread has already blocked this output pin.  There is no need to call IPinFlowControl::Block() again.
+,Network::Shutting,Network::Shutting down network
+,SBitmap::CreateWinBitmap,SBitmap::CreateWinBitmap: Only 32 bit bitmap can be converted
+,SCampaign::InitMultiMode,?SCampaign::InitMultiMode: GameMode can only be initialized once.
+,SMpegAudioDecoder::L3_GetSideInfo,?SMpegAudioDecoder::L3_GetSideInfo: Side info bad: block_type == 0 in split block.
+,SPixie::LoadEffectPrototype,(SPixie::LoadEffectPrototype)
+,STimer::STimer,?STimer::STimer: CPU Speed %7.2f MHz
+,SUnit::IsMainGunnerHandToHandGunner,SUnit::IsMainGunnerHandToHandGunner - No MainGunner
