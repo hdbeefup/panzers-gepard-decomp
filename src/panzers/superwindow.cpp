@@ -17,6 +17,7 @@
 #include "settings.h"
 #include "mainmenu.h"
 #include "credits.h"
+#include "optionsmenu.h"
 #include "pzboard.h"
 #include "properties.h"
 #include "stream.h"
@@ -567,11 +568,15 @@ int SSuperWindow::GetFrame()
 bool SSuperWindow::OnAction(SWidget* source, int action, int param)
 {
     (void)source; (void)param;
+    // Options screens: 0x4d4d5 -> LoadMainOptionsMenu 0x658500, 0x4d4f4 back
+    // to the main menu, 0x4f413..0x4f416 / 0x4f564 / 0x4f565 live settings
+    // (optionsmenu.cpp).
+    if (SuperWindowOptionsAction(this, action, param))
+        return true;
     switch (action) {
     case PZA_MAIN_MULTIPLAYER:                     // 0x4d4d2 -> 0x658a30
     case PZA_MAIN_TUTORIAL:                        // 0x4d4d3 -> maps/tutorial.map
     case PZA_MAIN_TRAINING:                        // 0x4d4d4 -> training camp menu
-    case PZA_MAIN_OPTIONS:                         // 0x4d4d5 -> 0x658500 options
     case PZA_MAIN_ALLIED2:                         // 0x4d4d9 -> maps/us-02.map
     case PZA_MAIN_NEWGAME_DONE:                    // 0x4d4d1 -> SPanzersCampaign
         // HD deletes the main menu first for every one of these; the

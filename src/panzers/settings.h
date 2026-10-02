@@ -76,8 +76,8 @@ struct SSettings {
     int           AutoSave;              // 0xe0
     int           FogOfWarView;          // 0xe4
     int           UnitVoice;             // 0xe8
-    int           KeyboardBindings;      // 0xec (stored by 0x64f860)
-    unsigned char _f0[0x04];
+    int           _ec;                   // 0xec (the loader reads "Unit Voice" into 0xe8; nothing writes 0xec)
+    int           KeyboardBindings;      // 0xf0 (SetKeyboardBindings 0x64f860; getter 0x64dfe0)
     int           DynamicText;           // 0xf4
     SString       DynamicCharset;        // 0xf8
     // [Graphics settings]
@@ -121,12 +121,15 @@ struct SSettings {
     SString       LastHostIP;            // 0x17c
     unsigned char _184[0x18];
     SString       RGLogin;               // 0x19c
-    unsigned char _1a4[0x40];            // RG Pass (decoded by 0x64ddb0/0x64d6d0) and the rest
+    SString       RGPass;                // 0x1a4 RG Pass (decoded by 0x64ddb0/0x64d6d0; RankedGaming, not lifted)
+    int           Hotkeys[27];           // 0x1ac..0x214 keys%d.ini [Keyboard bindings] (0x64f860)
 
     // PANZERS 0x64e330 (loader) — see settings.cpp
     void Initialize(int argc, char** argv);
-    // PANZERS 0x64fdd0 (writer) — logged stub for now (see settings.cpp)
-    void Save();
+    // PANZERS 0x64fdd0 (writer) — see settings.cpp
+    bool Save();
+    // PANZERS 0x64f860: KeyboardBindings + keys%d.ini hotkeys
+    void SetKeyboardBindings(int bindings);
 
     const char* GetIniPath() const { return IniPath.buf ? IniPath.buf : ""; }  // 0x64df90
     const char* GetLogDir() const  { return LogDir.buf ? LogDir.buf : ""; }    // 0x64dfb0
@@ -148,6 +151,8 @@ static_assert(offsetof(SSettings, EnableHAL) == 0x14d, "SSettings layout");
 static_assert(offsetof(SSettings, UseMiles) == 0x168, "SSettings layout");
 static_assert(offsetof(SSettings, MilesProvider) == 0x16c, "SSettings layout");
 static_assert(offsetof(SSettings, RGLogin) == 0x19c, "SSettings layout");
+static_assert(offsetof(SSettings, KeyboardBindings) == 0xf0, "SSettings layout (0x64f860 writes +0xf0)");
+static_assert(offsetof(SSettings, Hotkeys) == 0x1ac && sizeof(SSettings) == 0x218, "SSettings layout (0x64f860 writes up to +0x214)");
 static_assert(offsetof(SSettings, StartMultiFromCommandLine) == 0xa8, "SSettings layout");
 
 extern SSettings Settings;   // HD global 0x929cf8

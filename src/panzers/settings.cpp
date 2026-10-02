@@ -6,8 +6,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdarg.h>
+#include <math.h>
 #include "settings.h"
 #include "properties.h"
+#include "stream.h"
 #include "logger.h"
 #include "stub_log.h"
 
@@ -90,7 +93,7 @@ void SSettings::Initialize(int argc, char** argv)
     AutoSave = OptionsIni->GetInt("Game options", "AutoSave", 3);
     FogOfWarView = OptionsIni->GetInt("Game options", "Fog of war view", 1);
     UnitVoice = OptionsIni->GetInt("Game options", "Unit Voice", 2);
-    KeyboardBindings = OptionsIni->GetInt("Game options", "Keyboard Bindings", 0); // via 0x64f860
+    SetKeyboardBindings(OptionsIni->GetInt("Game options", "Keyboard Bindings", 0)); // 0x64f860
     DynamicText = OptionsIni->GetInt("Game options", "DynamicText", 0);
     AssignString(DynamicCharset, OptionsIni->GetString("Game options", "DynamicCharset", ""));
 
@@ -137,8 +140,11 @@ void SSettings::Initialize(int argc, char** argv)
     AssignString(PlayerName, OptionsIni->GetString("Network options", "Player Name", userName));
     AssignString(LastHostIP, OptionsIni->GetString("Network options", "Last host IP", ""));
     AssignString(RGLogin, OptionsIni->GetString("Network options", "RG Login", ""));
-    // "RG Pass" is decoded by 0x64ddb0/0x64d6d0 into the RankedGaming client
-    // state — RankedGaming is out of scope (logged stub, not read here).
+    // "RG Pass" is XOR-decoded by 0x64ddb0/0x64d6d0 (key: the volume serial of
+    // C:\) into +0x1a4. RankedGaming is out of scope: the recompile keeps the
+    // encoded text as read and Save writes it back unchanged (assumed equal
+    // to HD's decode/encode round trip; only an empty pass was tested).
+    AssignString(RGPass, OptionsIni->GetString("Network options", "RG Pass", ""));
 
     // Command line (HD: __argc/__argv, index 1..argc-1).
     for (int i = 1; i < argc; ++i) {
@@ -252,7 +258,159 @@ void SSettings::Initialize(int argc, char** argv)
     }
 }
 
-// PANZERS 0x64fdd0 is the options.ini writer. Writing options.ini is not
-// needed to reach the main menu; it is a logged stub (src/stubs) until the
-// options submenus are lifted. Declared here, defined in
-// src/stubs/stub_panzers.cpp.
+// PANZERS 0x64f860
+// Stores the key-binding scheme (+0xf0) and loads its hotkeys from
+// keys<n>.ini (SProperties 0x65fe80 with exit-on-error) into +0x1ac..+0x214.
+void SSettings::SetKeyboardBindings(int bindings)
+{
+    KeyboardBindings = bindings;
+    char name[32];
+    _snprintf(name, sizeof(name) - 1, "keys%d.ini", bindings);   // Format 0x51ee20
+    name[sizeof(name) - 1] = 0;
+    SProperties keys(name, true);
+    static const char* const kNames[27] = {
+        "Pause", "SpeedNormal", "SpeedDouble", "Paratroops", "Bomber",
+        "FighterBomber", "HeavyArtillery", "ReconPlane", "Stop", "Attack",
+        "Move", "MoveBackward", "Slot1", "Unload", "Slot2", "AttackGround",
+        "Heal", "Support", "Repair", "Tow", "UnTow", "StateNormal",
+        "StateKnee", "StateLay", "BehaviorFreeMove", "BehaviorHoldMove",
+        "BehaviorPassive",
+    };
+    for (int i = 0; i < 27; ++i)
+        Hotkeys[i] = keys.GetInt("Keyboard bindings", kNames[i], 0);   // 0x660500
+}
+
+// Save builds options.ini in one growing buffer. Each "key = value" line is
+// padded with spaces to column 40 (0x28) and followed by its comment string,
+// which carries the line break; lines without a comment get "\r\n".
+namespace {
+struct IniWriter {
+    char* buf = nullptr;
+    int   len = 0;
+    int   cap = 0;
+    void Append(const char* s, int n)
+    {
+        if (len + n + 1 > cap) {
+            cap = (len + n + 1) * 2;
+            buf = (char*)realloc(buf, cap);
+        }
+        memcpy(buf + len, s, n);
+        len += n;
+        buf[len] = 0;
+    }
+    void Append(const char* s) { Append(s, (int)strlen(s)); }
+    // 0x52da80 (format), pad to 0x28, 0x52c4a0/0x52c580 (concat), append
+    void Line(const char* comment, const char* fmt, ...)
+    {
+        char tmp[0x400];
+        va_list ap;
+        va_start(ap, fmt);
+        int n = _vsnprintf(tmp, sizeof(tmp) - 1, fmt, ap);
+        va_end(ap);
+        if (n < 0)
+            n = sizeof(tmp) - 1;
+        tmp[n] = 0;
+        Append(tmp, n);
+        for (int pad = 0x28 - n; pad > 0; --pad)
+            Append(" ", 1);
+        Append(comment);
+    }
+    // Lines appended as formatted, without padding (Miles provider, network).
+    void Raw(const char* fmt, const char* value)
+    {
+        char tmp[0x400];
+        int n = _snprintf(tmp, sizeof(tmp) - 1, fmt, value);
+        if (n < 0)
+            n = sizeof(tmp) - 1;
+        tmp[n] = 0;
+        Append(tmp, n);
+    }
+};
+
+// (speed - base) / 0.002 + 5.0 with _DAT_008043a0 = 0.002, _DAT_00806e18 =
+// 0.025 (mouse), _DAT_007f59e8 = 0.02 (keyboard), DAT_007f5a40 = 5.0; HD
+// stores the float through FISTP (round to nearest).
+int ScrollSpeedToIni(float speed, double base)
+{
+    return (int)lrintf((float)(((double)speed - base) / 0.002 + 5.0));
+}
+
+const char* Str(const SString& s)
+{
+    return s.buf ? s.buf : "";
+}
+} // namespace
+
+// PANZERS 0x64fdd0
+// Writes the whole of options.ini: SFileSystem::OpenWrite 0x65f7a0 with no
+// panic string, stream vtbl +0x0c Write, then delete. Returns false when the
+// file cannot be opened. Key names are HD's own: the writer emits "Unit
+// acknowledgement" and "Keyboard bindings" while the loader reads "Unit
+// Voice" and "Keyboard Bindings", so Unit acknowledgement does not survive a
+// restart in HD either.
+bool SSettings::Save()
+{
+    SStream* f = FileSystem.OpenWrite("options.ini", nullptr);
+    if (!f)
+        return false;
+    IniWriter w;
+    const char* const kOnOff = "; 0 = off, 1 = on\r\n";
+    w.Append("[Game options]\r\n\r\n");
+    w.Line("; 0-10\r\n", "Mouse scroll speed = %d", ScrollSpeedToIni(MouseScrollSpeed, 0.025));
+    w.Line("; 0-10\r\n", "Keyboard scroll speed = %d", ScrollSpeedToIni(KeyboardScrollSpeed, 0.02));
+    w.Line(kOnOff, "Tool tips = %d", ToolTips);
+    w.Line(kOnOff, "OwnIcon = %d", OwnIcon);
+    w.Line(kOnOff, "AlliedIcon = %d", AlliedIcon);
+    w.Line(kOnOff, "EnemyIcon = %d", EnemyIcon);
+    w.Line(kOnOff, "Show tips at startup = %d", ShowTipsAtStartup);
+    w.Line("; 0 = no subtitles, 1 = only in dialogs, 2 = all subtitles\r\n", "Subtitles = %d", Subtitles);
+    w.Line("; 0 = off, 1 = 5 minutes, 2 = 15 minutes, 3 = 30 minutes\r\n", "AutoSave = %d", AutoSave);
+    w.Line("; 0 = off, 1 = normal, 2 = green\r\n", "Fog of war view = %d", FogOfWarView);
+    w.Line("; 0 = off, 1 = no acknowledgement, 2 = all;\r\n", "Unit acknowledgement = %d", UnitVoice);
+    w.Line("; 0 = classic, 1 = cdv\r\n", "Keyboard bindings = %d", KeyboardBindings);
+    w.Line(kOnOff, "DynamicText = %d", DynamicText);
+    w.Line("\r\n\r\n", "DynamicCharset = %s", Str(DynamicCharset));
+    w.Append("[Graphics settings]\r\n\r\n");
+    w.Line("; 0-10\r\n", "Brightness = %d", Brightness);
+    w.Line(kOnOff, "FullScreen = %d", (int)FullScreen);
+    w.Line("\r\n", "FullScreenWidth = %d", FullScreenWidth);
+    w.Line("\r\n", "FullScreenHeight = %d", FullScreenHeight);
+    w.Line("; 16 bit / 32 bit\r\n", "FullScreenBPP = %d", FullScreenBPP);
+    w.Line("; \r\n", "FullScreenRefreshRate = %d", FullScreenRefreshRate);
+    w.Line("; AntiAliasLevel\r\n", "FullScreenAALevel = %d", FullScreenAALevel);
+    w.Line("; AntiAliasQualityLevel\r\n", "FullScreenAAQualityLevel = %d", FullScreenAAQualityLevel);
+    w.Line(kOnOff, "FullScreenVSync = %d", (int)FullScreenVSync);
+    w.Line("\r\n", "WindowWidth = %d", WindowWidth);
+    w.Line("\r\n", "WindowHeight = %d", WindowHeight);
+    w.Line("\r\n", "WindowX = %d", WindowX);
+    w.Line("\r\n", "WindowY = %d", WindowY);
+    w.Line("; AntiAliasLevel\r\n", "WindowAALevel = %d", WindowAALevel);
+    w.Line("; AntiAliasQualityLevel\r\n", "WindowAAQualityLevel = %d", WindowAAQualityLevel);
+    w.Line("; 0 = none, 1 = shadow, 2 = self shadow\r\n", "Shadows = %d", Shadows);
+    w.Line("; 0 = low, 1 = high\r\n", "Effects detail = %d", EffectsDetail);
+    w.Line("; 0 = low, 1 = high\r\n", "Texture detail = %d", TextureDetail);
+    w.Line("; 0 = Bilinear, 1 = Trilinear, 2 = Anisotropic\r\n", "Texture filter = %d", TextureFilter);
+    w.Line(kOnOff, "EnableTL = %d", (int)EnableTL);
+    w.Line(kOnOff, "EnableHAL = %d", (int)EnableHAL);
+    w.Line("\r\n", "ShadowBufferSize = %d", ShadowBufferSize);
+    w.Line("; 0 = off, 1 = on\r\n\r\n", "Hardware Mouse Cursor = %d", (int)HardwareMouseCursor);
+    w.Append("[Audio settings]\r\n\r\n");
+    w.Line("; 0-10\r\n", "Music volume = %d", MusicVolume);
+    w.Line("; 0-10\r\n", "Sound effect volume = %d", SoundEffectVolume);
+    w.Line("; 0-10\r\n", "Voice volume = %d", VoiceVolume);
+    w.Line(kOnOff, "Reverse channels = %d", ReverseChannels);
+    w.Line(kOnOff, "Use Miles = %d", (int)UseMiles);
+    w.Raw("Miles provider = %s\r\n\r\n", Str(MilesProvider));
+    w.Append("[Network options]\r\n\r\n");
+    w.Raw("Player name = %s\r\n", Str(PlayerName));
+    w.Raw("Last host IP = %s\r\n", Str(LastHostIP));
+    w.Raw("RG Login = %s\r\n", Str(RGLogin));
+    // HD: 0x64ddb0 (volume-serial key) + 0x64d7d0 (XOR) encode +0x1a4 here.
+    w.Raw("RG Pass = %s\r\n", Str(RGPass));
+    if (w.len <= 0)
+        Logger.g->Panic("SString::operator[]: invalid index (%d)", 0);
+    f->Write(w.buf, w.len);
+    f->Release();                                                   // HD vtbl +0 (delete)
+    free(w.buf);
+    return true;
+}

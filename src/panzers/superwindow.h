@@ -36,7 +36,7 @@ struct SSuperWindowData {
     SWidget*     Menu_f0;           // 0xf0 (per-frame Update first)
     SWidget*     Menu_f4;           // 0xf4
     SWidget*     Menu_f8;           // 0xf8
-    SWidget*     Menu_fc;           // 0xfc
+    SWidget*     Menu_fc;           // 0xfc SMainOptionsMenu (new 0x234 in LoadMainOptionsMenu 0x658500)
     SMainCreditMenu* CreditMenu;    // 0x100 (LoadMainCreditMenu 0x658300, new 0xd4 0x632fd0)
     SWidget*     BriefingMenu;      // 0x104 (actions 0x434d1..0x434d5)
     SWidget*     Menu_108;          // 0x108 (actions 0x534b1..0x534b4)

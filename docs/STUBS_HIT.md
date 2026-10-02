@@ -22,12 +22,20 @@ these runs from `scratchpad\p2d\run\` (windowed, HD data, no cutscene paks):
 | `SSuperWindow::LoadMenuBackground maps/menu.map world (...)` | world part of 0x658690: 0x5d2f90 SWorld, 0x5f1990 map load, 0x55e440 camera | Initialize / LoadMainMenu | 2, 3 |
 | `SVersion::GetVersionString (0x65c070)` | 0x65c070 (exported) over 0x65bbf0; returns "1.25" | LoadMenuBackground | 2, 3 |
 | `DrawDebugPickerOverlayFromGepard` | SWINE editor overlay (no HD counterpart) | every frame, SGepard::RenderScene | 2, 3 |
-| `SSuperWindow::OnAction unhandled action (0x659250)` | `SSuperWindow::OnAction` 0x659250, cases the shell does not handle | menu clicks: 0x4d4d5 Options (Credits 0x4d4d6 lifted in P3-X) | 2 |
+| `SSuperWindow::OnAction unhandled action (0x659250)` | `SSuperWindow::OnAction` 0x659250, cases the shell does not handle | menu clicks: New Game, Load Game, Multiplayer, Tutorial, Training Camp (Options lifted in P3-Y, Credits in P3-X) | 2 |
+| `SSuperWindow::OnAction 0x4f564 Gepard/board graphics options (0x659250)` | renderer part of the 0x4f564 case: Gepard +0x10 SetOption 2/3/8/9/10, scene +0x104, board +0xc8 | Options > Graphics > Apply or Restore | P3-Y |
 | `SUnitRegistry dtor (0x5d0c10)` | 0x5d0c10 | OnDestroy on quit | 3 |
 
+P3-Y (branch `p3y-options`) lifted the Options screens. Its runs from
+`scratchpad\p3y\run\` (`p3y_panzers.exe -nointro`) went Options > Game
+Options / Graphics / Audio > Back, changed music volume, Tooltips and
+Autosave, pressed Graphics > Apply, used Esc, and quit through Exit. The only
+new stub hit is the graphics-options one above. `SSettings::Save (0x64fdd0)`
+is no longer a stub (lifted in `src/panzers/settings.cpp`), and Options no
+longer reaches the unhandled-action stub.
+
 These stubs exist but were **not** hit on the boot-to-menu path:
-`SSettings::Save (0x64fdd0)`, which runs only when options.ini has no
-fullscreen resolution or on `-name`; `SSettings::CHECKCDKEY (0x64d390)`;
+`SSettings::CHECKCDKEY (0x64d390)`;
 `CreateHostFromCommandLine (0x6576f0)`; `ConnectToHostFromCommandLine
 (0x657460)`; the `-market` and map command-line starts; `LoadMultiPreMenu
 (0x658a30)`; `LoadChatRoomView (0x658050)`; and the New Game / Load Game
@@ -44,3 +52,6 @@ Credits case of the `SSuperWindow::OnAction` stub, now `SMainCreditMenu`
 Removed in P2-D because the lifted Panzers code now provides them:
 `Format` (HD 0x51ee20) and `TimerProc` (HD 0x543cf0), both in
 `src/panzers/widgetglue.cpp`.
+
+Removed in P3-Y: `SSettings::Save` (HD 0x64fdd0). Added in P3-Y:
+`PzStub_ApplyGraphicsOptions` (above). The stub count stays at 26.

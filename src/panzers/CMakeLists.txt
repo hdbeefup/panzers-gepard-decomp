@@ -8,7 +8,11 @@ add_library(panzersgame STATIC
     mainmenu.cpp
     mainmenu.h
     menuskin.cpp
+    optionsmenu.cpp
+    optionsmenu.h
     pzboard.h
+    pzwidgets.cpp
+    pzwidgets.h
     settings.cpp
     settings.h
     superwindow.cpp

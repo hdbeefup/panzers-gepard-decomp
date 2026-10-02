@@ -20,12 +20,6 @@ static void StubDetail(const char* fmt, const char* a)
         Logger.g->Log(0, fmt, a ? a : "");
 }
 
-// HD 0x64fdd0: SSettings writer (options.ini). Not needed to reach the menu.
-void SSettings::Save()
-{
-    STUB_LOG("SSettings::Save (0x64fdd0)");
-}
-
 // HD SSettings::CHECKCDKEY 0x64d390 (exported). The HD build only checks the
 // key on the command-line multiplayer path; the stub accepts nothing so that
 // path stops, as with an invalid key.
@@ -132,6 +126,20 @@ const char* PzStub_GetVersionString()
 {
     STUB_LOG("SVersion::GetVersionString (0x65c070)");
     return "1.25";
+}
+
+// HD SSuperWindow::OnAction 0x659250 case 0x4f564 (Graphics Apply), renderer
+// part: Gepard +0x10 SetOption 3 (shadow buffer size, then scene +0x104),
+// 2 (shadows; 2 = Gepard GetCap(0)), 8/9 (texture filter), 10 (texture
+// detail) and board +0xc8 (hardware cursor). No SWINE-renderer match; the
+// values are already saved to options.ini and are read at the next start.
+void PzStub_ApplyGraphicsOptions(int shadows, int shadowBuffer, int textureFilter,
+                                 int textureDetail, bool hardwareCursor)
+{
+    STUB_LOG("SSuperWindow::OnAction 0x4f564 Gepard/board graphics options (0x659250)");
+    if (Logger.g)
+        Logger.g->Log(0, "STUB: graphics options not applied live: shadows %d, buffer %d, filter %d, detail %d, hw cursor %d",
+                      shadows, shadowBuffer, textureFilter, textureDetail, (int)hardwareCursor);
 }
 
 // HD SSuperWindow::Initialize 0x657910: Gepard +0x10 render options (8/9

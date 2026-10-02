@@ -419,3 +419,59 @@ Interface for SSuperWindow:
 - It steps `intro.bik` for 60 frames.
 - The checks are API return codes, `AIL_sample_status`, and the Bink frame
   counter. Audible output was not checked.
+
+## Options widgets (P3-Y)
+
+The Options screens (`src/panzers/optionsmenu.*`) need a slider, check box,
+drop list, list box and scroll bar. SWINE has classes with these names, but
+they do not behave like HD's, so the HD versions are lifted in
+`src/panzers/pzwidgets.*` (namespace `pz`):
+
+| Widget | HD | SWINE | Difference |
+|---|---|---|---|
+| `SSliderH` | ctor 0x540ef0, vftable 0x7f3514 | `window/sliderh.*` | HD loads `menu/widgets/arrows_medium_hq.tga` (fixed font 21x22) and `menu/widgets/slider_button_hq.tga`. SWINE loads `menu/{pig,rabbit}_arrows_medium.png` and `menu/csuszka_gomb.png`, which are not in the Panzers paks. SWINE also adds gamepad focus keys and reads the SWINE `SOptions`. The action codes are the same (0x53481/0x53482/0x53484). |
+| `SCheckBox` | 0x537e20, 0x7f262c | `window/checkbox.*` | HD draws the box from controls glyphs 0x15..0x18 and the label in font 3, plays `menu/radiobutton.wav` and sends 0x42541/0x42542/0x42543. SWINE takes font and colours in `Create` and uses its own skin. |
+| `SDropList` | 0x538bb0, 0x7f27f4 | `window/droplist.*` | HD uses controls glyphs 10..0x10, a fixed 0xaf x 0x22 size and 0x18-pixel rows, and calls board +0x5c to raise the open list above its siblings. The recompile lifts that slot as `PzBringFrameToFront`, which relinks `SBoard::Frames`. HD sends 0x444c1. |
+| `SListBox` / `SGenericListBox<SListBoxItem>` | 0x53bdc0 / 0x53bd10, 0x7f2e1c | `window/listbox.*` | HD sizes rows by board +0x8c GetFontHeight (SWINE has none; the recompile reads `SFontProp::fontSize`), draws a 9-slice frame from glyphs 0x2f..0x37 (0x543d90) and embeds an `SScrollbar` at +0x80. |
+| `SScrollbar` | 0x540630, 0x7f348c | `window/sliderv.*` (different design) | HD uses controls glyphs 0x21..0x2e and sends 0x53421/0x53422/0x53423. |
+
+Other engine-facing details:
+
+- **Display modes.** The Graphics page reads the primary `SViewport`'s mode
+  lists (+0x64/+0x68/+0x6c/+0x70, built by 0x689f80). They contain the
+  resolutions with refresh rates per R5G6B5/X8R8G8B8, and multisample levels
+  1..15 with every quality level. SWINE has no `SViewport`, so
+  `optionsmenu.cpp` builds the same lists once from `SGepard::lpD3D`.
+- **Brightness.** The slider sends 0x4f565, which calls Gepard +0x1c
+  (0x680540): a gamma ramp `pow(i/255, 1/gamma) * 65535` with
+  `gamma = (v - 5) * 0.1 + 1`, sent to `IDirect3DDevice9::SetGammaRamp`. This
+  is lifted as `PzSetBrightness` on `SGepard::lpD3DDev`. D3D9 applies it only
+  in full screen.
+- **Graphics Apply (0x4f564).** HD stores the full-screen mode through
+  SDXWindow vtbl +0xa0 (0x53a380), which resets the device only while full
+  screen, and then sets Gepard options 2/3/8/9/10 and the board hardware
+  cursor. The recompile copies the mode into the SWINE `SDXWindow` fields
+  (used next time full screen starts). The Gepard and board part is the
+  logged stub `PzStub_ApplyGraphicsOptions`, because SWINE's renderer has no
+  `SetOption`. All values are in options.ini and are read at the next start.
+- **Shadow cap.** Gepard GetCap(0) (0x67a7d0, SGepard +0x540) decides
+  whether "Self Shadow" is offered. SWINE has no such cap; the HD value on a
+  PS 2.0 card (2) is assumed.
+- **Volumes.** 0x4f413..0x4f415 call `SIConcert::SetVolume(group, 0..10)`,
+  which stores `v * 0.1` in the Miles concert's music +0x34, effects +0x38 and
+  voice +0x3C gains. 0x4f416 calls `SetReverseStereo`.
+- **SSettings.** `KeyboardBindings` is at +0xf0, not +0xec (0x64f860 writes
+  +0xf0; getter 0x64dfe0). `SSettings` grows to 0x218 bytes for `RGPass`
+  (+0x1a4) and the 27 hotkeys from `keys<n>.ini` (+0x1ac..+0x214).
+- **HD quirks kept as they are:**
+  - Graphics Apply writes `Effects detail = -1`, because it reads a drop
+    list (+0x600) that is never created.
+  - Apply resets the AA level and quality to 0 when the ini value is not in
+    the list.
+  - Save writes "Unit acknowledgement", but the loader reads "Unit Voice",
+    so that value does not survive a restart.
+
+  The first two were checked against the original's options.ini output.
+  The third was found from the strings and was not run.
+- **Recompile-only.** Esc on the Options menu acts as Back. HD ignores Esc
+  there (checked on the original).

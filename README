@@ -2,3 +2,40 @@ Decompilation of the Gepard3D engine
 ------------------------------------
 
 This project is decompilation of the original Panzers Phase 1 exe, with the end goal of creating a buildable source compatible with the original datafiles. The work is primarily being done in Ghidra, with clean implementation of some functions to validate understanding and build separate libraries for (eventually) making better tools for manipulating data files.
+
+Building and booting (branch boot-to-menu)
+------------------------------------------
+
+The `src/` tree is a 32-bit (x86) rebuild. It boots the 2016 HD release's data
+to the main menu. It is based on the game-agnostic Gepard engine modules of a
+S.W.I.N.E. HD decomp (core, common, 3dengine, window, sound, mdec, platform).
+Panzers' own startup, file system, Miles sound, Bink intro and main menu are
+lifted from the HD PANZERS.exe. Any function lifted from Panzers is marked
+`// PANZERS 0xADDR`.
+
+Requirements: Visual Studio with C++ (x86), CMake 3.10+, Python 3, and the
+DirectX SDK (June 2010) found via `DXSDK_DIR`.
+
+    cmake -S . -B build -G "Visual Studio 18 2026" -A Win32 -DGEPARD_AUDIO_BACKEND=miles
+    cmake --build build --config Release --parallel
+
+Each build prints a census, e.g.
+`CENSUS: 153 lifted bodies + 1331 SWINE-shared bodies + 26 stubs`. Check it
+after every build: an unexpected change means code was dropped or duplicated.
+
+To run, copy `build/src/main/Release/panzers.exe` into a copy of your own
+install (the folder with the .pak files, mss32.dll, binkw32.dll and miles/), then
+run it with `-nointro` to skip the Bink intro. Game data is never part of
+this repo.
+
+Docs:
+- docs/re/TRIAGE.md       HD exe triage: boot path, libraries, symbol sources
+- docs/FORMATS.md         pak, ini and menu.ini string table
+- docs/ENGINE_DIFF.md     Panzers HD vs SWINE engine: struct/vtable drift, renderer, sound
+- docs/STUBS_HIT.md       stubs reached at runtime, with their HD addresses
+- docs/IMPORT_NOTES.md    what was imported from the SWINE engine, and what was cut
+- tools/ghidra/           headless pyghidra helpers (decompile by address/string)
+- tools/addr2func.py      crash RVA -> function name, using the map file
+
+Note: phase1-raw-ghidra-export/ comes from a 2004 retail build, not the HD
+exe. Its names and structs are useful, but its addresses do not apply.
