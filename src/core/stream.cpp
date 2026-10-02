@@ -160,21 +160,25 @@ char* SStream::ReadString()
     return buf;
 }
 
-//----- (004FE7F0) --------------------------------------------------------
-
+// PANZERS 0x65d6a0
+// Panzers accepts only the 0x1B1A7253 magic. SWINE also took the older
+// 0x1A1A7253 (old-style strings, NewTypeStrings=false); Panzers throws
+// "Not a Stormregion file" for it. The HD function does not touch the
+// string-format flag (the separate setter 0x65d8f0 does). It is set to true
+// here, which is what SWINE did for this magic, so SString::Load callers
+// see the same format as before.
 void SStream::ReadSignature()
 {
     int sig = 0;
     Read(&sig, 4);
-    if (sig == 437940819)
-        NewTypeStrings = false;
-    else if (sig == 454718035)
-        NewTypeStrings = true;
-    else
-        throw "Not a Stormregion file";
-    Read(&sig, 4);
-    if (sig != 176622093)
-        throw "Not a Stormregion file";
+    if (sig == 0x1B1A7253) {
+        Read(&sig, 4);
+        if (sig == 0x0A870A0D) {
+            NewTypeStrings = true;
+            return;
+        }
+    }
+    throw "Not a Stormregion file";
 }
 
 //----- (004FE3A0) --------------------------------------------------------
@@ -600,29 +604,34 @@ int SFileStream::Seek(int offset, int origin)
 // SArchiveStream
 // ============================================================
 
-//----- (004FBD20) --------------------------------------------------------
-
-SArchiveStream::SArchiveStream(int fd, int pos, int size)
+// PANZERS 0x65cba0
+// Panzers reads archive members through stdio (fopen/fseek/ftell/fread)
+// instead of SWINE's _sopen_s file descriptor.
+SArchiveStream::SArchiveStream(FILE* file, int pos, int size)
 {
     RefCount = 1;
-    FileDes = fd;
+    File = file;
     Pos = pos;
     Size = size;
-    int seekResult = _lseek(fd, pos, SEEK_SET);
-    Offset = seekResult - pos;
-    if (seekResult < 0 || Offset < 0 || Offset > size) {
-        Logger.g->Log(0, "Seek error (origin=%d, offset=%d, res=%d,  Pos=%d Size=%d Offset=%d)",
-            0, 0, seekResult, pos, size, Offset);
-        throw "Seek failed";
+    Offset = 0;
+    int res = fseek(file, pos, SEEK_SET);
+    if (res == 0) {
+        Offset = ftell(File) - Pos;
+        if (Offset >= 0 && Offset <= Size)
+            return;
     }
+    Logger.g->Log(0, "Seek error (origin=%d, offset=%d, res=%d,  Pos=%d Size=%d Offset=%d)",
+        0, 0, res, Pos, Size, Offset);
+    throw "Seek failed";
 }
 
-//----- (004FBFE0) --------------------------------------------------------
-
+// PANZERS 0x65cd80
 SArchiveStream::~SArchiveStream()
 {
-    _close(FileDes);
-    FileDes = -1;
+    if (File) {
+        fclose(File);
+        File = nullptr;
+    }
 }
 
 //----- (004FC330) --------------------------------------------------------
@@ -636,135 +645,200 @@ void SArchiveStream::AddRef()
 
 void SArchiveStream::Release()
 {
-    if (RefCount-- == 1) {
-        _close(FileDes);
-        FileDes = -1;
-        if (Chunks.array)
-            free(Chunks.array);
-        operator delete(this);
-    }
+    // The HD vtable has a scalar deleting destructor (0x65cef0) here: fclose,
+    // free the chunk stack, delete. The SWINE refcount is kept.
+    if (RefCount-- == 1)
+        delete this;
 }
 
-//----- (004FE1F0) --------------------------------------------------------
-
+// PANZERS 0x65d150
 void SArchiveStream::Read(void* buf, int size)
 {
     int bytesRead = ReadMax(buf, size);
     if (bytesRead != size) {
-        sprintf(err_1, "Read failed(%d): Expected %d bytes, read %d.", FileDes, size, bytesRead);
+        sprintf(err_1, "Read failed: Expected %d bytes, read %d.", size, bytesRead);
         throw (const char*)err_1;
     }
 }
 
-//----- (004FE660) --------------------------------------------------------
-
+// PANZERS 0x65d4f0
 int SArchiveStream::ReadMax(void* buf, int size)
 {
     int available = Size - Offset;
     if (size > available)
         size = available;
-    int result = _read(FileDes, buf, size);
+    if (size <= 0)
+        return 0;
+    int result = (int)fread(buf, 1, (size_t)size, File);
     if (result < 0) {
-        char* errstr = strerror(errno);
-        sprintf(err_2, "Read failed(%d): %s.", FileDes, errstr);
+        sprintf(err_2, "Read failed: %s.", strerror(errno));
         throw (const char*)err_2;
     }
     Offset += result;
     return result;
 }
 
-//----- (004FEEA0) --------------------------------------------------------
-
+// PANZERS 0x65d900
 void SArchiveStream::Write(const void* buf, int size)
 {
     throw "Write failed";
 }
 
-//----- (004FEB20) --------------------------------------------------------
-
+// PANZERS 0x65d7a0
 int SArchiveStream::Seek(int offset, int origin)
 {
-    int seekPos;
-    if (origin == 0)
-        seekPos = _lseek(FileDes, offset + Pos, SEEK_SET);
-    else if (origin == 1)
-        seekPos = _lseek(FileDes, offset, SEEK_CUR);
-    else if (origin == 2)
-        seekPos = _lseek(FileDes, offset + Pos + Size, SEEK_SET);
-    else
+    int target;
+    int whence;
+    if (origin == 0) {
+        target = Pos + offset;
+        whence = SEEK_SET;
+    } else if (origin == 1) {
+        target = offset;
+        whence = SEEK_CUR;
+    } else if (origin == 2) {
+        target = Pos + Size + offset;
+        whence = SEEK_SET;
+    } else {
         throw "Seek called with bad origin";
-
-    int newOffset = seekPos - Pos;
-    Offset = newOffset;
-    if (seekPos < 0 || newOffset < 0 || newOffset > Size) {
-        Logger.g->Log(0, "Seek error (origin=%d, offset=%d, res=%d,  Pos=%d Size=%d Offset=%d)",
-            origin, offset, seekPos, Pos, Size, newOffset);
-        throw "Seek failed";
     }
-    return newOffset;
+    int res = fseek(File, target, whence);
+    if (res == 0) {
+        Offset = ftell(File) - Pos;
+        if (Offset >= 0 && Offset <= Size)
+            return Offset;
+    }
+    Logger.g->Log(0, "Seek error (origin=%d, offset=%d, res=%d,  Pos=%d Size=%d Offset=%d)",
+        origin, offset, res, Pos, Size, Offset);
+    throw "Seek failed";
 }
 
 // ============================================================
-// SArchiveInfo
+// Archive TOC helpers
 // ============================================================
+//
+// The TOC is a binary search tree serialised in pre-order. Node:
+//   u8 prefix   chars taken from the parent's full name
+//   u8 len      suffix length
+//   len bytes   suffix (no NUL)
+//   i32 pos, i32 size        (SArchiveHeaderEntry)
+//   u8 hasLeft  left child follows at node + 15 + len
+//   i32 right   TOC offset of the right child, 0 = none
+// See docs/FORMATS.md.
 
-//----- (004FD6A0) --------------------------------------------------------
-
-SArchiveHeaderEntry* SArchiveInfo::Lookup(const char* filename)
+// Build "parent[0:prefix] + suffix" for a node into an SString.
+static void ArchiveNodeName(const unsigned char* node, const SString& parent, SString* out)
 {
-    // Copy and normalize filename (lowercase, forward slashes)
-    strcpy(fullname_4, filename);
-    _strlwr(fullname_4);
-    for (char* p = fullname_4; *p; p++) {
-        if (*p == '\\') *p = '/';
+    unsigned char prefixStart = node[0];
+    unsigned char prefixLen = node[1];
+    int take = 0;
+    if (parent.size > 0 && prefixStart)
+        take = (prefixStart >= (unsigned int)parent.size) ? parent.size : prefixStart;
+    char* combined = new char[take + prefixLen + 1];
+    if (take)
+        memcpy(combined, parent.buf, take);
+    memcpy(combined + take, node + 2, prefixLen);
+    combined[take + prefixLen] = 0;
+    *out = combined;
+    delete[] combined;
+}
+
+static void CopyString(SString* dst, const SString& src)
+{
+    dst->buf = nullptr;
+    dst->size = 0;
+    if (src.size) {
+        dst->size = src.size;
+        dst->buf = new char[src.size + 1];
+        memcpy(dst->buf, src.buf, src.size + 1);
+    }
+}
+
+//----- (004FC7D0) --------------------------------------------------------
+
+static void ArchiveFindFilesIterate(const unsigned char* toc, const SString* path, SString* postfix,
+                                    SDArray<SString>* result, const unsigned char* lookup_ptr, SString name)
+{
+    SString full;
+    ArchiveNodeName(lookup_ptr, name, &full);
+    if (name.buf)
+        delete[] name.buf;
+    name.buf = full.buf;    // take ownership
+    name.size = full.size;
+
+    const unsigned char* after = lookup_ptr + 2 + lookup_ptr[1];
+
+    if (after[8]) {
+        SString leftName;
+        CopyString(&leftName, name);
+        ArchiveFindFilesIterate(toc, path, postfix, result, after + 13, leftName);
+    }
+    int rightOffset = *(const int*)(after + 9);
+    if (rightOffset) {
+        SString rightName;
+        CopyString(&rightName, name);
+        ArchiveFindFilesIterate(toc, path, postfix, result, toc + rightOffset, rightName);
     }
 
-    int nameLen = (int)strlen(fullname_4);
-    unsigned char* node = Header;
+    const char* pathBuf = path->buf ? path->buf : "";
+    const char* nameBuf = name.buf ? name.buf : "";
+    if (strncmp(nameBuf, pathBuf, path->size) != 0 || name.size == path->size)
+        goto cleanup;
 
-    while (true) {
-        while (true) {
-            unsigned char prefixStart = node[0];
-            unsigned char prefixLen = node[1];
-            const char* nodeStr = (const char*)(node + 2);
-            int cmp = strncmp(&fullname_4[prefixStart], nodeStr, prefixLen);
-            const char* after = nodeStr + prefixLen;
-
-            if (cmp >= 0) {
-                // Match or greater — check for exact match
-                if (cmp == 0 && (int)(prefixStart + prefixLen) >= nameLen)
-                    return (SArchiveHeaderEntry*)after;
-                // Try right subtree
-                int rightOffset = *(int*)(after + 9);
-                if (!rightOffset)
-                    return nullptr;
-                node = &Header[rightOffset];
-                break;
-            }
-            // Less — try left subtree
-            if (!after[8])
-                return nullptr;
-            node = (unsigned char*)(after + 13);
-        }
+    {
+        const char* src = nameBuf + path->size;
+        strncpy(fileName, src, sizeof(fileName) - 1);
+        fileName[sizeof(fileName) - 1] = 0;
     }
+
+    if (postfix->size == 0) {
+        // Directory listing mode: name must end with '/'
+        if (nameBuf[name.size - 1] != '/')
+            goto cleanup;
+        unsigned int fnLen = name.size - path->size - 1;
+        if (fnLen < 0x104)
+            fileName[fnLen] = 0;
+    }
+
+    if (strchr(fileName, '/'))
+        goto cleanup;
+
+    if (postfix->size) {
+        const char* postBuf = postfix->buf ? postfix->buf : "";
+        if (name.size < postfix->size || strcmp(&nameBuf[name.size - postfix->size], postBuf) != 0)
+            goto cleanup;
+    }
+
+    for (int i = 0; i < result->size; i++) {
+        const char* existing = result->array[i].buf ? result->array[i].buf : "";
+        if (_stricmp(existing, fileName) == 0)
+            goto cleanup;
+    }
+    {
+        SString item;
+        item.size = (int)strlen(fileName);
+        item.buf = new char[item.size + 1];
+        memcpy(item.buf, fileName, item.size + 1);
+        result->Add(&item);
+    }
+
+cleanup:
+    if (name.buf)
+        delete[] name.buf;
 }
 
 //----- (004FC570) --------------------------------------------------------
 
-void SArchiveInfo::FindFiles(const char* path, const char* filter, SDArray<SString>* result)
+static void ArchiveFindFiles(const unsigned char* toc, const char* path, const char* filter, SDArray<SString>* result)
 {
-    // Copy and normalize path (lowercase, forward slashes)
-    const char* s = path;
-    do {
-        fullname_5[s - path] = *s;
-    } while (*s++);
+    strncpy(fullname_5, path, sizeof(fullname_5) - 1);
+    fullname_5[sizeof(fullname_5) - 1] = 0;
     _strlwr(fullname_5);
     for (char* p = fullname_5; *p; p++) {
         if (*p == '\\') *p = '/';
     }
 
     SString postfix;
-    if (filter == (const char*)-1) {
+    if (filter == (const char*)-1 || !filter || !filter[0]) {
         postfix.size = 0;
         postfix.buf = nullptr;
     } else {
@@ -779,298 +853,58 @@ void SArchiveInfo::FindFiles(const char* path, const char* filter, SDArray<SStri
     memcpy(pathStr.buf, fullname_5, pathStr.size + 1);
 
     SString emptyName;
-    emptyName.buf = nullptr;
-    emptyName.size = 0;
-    FindFilesIterate(&pathStr, &postfix, result, Header, emptyName);
+    ArchiveFindFilesIterate(toc, &pathStr, &postfix, result, toc, emptyName);
 
-    if (pathStr.buf) {
-        delete[] pathStr.buf;
-        pathStr.buf = nullptr;
-    }
+    delete[] pathStr.buf;
     if (postfix.buf)
         delete[] postfix.buf;
 }
 
-//----- (004FC7D0) --------------------------------------------------------
-
-void SArchiveInfo::FindFilesIterate(const SString* path, SString* postfix, SDArray<SString>* result, unsigned char* lookup_ptr, SString name)
-{
-    unsigned char prefixStart = lookup_ptr[0];
-    unsigned char prefixLen = lookup_ptr[1];
-    unsigned char* nodeStr = lookup_ptr + 2;
-
-    // Allocate copy of node prefix string
-    void* nodeCopy;
-    if (prefixLen) {
-        nodeCopy = operator new[](prefixLen + 1);
-        memcpy(nodeCopy, nodeStr, prefixLen);
-        ((char*)nodeCopy)[prefixLen] = 0;
-    } else {
-        nodeCopy = nullptr;
-    }
-
-    // Extract prefix from accumulated name (name.buf[0..prefixStart])
-    int prefixTake;
-    void* namePrefixCopy;
-    if (name.size > 0 && prefixStart) {
-        prefixTake = (prefixStart >= (unsigned int)name.size) ? name.size : prefixStart;
-        namePrefixCopy = operator new[](prefixTake + 1);
-        memcpy(namePrefixCopy, name.buf, prefixTake);
-        ((char*)namePrefixCopy)[prefixTake] = 0;
-    } else {
-        prefixTake = 0;
-        namePrefixCopy = nullptr;
-    }
-
-    // Build new name = namePrefixCopy + nodeCopy
-    const char* nodeStr2 = nodeCopy ? (const char*)nodeCopy : "";
-    unsigned int nodeLen = (unsigned int)strlen(nodeStr2);
-    char* combined = new char[nodeLen + prefixTake + 1];
-    memcpy(combined, namePrefixCopy, prefixTake);
-    memcpy(combined + prefixTake, nodeStr2, nodeLen + 1);
-
-    const char* assignStr = combined ? combined : "";
-    name = assignStr;
-
-    if (combined)
-        operator delete(combined);
-    if (namePrefixCopy)
-        operator delete(namePrefixCopy);
-    if (nodeCopy)
-        operator delete(nodeCopy);
-
-    unsigned char* after = nodeStr + prefixLen;
-
-    // Recurse left child
-    if (after[8]) {
-        SString leftName;
-        if (name.size) {
-            leftName.size = name.size;
-            leftName.buf = new char[name.size + 1];
-            memcpy(leftName.buf, name.buf, name.size + 1);
-        } else {
-            leftName.buf = nullptr;
-            leftName.size = 0;
-        }
-        FindFilesIterate(path, postfix, result, after + 13, leftName);
-    }
-
-    // Recurse right child
-    int rightOffset = *(int*)(after + 9);
-    if (rightOffset) {
-        SString rightName;
-        if (name.size) {
-            rightName.size = name.size;
-            rightName.buf = new char[name.size + 1];
-            memcpy(rightName.buf, name.buf, name.size + 1);
-        } else {
-            rightName.buf = nullptr;
-            rightName.size = 0;
-        }
-        FindFilesIterate(path, postfix, result, &Header[rightOffset], rightName);
-    }
-
-    // Filter: check if this entry's name starts with path
-    const char* pathBuf = path->buf ? path->buf : "";
-    const char* nameBuf = name.buf ? name.buf : "";
-    if (strncmp(nameBuf, pathBuf, path->size) != 0)
-        goto cleanup;
-
-    // Skip if name equals path exactly (directory entry itself)
-    if (name.size == path->size)
-        goto cleanup;
-
-    // Extract fileName = name after path prefix
-    {
-        const char* src = (name.buf ? name.buf : "") + path->size;
-        char* dst = fileName;
-        do {
-            *dst++ = *src;
-        } while (*src++);
-    }
-
-    // Extension/directory filter
-    if (postfix->size == 0) {
-        // Directory listing mode: name must end with '/'
-        const char* nb = name.buf ? name.buf : "";
-        if (nb[name.size - 1] != '/') {
-            if (name.buf) delete[] name.buf;
-            return;
-        }
-        // Truncate trailing slash from fileName
-        unsigned int fnLen = name.size - path->size - 1;
-        if (fnLen < 0x104)
-            fileName[fnLen] = 0;
-    }
-
-    // Skip subdirectory entries (fileName contains '/')
-    if (strchr(fileName, '/'))
-        goto cleanup;
-
-    // Extension filter
-    if (postfix->size) {
-        const char* postBuf = postfix->buf ? postfix->buf : "";
-        const char* nb2 = name.buf ? name.buf : "";
-        if (strcmp(&nb2[name.size - postfix->size], postBuf) != 0)
-            goto cleanup;
-    }
-
-    // Dedup check: skip if fileName already in result
-    {
-        int i;
-        for (i = 0; i < result->size; i++) {
-            const char* existing = result->array[i].buf ? result->array[i].buf : "";
-            if (_stricmp(existing, fileName) == 0)
-                goto cleanup;
-        }
-        // Add to result
-        SString item;
-        int fnLen2 = (int)strlen(fileName);
-        item.size = fnLen2;
-        item.buf = new char[fnLen2 + 1];
-        memcpy(item.buf, fileName, fnLen2 + 1);
-        result->Add(&item);
-        if (item.buf)
-            delete[] item.buf;
-    }
-
-cleanup:
-    if (name.buf)
-        delete[] name.buf;
-}
-
 //----- (004FD290) --------------------------------------------------------
 
-void SArchiveInfo::Iterate(unsigned char* lookup_ptr, SString name)
+// SWINE "EnumArchive": extracts every member of an archive below Home.
+static void ArchiveIterate(SFileSystem* fs, const SSearchPathElement* e, const unsigned char* node, SString name)
 {
-    unsigned char* node = lookup_ptr;
-    if (!node)
-        node = Header;
+    SString full;
+    ArchiveNodeName(node, name, &full);
+    if (name.buf)
+        delete[] name.buf;
+    name.buf = full.buf;    // take ownership
+    name.size = full.size;
 
-    unsigned char prefixStart = node[0];
-    unsigned char prefixLen = node[1];
-    char* nodeStr = (char*)(node + 2);
-
-    // Allocate copy of node prefix string
-    void* nodeCopy;
-    if (prefixLen) {
-        nodeCopy = operator new[](prefixLen + 1);
-        memcpy(nodeCopy, nodeStr, prefixLen);
-        ((char*)nodeCopy)[prefixLen] = 0;
-    } else {
-        nodeCopy = nullptr;
-    }
-
-    // Extract prefix from accumulated name
-    int prefixTake;
-    void* namePrefixCopy;
-    if (name.size > 0 && prefixStart) {
-        prefixTake = (prefixStart >= (unsigned int)name.size) ? name.size : prefixStart;
-        namePrefixCopy = operator new[](prefixTake + 1);
-        memcpy(namePrefixCopy, name.buf, prefixTake);
-        ((char*)namePrefixCopy)[prefixTake] = 0;
-    } else {
-        prefixTake = 0;
-        namePrefixCopy = nullptr;
-    }
-
-    // Build new name = namePrefixCopy + nodeCopy
-    const char* nodeStr2 = nodeCopy ? (const char*)nodeCopy : "";
-    unsigned int nodeLen = (unsigned int)strlen(nodeStr2);
-    char* combined = new char[nodeLen + prefixTake + 1];
-    memcpy(combined, namePrefixCopy, prefixTake);
-    memcpy(combined + prefixTake, nodeStr2, nodeLen + 1);
-
-    const char* assignStr = combined ? combined : "";
-    name = assignStr;
-
-    if (combined)
-        operator delete(combined);
-    if (namePrefixCopy)
-        operator delete(namePrefixCopy);
-    if (nodeCopy)
-        operator delete(nodeCopy);
-
-    char* after = nodeStr + prefixLen;
-
-    // Recurse left child
+    const unsigned char* after = node + 2 + node[1];
     if (after[8]) {
         SString leftName;
-        if (name.size) {
-            leftName.size = name.size;
-            leftName.buf = new char[name.size + 1];
-            memcpy(leftName.buf, name.buf, name.size + 1);
-        } else {
-            leftName.buf = nullptr;
-            leftName.size = 0;
-        }
-        Iterate((unsigned char*)after + 13, leftName);
+        CopyString(&leftName, name);
+        ArchiveIterate(fs, e, after + 13, leftName);
     }
-
-    // Recurse right child
-    int rightOffset = *(int*)(after + 9);
+    int rightOffset = *(const int*)(after + 9);
     if (rightOffset) {
         SString rightName;
-        if (name.size) {
-            rightName.size = name.size;
-            rightName.buf = new char[name.size + 1];
-            memcpy(rightName.buf, name.buf, name.size + 1);
-        } else {
-            rightName.buf = nullptr;
-            rightName.size = 0;
-        }
-        Iterate(&Header[rightOffset], rightName);
+        CopyString(&rightName, name);
+        ArchiveIterate(fs, e, e->Toc + rightOffset, rightName);
     }
 
-    // Log this entry
     const char* logName = name.buf ? name.buf : "";
-    Logger.g->Log(0, "EnumArchive: %s %d %d", logName, *(int*)after, *(int*)(after + 4));
+    int pos = *(const int*)after;
+    int size = *(const int*)(after + 4);
+    Logger.g->Log(0, "EnumArchive: %s %d %d", logName, pos, size);
 
-    // Open archive file
-    int fd;
-    errno_t e = _sopen_s(&fd, FileName, _O_RDONLY | _O_BINARY, _SH_DENYNO, 0);
-    if (e) fd = -1;
-
-    // Get output path
-    const char* outPath = FileSystem.MakeFullPath(name.buf ? name.buf : "");
-    char* outPathCopy;
-    if (outPath) {
-        unsigned int pathLen = (unsigned int)strlen(outPath);
-        outPathCopy = new char[pathLen + 1];
-        memcpy(outPathCopy, outPath, pathLen + 1);
-    } else {
-        outPathCopy = nullptr;
-    }
-
-    // Create archive stream for this entry
-    SArchiveStream as(fd, HeaderSize + 16 + *(int*)after, *(int*)(after + 4));
-
-    // Open output file and copy data
-    SStream* outStream = FileSystem.OpenWrite(outPathCopy ? outPathCopy : "", "SFileSystem::EnumArchive");
-    int remaining = *(int*)(after + 4);
-    while (remaining) {
-        int chunk = remaining;
-        if (chunk > 0x4000)
-            chunk = 0x4000;
-        int bytesRead = as.ReadMax(buf_0, chunk);
-        if (chunk != bytesRead) {
-            sprintf(err_1, "Read failed(%d): Expected %d bytes, read %d.", as.FileDes, chunk, bytesRead);
-            throw (const char*)err_1;
+    if (size > 0) {
+        FILE* f = fopen(e->Name.buf ? e->Name.buf : "", "rb");
+        if (f) {
+            SArchiveStream as(f, 16 + e->TocSize + pos, size);
+            SStream* outStream = fs->OpenWrite(logName, "SFileSystem::EnumArchive");
+            int remaining = size;
+            while (remaining) {
+                int chunk = remaining > 0x4000 ? 0x4000 : remaining;
+                as.Read(buf_0, chunk);
+                outStream->Write(buf_0, chunk);
+                remaining -= chunk;
+            }
+            outStream->Release();
         }
-        outStream->Write(buf_0, chunk);
-        remaining -= chunk;
     }
-    outStream->Release();
-
-    // Cleanup archive stream manually (matches decompile)
-    _close(as.FileDes);
-    as.FileDes = -1;
-    if (as.Chunks.array)
-        free(as.Chunks.array);
-    as.Chunks.array = nullptr;
-
-    if (outPathCopy)
-        operator delete(outPathCopy);
     if (name.buf)
         delete[] name.buf;
 }
@@ -1079,68 +913,262 @@ void SArchiveInfo::Iterate(unsigned char* lookup_ptr, SString name)
 // SFileSystem
 // ============================================================
 
+// SString + const char* (HD 0x52c580), into a fresh SString.
+static void ConcatString(SString* out, const SString& a, const char* b)
+{
+    out->buf = nullptr;
+    out->size = 0;
+    int blen = b ? (int)strlen(b) : 0;
+    int len = a.size + blen;
+    if (!a.size && !b)
+        return;
+    out->buf = new char[len + 1];
+    if (a.size)
+        memcpy(out->buf, a.buf, a.size);
+    if (blen)
+        memcpy(out->buf + a.size, b, blen);
+    out->buf[len] = 0;
+    out->size = len;
+}
+
+static void FreeString(SString* s)
+{
+    if (s->buf) {
+        delete[] s->buf;
+        s->buf = nullptr;
+    }
+    s->size = 0;
+}
+
+static void FreeSearchPathElement(SSearchPathElement* e)
+{
+    FreeString(&e->Name);
+    if (e->Toc) {
+        delete[] e->Toc;
+        e->Toc = nullptr;
+    }
+    e->TocSize = 0;
+    e->Type = 0;
+}
+
 //----- (004FBE50) --------------------------------------------------------
 
 SFileSystem::SFileSystem()
 {
-    SearchPaths.size = 0;
-    SearchPaths.maxsize = 0;
-    SearchPaths.array = 0;
-    BasePath = 0;
-#ifdef HD_PORTABLE_PATHS
-    strcpy(AppDataPath, ".\\");
-#else
-    if (SHGetFolderPathA(0, CSIDL_LOCAL_APPDATA, 0, 0, AppDataPath) < 0)
-        Logger.g->Panic("SFileSystem::SFileSystem: Can't get appdata path");
-    strcat(AppDataPath, "\\Kite Games\\Swine\\");
-#endif
+    SearchPath = nullptr;
+    SearchPathCount = 0;
+    SearchPathMax = 0;
+    Home.buf = nullptr;
+    Home.size = 0;
 }
 
 //----- (004FC040) --------------------------------------------------------
 
 SFileSystem::~SFileSystem()
 {
-    for (int i = 0; i < SearchPaths.size; i++) {
-        SSearchPath* sp = &SearchPaths.array[i];
-        if (sp->Path) {
-            operator delete(sp->Path);
-            sp->Path = 0;
-        }
-        if (sp->Archive.FileName) {
-            operator delete(sp->Archive.FileName);
-            sp->Archive.FileName = 0;
-        }
-        if (sp->Archive.Header) {
-            operator delete(sp->Archive.Header);
-            sp->Archive.Header = 0;
-        }
+    for (int i = 0; i < SearchPathCount; i++)
+        FreeSearchPathElement(&SearchPath[i]);
+    if (SearchPath) {
+        free(SearchPath);
+        SearchPath = nullptr;
     }
-    if (SearchPaths.size && !SearchPaths.array)
-        Logger.g->Panic("SDArray::Clear: array is damaged");
-    int maxsize = SearchPaths.maxsize;
-    SearchPaths.size = 0;
-    if (maxsize < 0) {
-        SearchPaths.maxsize = 0;
-        SearchPaths.array = (SSearchPath*)realloc(SearchPaths.array, 0);
-        maxsize = SearchPaths.maxsize;
+    SearchPathCount = 0;
+    SearchPathMax = 0;
+    FreeString(&Home);
+}
+
+// PANZERS 0x65de60
+SSearchPathElement* SFileSystem::GetSearchPathElement(int index)
+{
+    if (index < 0 || index >= SearchPathCount)
+        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "struct SSearchPathElement", index);
+    return &SearchPath[index];
+}
+
+// PANZERS 0x65df20
+int SFileSystem::AddSearchPathElement()
+{
+    if (SearchPathCount == SearchPathMax) {
+        int newmax = (SearchPathMax < 16) ? 16 : (SearchPathMax * 6) / 5;
+        SearchPath = (SSearchPathElement*)realloc(SearchPath, newmax * sizeof(SSearchPathElement));
+        memset(&SearchPath[SearchPathMax], 0, (newmax - SearchPathMax) * sizeof(SSearchPathElement));
+        SearchPathMax = newmax;
     }
-    memset(SearchPaths.array, 0, sizeof(SSearchPath) * maxsize);
-    if (BasePath) {
-        operator delete(BasePath);
-        BasePath = 0;
+    return SearchPathCount++;
+}
+
+// PANZERS 0x65ed80
+int SFileSystem::InsertSearchPathElement(int index)
+{
+    if (index < 0 || index > SearchPathCount)
+        Logger.g->Panic("SDArray<%s>::Insert: invalid index (%d)", "struct SSearchPathElement", index);
+    if (SearchPathCount == SearchPathMax) {
+        int newmax = (SearchPathMax < 16) ? 16 : (SearchPathMax * 6) / 5;
+        SearchPath = (SSearchPathElement*)realloc(SearchPath, newmax * sizeof(SSearchPathElement));
+        memset(&SearchPath[SearchPathMax], 0, (newmax - SearchPathMax) * sizeof(SSearchPathElement));
+        SearchPathMax = newmax;
     }
-    if (SearchPaths.array) {
-        free(SearchPaths.array);
-        SearchPaths.array = 0;
+    if (index < SearchPathCount)
+        memmove(&SearchPath[index + 1], &SearchPath[index], (SearchPathCount - index) * sizeof(SSearchPathElement));
+    memset(&SearchPath[index], 0, sizeof(SSearchPathElement));
+    SearchPathCount++;
+    return index;
+}
+
+// PANZERS 0x65df90
+// Splits [Paths] Search on ';'. Every element goes through _fullpath().
+// Names ending in ".pak" (case-insensitive) become archives and are opened
+// at once (OpenArchive, which panics on failure). Everything else is a
+// directory with a '/' appended. With prepend set, each element is inserted
+// at index 0, so the list ends up reversed. Lookup walks the array in order,
+// so the first element listed in Search wins.
+void SFileSystem::SetSearchPath(const char* paths, bool prepend)
+{
+    char element[260];
+    char full[264];
+    while (paths && *paths) {
+        const char* semi = strchr(paths, ';');
+        if (!semi) {
+            strncpy(element, paths, sizeof(element) - 1);
+            element[sizeof(element) - 1] = 0;
+            paths = nullptr;
+        } else {
+            memset(element, 0, sizeof(element));
+            int n = (int)(semi - paths);
+            if (n > (int)sizeof(element) - 1)
+                n = (int)sizeof(element) - 1;
+            strncpy(element, paths, n);
+            paths = semi + 1;
+        }
+        if (!_fullpath(full, element, 260))
+            strcpy(full, element);
+        int len = (int)strlen(full);
+        if (len > 4 && _stricmp(&full[len - 4], ".pak") == 0) {
+            int idx = prepend ? InsertSearchPathElement(0) : AddSearchPathElement();
+            SSearchPathElement* e = GetSearchPathElement(idx);
+            e->Type = SEARCHPATH_ARCHIVE;
+            e->Name = full;
+            OpenArchive(idx);
+            continue;
+        }
+        if (len == 0 || (full[len - 1] != '/' && full[len - 1] != '\\'))
+            strcat(full, "/");
+        int idx = prepend ? InsertSearchPathElement(0) : AddSearchPathElement();
+        SSearchPathElement* e = GetSearchPathElement(idx);
+        e->Type = SEARCHPATH_DIRECTORY;
+        e->Name = full;
     }
 }
 
-//----- (004FC360) --------------------------------------------------------
+// PANZERS 0x65fa30
+void SFileSystem::SetHomePath(const char* path)
+{
+    FreeString(&Home);
+    if (path) {
+        char full[264];
+        if (!_fullpath(full, path, 260))
+            strcpy(full, path);
+        int len = (int)strlen(full);
+        if (len == 0 || (full[len - 1] != '/' && full[len - 1] != '\\'))
+            strcat(full, "/");
+        Home = full;
+    }
+}
 
+// PANZERS 0x65ed70
+const char* SFileSystem::GetHomePath()
+{
+    return Home.buf ? Home.buf : "";
+}
+
+// PANZERS 0x65f020
+// Loose files are resolved against Home. Absolute names pass through.
+void SFileSystem::FileNameProcess(SString* result, const char* filename)
+{
+    if (!IsFullPath(filename)) {
+        ConcatString(result, Home, filename);
+        return;
+    }
+    result->size = (int)strlen(filename);
+    result->buf = new char[result->size + 1];
+    memcpy(result->buf, filename, result->size + 1);
+}
+
+// PANZERS 0x65f1e0
+// Panzers accepts only the "Sr\x1a\x1b" magic, then "\r\n\x87\n", "PACK" and
+// the TOC size. The TOC is read whole. Any failure is fatal.
+void SFileSystem::OpenArchive(int index)
+{
+    SSearchPathElement* e = GetSearchPathElement(index);
+    const char* name = e->Name.buf ? e->Name.buf : "";
+    int fd;
+    if (_sopen_s(&fd, name, _O_RDONLY | _O_BINARY, _SH_DENYNO, 0) != 0)
+        fd = -1;
+    if (fd < 0)
+        Logger.g->Panic("SFileSystem::OpenArchive: Couldn't open (%s)", name);
+    int v;
+    if (_read(fd, &v, 4) != 4 || v != 0x1B1A7253)
+        Logger.g->Panic("SFileSystem::OpenArchive: %s: Not a Stormregion file", name);
+    if (_read(fd, &v, 4) != 4 || v != 0x0A870A0D)
+        Logger.g->Panic("SFileSystem::OpenArchive: %s: Not a Stormregion file", name);
+    if (_read(fd, &v, 4) != 4 || v != 0x4B434150)
+        Logger.g->Panic("SFileSystem::OpenArchive: %s: Not a 'PACK' file", name);
+    if (_read(fd, &v, 4) != 4)
+        Logger.g->Panic("SFileSystem::OpenArchive: %s: Read error", name);
+    e->TocSize = v;
+    e->Toc = new unsigned char[v];
+    if (_read(fd, e->Toc, e->TocSize) != e->TocSize)
+        Logger.g->Panic("SFileSystem::OpenArchive: %s: Read error", name);
+    _close(fd);
+}
+
+// PANZERS 0x65ee70
+// The name is lower-cased and '\' becomes '/'. The node walk is the same as
+// SWINE's SArchiveInfo::Lookup. A directory node (size 0) matches its own
+// name.
+SArchiveHeaderEntry* SFileSystem::LookupArchive(int index, const char* filename)
+{
+    if (index < 0 || index >= SearchPathCount || SearchPath[index].Type != SEARCHPATH_ARCHIVE
+        || IsFullPath(filename))
+        Logger.g->Panic("SFileSystem::LookupArchive: Invalid parameters");
+
+    // Zero-filled so that a prefix longer than the name compares as "".
+    char name[260];
+    memset(name, 0, sizeof(name));
+    strncpy(name, filename, sizeof(name) - 1);
+    _strlwr(name);
+    for (char* p = name; *p; p++) {
+        if (*p == '\\') *p = '/';
+    }
+    int nameLen = (int)strlen(name);
+
+    unsigned char* toc = GetSearchPathElement(index)->Toc;
+    unsigned char* node = toc;
+    while (true) {
+        unsigned char prefixStart = node[0];
+        unsigned char prefixLen = node[1];
+        const char* suffix = (const char*)(node + 2);
+        int cmp = strncmp(&name[prefixStart], suffix, prefixLen);
+        unsigned char* after = (unsigned char*)suffix + prefixLen;
+        if (cmp < 0) {
+            if (!after[8])
+                return nullptr;
+            node = after + 13;
+            continue;
+        }
+        if (cmp == 0 && nameLen <= prefixStart + prefixLen)
+            return (SArchiveHeaderEntry*)after;
+        int rightOffset = *(int*)(after + 9);
+        if (!rightOffset)
+            return nullptr;
+        node = toc + rightOffset;
+    }
+}
+
+// SWINE API: add one search path element (directory or .pak).
 void SFileSystem::AddSearchPath(const char* path)
 {
-    int idx = SearchPaths.Add();
-    SearchPaths.array[idx].Path = _strdup(path);
+    SetSearchPath(path, false);
 }
 
 //----- (004FC460) --------------------------------------------------------
@@ -1148,10 +1176,10 @@ void SFileSystem::AddSearchPath(const char* path)
 char* SFileSystem::FindFileInSearchPath(const char* filename)
 {
     if (!IsFullPath(filename)) {
-        for (int i = 0; i < SearchPaths.size; i++) {
-            const char* searchDir = SearchPaths.array[i].Path;
-            if (searchDir) {
-                strcpy(fullname_0, searchDir);
+        for (int i = 0; i < SearchPathCount; i++) {
+            const SSearchPathElement* e = &SearchPath[i];
+            if (e->Type == SEARCHPATH_DIRECTORY && e->Name.buf) {
+                strcpy(fullname_0, e->Name.buf);
                 strcat(fullname_0, filename);
                 struct _stat tmpbuf;
                 if (_stat(fullname_0, &tmpbuf) == 0)
@@ -1159,7 +1187,7 @@ char* SFileSystem::FindFileInSearchPath(const char* filename)
             }
         }
     }
-    strcpy(fullname_0, filename);
+    strcpy(fullname_0, MakeFullPath(filename));
     return fullname_0;
 }
 
@@ -1167,31 +1195,16 @@ char* SFileSystem::FindFileInSearchPath(const char* filename)
 
 char* SFileSystem::GetGameDataPath()
 {
-    return BasePath;
+    return (char*)GetHomePath();
 }
 
 //----- (004FEC60) --------------------------------------------------------
 
 void SFileSystem::SetGameDataPath(const char* pathname)
 {
-    char buf[260];
-    if (pathname)
-        strcpy(buf, pathname);
-    else
-        GetCurrentDirectoryA(260, buf);
-
-    int len = (int)strlen(buf);
-    if (len > 0) {
-        char last = buf[len - 1];
-        if (last != '/' && last != '\\')
-            strcat(buf, "\\");
-    }
-    if (BasePath) {
-        operator delete(BasePath);
-        BasePath = 0;
-    }
-    BasePath = _strdup(buf);
-    Logger.g->Log(1, "Working Directory = %s", buf);
+    SetHomePath(pathname ? pathname : ".");
+    if (Logger.g)
+        Logger.g->Log(1, "Working Directory = %s", GetHomePath());
 }
 
 //----- (004FD260) --------------------------------------------------------
@@ -1204,14 +1217,11 @@ bool SFileSystem::IsFullPath(const char* filename)
 
 //----- (004FD770) --------------------------------------------------------
 
+// Panzers has no per-user data folder: logs, options.ini and saves live
+// under Home. This is the SWINE entry point, resolved like MakeFullPath.
 const char* SFileSystem::MakeAppDataPath(const char* filename)
 {
-    if (!AppDataPath[0] || IsFullPath(filename)) {
-        strcpy(fullname_3, filename);
-        return fullname_3;
-    }
-    strcpy(fullname_3, AppDataPath);
-    strcat(fullname_3, filename);
+    strcpy(fullname_3, MakeFullPath(filename));
     return fullname_3;
 }
 
@@ -1219,12 +1229,11 @@ const char* SFileSystem::MakeAppDataPath(const char* filename)
 
 char* SFileSystem::MakeFullPath(const char* filename)
 {
-    if (!BasePath || IsFullPath(filename)) {
-        strcpy(fullname_2, filename);
-        return fullname_2;
-    }
-    strcpy(fullname_2, BasePath);
-    strcat(fullname_2, filename);
+    SString full;
+    FileNameProcess(&full, filename);
+    strncpy(fullname_2, full.buf ? full.buf : "", sizeof(fullname_2) - 1);
+    fullname_2[sizeof(fullname_2) - 1] = 0;
+    FreeString(&full);
     return fullname_2;
 }
 
@@ -1262,53 +1271,64 @@ void SFileSystem::MakePath(SString pathname)
         delete[] pathname.buf;
 }
 
-//----- (004FDC40) --------------------------------------------------------
-
+// PANZERS 0x65f420
+// Order: every Search element in list order (directories: Name + filename
+// via _sopen_s; archives: LookupArchive, then fopen(pak, "rb")), then the
+// loose file relative to Home. A directory open that fails with anything
+// other than ENOENT is fatal when panicstr is set. SWINE's "FILE OPEN
+// READ"/"ARCHIVED FILE" log lines do not exist in Panzers.
 SStream* SFileSystem::OpenRead(const char* filename, const char* panicstr)
 {
     if (!IsFullPath(filename)) {
-        for (int i = 0; i < SearchPaths.size; i++) {
-            SSearchPath* sp = &SearchPaths.array[i];
-            if (sp->Path) {
-                // Filesystem search path
-                strcpy(fullname, sp->Path);
-                strcat(fullname, filename);
+        for (int i = 0; i < SearchPathCount; i++) {
+            SSearchPathElement* e = &SearchPath[i];
+            if (e->Type == SEARCHPATH_DIRECTORY) {
+                SString full;
+                ConcatString(&full, e->Name, filename);
+                const char* fn = full.buf ? full.buf : "";
                 int fd;
-                errno_t e = _sopen_s(&fd, fullname, _O_RDONLY | _O_BINARY, _SH_DENYNO, 0);
-                if (e == 0 && fd >= 0) {
-                    Logger.g->Log(2, "FILE OPEN READ(%s) = %d", filename, fd);
+                if (_sopen_s(&fd, fn, _O_RDONLY | _O_BINARY, _SH_DENYNO, 0) != 0)
+                    fd = -1;
+                if (fd >= 0) {
+                    FreeString(&full);
                     return new SFileStream(fd, true, false);
                 }
-            } else {
-                // Archive search path
-                SArchiveHeaderEntry* entry = sp->Archive.Lookup(filename);
-                if (entry) {
-                    int fd;
-                    errno_t e = _sopen_s(&fd, sp->Archive.FileName, _O_RDONLY | _O_BINARY, _SH_DENYNO, 0);
-                    if (e == 0 && fd >= 0) {
-                        Logger.g->Log(2, "ARCHIVED FILE(%s)", filename);
-                        return new SArchiveStream(fd, sp->Archive.HeaderSize + 16 + entry->Pos, entry->Size);
-                    }
+                if (errno != ENOENT) {
                     if (panicstr)
-                        Logger.g->Panic("%s: Couldn't open (%s)", panicstr, sp->Archive.FileName);
+                        Logger.g->Panic("%s: Couldn't open (%s)", panicstr, fn);
+                    FreeString(&full);
                     return nullptr;
                 }
+                FreeString(&full);
+            } else if (e->Type == SEARCHPATH_ARCHIVE) {
+                SArchiveHeaderEntry* entry = LookupArchive(i, filename);
+                if (!entry)
+                    continue;
+                const char* pak = e->Name.buf ? e->Name.buf : "";
+                FILE* f = fopen(pak, "rb");
+                if (f)
+                    return new SArchiveStream(f, entry->Pos + 16 + e->TocSize, entry->Size);
+                if (!panicstr)
+                    return nullptr;
+                Logger.g->Panic("%s: Couldn't open (%s)", panicstr, pak);
             }
         }
     }
-    // Direct file open
+
+    SString full;
+    FileNameProcess(&full, filename);
+    const char* fn = full.buf ? full.buf : "";
     int fd;
-    errno_t e = _sopen_s(&fd, filename, _O_RDONLY | _O_BINARY, _SH_DENYNO, 0);
-    if (e == 0 && fd >= 0) {
-        Logger.g->Log(2, "FILE OPEN READ(%s) = %d", filename, fd);
+    if (_sopen_s(&fd, fn, _O_RDONLY | _O_BINARY, _SH_DENYNO, 0) != 0)
+        fd = -1;
+    if (fd >= 0) {
+        FreeString(&full);
         return new SFileStream(fd, true, false);
     }
 
 #ifdef HDB_MISSING_ASSET_FALLBACK
-    // Substitute editor/missing.<ext> for known asset extensions instead of
-    // crashing. Mirrors newer Stormregion engines (Codename Panzers ships
-    // missing.4d / missing.dxt for the same purpose). Procedural
-    // placeholders for .png/.tga are handled inside SBitmap.
+    // SWINE HD remaster extension, not in PANZERS.exe: substitute
+    // editor/missing.<ext> for known asset extensions instead of failing.
     {
         static const char *fallback_exts[] = { ".4d", ".dxt" };
         const char *dot = strrchr(filename, '.');
@@ -1321,13 +1341,12 @@ SStream* SFileSystem::OpenRead(const char* filename, const char* panicstr)
                     char fb_path[260];
                     _snprintf(fb_path, sizeof(fb_path), "editor/missing%s", fallback_exts[i]);
                     fb_path[sizeof(fb_path) - 1] = 0;
-                    // Log BEFORE the fallback open attempt so a chained crash
-                    // (e.g. parser blows up inside missing.4d) still names the
-                    // original asset that triggered the substitution.
                     Logger.g->Log(0, "MISSING ASSET: %s -> falling back to %s", filename, fb_path);
                     SStream *fb = OpenRead(fb_path, nullptr);
-                    if (fb)
+                    if (fb) {
+                        FreeString(&full);
                         return fb;
+                    }
                     Logger.g->Log(0, "MISSING ASSET: %s -> fallback %s also missing", filename, fb_path);
                     break;
                 }
@@ -1337,100 +1356,58 @@ SStream* SFileSystem::OpenRead(const char* filename, const char* panicstr)
 #endif
 
     if (panicstr)
-        Logger.g->Panic("%s: Couldn't open (%s)", panicstr, filename);
+        Logger.g->Panic("%s: Couldn't open (%s): %s", panicstr, fn, strerror(errno));
+    FreeString(&full);
     return nullptr;
 }
 
-//----- (004FDF70) --------------------------------------------------------
-
+// PANZERS 0x65f7a0
+// Relative to Home. Unlike SWINE, Panzers does not create missing parent
+// directories, and logs the failure when panicstr is null.
 SStream* SFileSystem::OpenWrite(const char* filename, const char* panicstr)
 {
-    char* fullpath = MakeFullPath(filename);
+    SString full;
+    FileNameProcess(&full, filename);
+    const char* fn = full.buf ? full.buf : "";
     int fd;
-    errno_t e = _sopen_s(&fd, fullpath, _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY, _SH_DENYNO, _S_IREAD | _S_IWRITE);
-    if (e == 0 && fd >= 0) {
-        Logger.g->Log(2, "FILE OPEN WRITE(%s) = %d", filename, fd);
+    if (_sopen_s(&fd, fn, _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY, _SH_DENYNO, _S_IREAD | _S_IWRITE) != 0)
+        fd = -1;
+    if (fd >= 0) {
+        FreeString(&full);
         return new SFileStream(fd, false, true);
     }
-    if (errno == ENOENT) {
-        // Try creating parent directory
-        SString pathStr = {_strdup(filename), (int)strlen(filename)};
-        SString dirname = {0, 0};
-        SString::Dirname(&pathStr, &dirname);
-        if (pathStr.buf) delete[] pathStr.buf;
-        bool retry = false;
-        if (!dirname.buf || strcmp(dirname.buf, ".") != 0) {
-            SString dirCopy;
-            if (dirname.buf) {
-                dirCopy.size = dirname.size;
-                dirCopy.buf = (char*)operator new[](dirname.size + 1);
-                memcpy(dirCopy.buf, dirname.buf, dirname.size + 1);
-            } else {
-                dirCopy.buf = 0;
-                dirCopy.size = 0;
-            }
-            MakePath(dirCopy);
-            e = _sopen_s(&fd, fullpath, _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY, _SH_DENYNO, _S_IREAD | _S_IWRITE);
-            if (e == 0 && fd >= 0)
-                retry = true;
-        }
-        if (dirname.buf) delete[] dirname.buf;
-        if (retry) {
-            Logger.g->Log(2, "FILE OPEN WRITE(%s) = %d", filename, fd);
-            return new SFileStream(fd, false, true);
-        }
-    }
     if (panicstr)
-        Logger.g->Panic("%s: Couldn't open (%s)", panicstr, fullpath);
+        Logger.g->Panic("%s: Couldn't open (%s): %s", panicstr, fn, strerror(errno));
+    Logger.g->Log(0, "SFileSystem::OpenWrite: Couldn't open (%s): %s", fn, strerror(errno));
+    FreeString(&full);
     return nullptr;
 }
 
-//----- (004FD9B0) --------------------------------------------------------
-
+// PANZERS 0x65f0a0
 SStream* SFileSystem::OpenAppend(const char* filename, const char* panicstr)
 {
-    const char* fullpath = MakeFullPath(filename);
+    SString full;
+    FileNameProcess(&full, filename);
+    const char* fn = full.buf ? full.buf : "";
     int fd;
-    errno_t e = _sopen_s(&fd, fullpath, _O_WRONLY | _O_CREAT | _O_APPEND | _O_BINARY, _SH_DENYNO, _S_IREAD | _S_IWRITE);
-    if (e == 0 && fd >= 0) {
-        Logger.g->Log(2, "FILE OPEN APPEND(%s) = %d", filename, fd);
+    if (_sopen_s(&fd, fn, _O_WRONLY | _O_CREAT | _O_APPEND | _O_BINARY, _SH_DENYNO, _S_IREAD | _S_IWRITE) != 0)
+        fd = -1;
+    if (fd >= 0) {
+        FreeString(&full);
         return new SFileStream(fd, false, true);
     }
     if (panicstr)
-        Logger.g->Panic("%s: Couldn't open (%s)", panicstr, fullpath);
+        Logger.g->Panic("%s: Couldn't open (%s)", panicstr, fn);
+    Logger.g->Log(0, "SFileSystem::OpenAppend: Couldn't open (%s): %s", fn, strerror(errno));
+    FreeString(&full);
     return nullptr;
 }
 
-//----- (004FDAB0) --------------------------------------------------------
-
-SSearchPath* SFileSystem::OpenArchive(const char* filename)
-{
-    int fd;
-    errno_t e = _sopen_s(&fd, filename, _O_RDONLY | _O_BINARY, _SH_DENYNO, 0);
-    if (e != 0 || fd < 0)
-        Logger.g->Panic("SFileSystem::OpenArchive: Couldn't open (%s)", filename);
-    int magic;
-    if (_read(fd, &magic, 4) != 4 || magic != 454718035 ||
-        _read(fd, &magic, 4) != 4 || magic != 176622093)
-        Logger.g->Panic("SFileSystem::OpenArchive: %s: Not a Stormregion file", filename);
-    if (_read(fd, &magic, 4) != 4 || magic != 1262698832)
-        Logger.g->Panic("SFileSystem::OpenArchive: %s: Not a 'PACK' file", filename);
-    int headerSize;
-    if (_read(fd, &headerSize, 4) != 4)
-        Logger.g->Panic("SFileSystem::OpenArchive: %s: Read error", filename);
-    int idx = SearchPaths.Add();
-    SSearchPath* sp = &SearchPaths.array[idx];
-    sp->Archive.FileName = _strdup(filename);
-    sp->Archive.HeaderSize = headerSize;
-    sp->Archive.Header = (unsigned char*)operator new[](headerSize);
-    if (_read(fd, sp->Archive.Header, sp->Archive.HeaderSize) != sp->Archive.HeaderSize)
-        Logger.g->Panic("SFileSystem::OpenArchive: %s: Read error", filename);
-    _close(fd);
-    return sp;
-}
-
-//----- (004FE4F0) --------------------------------------------------------
-
+// PANZERS 0x65f8e0
+// Same as SWINE. One deliberate change: the buffer gets one extra byte,
+// set to 0. The HD SProperties parser (0x660840) writes a terminator one
+// past the data when the file does not end in a newline, which overflows
+// the HD's exact-size buffer.
 void SFileSystem::ReadFile(const char* filename, char** buf, unsigned int* size, const char* caller)
 {
     *buf = 0;
@@ -1439,7 +1416,8 @@ void SFileSystem::ReadFile(const char* filename, char** buf, unsigned int* size,
     if (is) {
         *size = is->Seek(0, 2);
         is->Seek(0, 0);
-        *buf = (char*)operator new[](*size);
+        *buf = (char*)operator new[](*size + 1);
+        (*buf)[*size] = 0;
         is->Read(*buf, *size);
         is->Release();
     }
@@ -1449,62 +1427,45 @@ void SFileSystem::ReadFile(const char* filename, char** buf, unsigned int* size,
 
 void SFileSystem::RemoveAllSearchPaths()
 {
-    for (int i = 0; i < SearchPaths.size; i++) {
-        SSearchPath* sp = &SearchPaths.array[i];
-        if (sp->Path) {
-            operator delete(sp->Path);
-            sp->Path = 0;
-        }
-        if (sp->Archive.FileName) {
-            operator delete(sp->Archive.FileName);
-            sp->Archive.FileName = 0;
-        }
-        if (sp->Archive.Header) {
-            operator delete(sp->Archive.Header);
-            sp->Archive.Header = 0;
-        }
-    }
-    if (SearchPaths.size && !SearchPaths.array)
-        Logger.g->Panic("SDArray::Clear: array is damaged");
-    int maxsize = SearchPaths.maxsize;
-    SearchPaths.size = 0;
-    if (maxsize < 0) {
-        SearchPaths.maxsize = 0;
-        SearchPaths.array = (SSearchPath*)realloc(SearchPaths.array, 0);
-        maxsize = SearchPaths.maxsize;
-    }
-    memset(SearchPaths.array, 0, sizeof(SSearchPath) * maxsize);
+    for (int i = 0; i < SearchPathCount; i++)
+        FreeSearchPathElement(&SearchPath[i]);
+    SearchPathCount = 0;
+    if (SearchPath)
+        memset(SearchPath, 0, sizeof(SSearchPathElement) * SearchPathMax);
 }
 
 //----- (004FED40) --------------------------------------------------------
 
+// SWINE signature. The HD equivalent (0x65faf0) fills its own 0x30-byte
+// struct, but uses the same order as OpenRead: directories by
+// GetFileAttributesEx, archives by LookupArchive, then Home.
 int SFileSystem::Stat(const char* filename, struct _stat* buffer)
 {
     struct _stat tmpbuf;
-    if (IsFullPath(filename))
-        return buffer ? _stat(filename, buffer) : _stat(filename, &tmpbuf);
-
-    for (int i = 0; i < SearchPaths.size; i++) {
-        SSearchPath* sp = &SearchPaths.array[i];
-        if (sp->Path) {
-            strcpy(fullname_6, sp->Path);
-            strcat(fullname_6, filename);
-            int result = buffer ? _stat(fullname_6, buffer) : _stat(fullname_6, &tmpbuf);
-            if (result == 0)
-                return 0;
-        } else {
-            SArchiveHeaderEntry* entry = sp->Archive.Lookup(filename);
-            if (entry) {
-                if (buffer) {
+    if (!buffer)
+        buffer = &tmpbuf;
+    if (!IsFullPath(filename)) {
+        for (int i = 0; i < SearchPathCount; i++) {
+            SSearchPathElement* e = &SearchPath[i];
+            if (e->Type == SEARCHPATH_DIRECTORY) {
+                SString full;
+                ConcatString(&full, e->Name, filename);
+                int result = _stat(full.buf ? full.buf : "", buffer);
+                FreeString(&full);
+                if (result == 0)
+                    return 0;
+            } else if (e->Type == SEARCHPATH_ARCHIVE) {
+                SArchiveHeaderEntry* entry = LookupArchive(i, filename);
+                if (entry) {
                     memset(buffer, 0, sizeof(struct _stat));
                     buffer->st_nlink = 1;
                     buffer->st_size = entry->Size;
+                    return 0;
                 }
-                return 0;
             }
         }
     }
-    return buffer ? _stat(filename, buffer) : _stat(filename, &tmpbuf);
+    return _stat(MakeFullPath(filename), buffer);
 }
 
 //----- (004FD0E0) --------------------------------------------------------
@@ -1540,65 +1501,67 @@ int SFileSystem::GetCRC(const char* buffer, int length)
 
 //----- (004FC6D0) --------------------------------------------------------
 
+static void FindFilesInDirectory(const char* pattern, SDArray<SString>* result)
+{
+    WIN32_FIND_DATAA findData;
+    HANDLE hFind = FindFirstFileA(pattern, &findData);
+    if (hFind == INVALID_HANDLE_VALUE)
+        return;
+    do {
+        bool duplicate = false;
+        for (int i = 0; i < result->size; i++) {
+            const char* existing = result->array[i].buf ? result->array[i].buf : "";
+            if (_stricmp(existing, findData.cFileName) == 0) {
+                duplicate = true;
+                break;
+            }
+        }
+        if (!duplicate) {
+            SString item;
+            item.size = (int)strlen(findData.cFileName);
+            item.buf = new char[item.size + 1];
+            memcpy(item.buf, findData.cFileName, item.size + 1);
+            result->Add(&item);
+        }
+    } while (FindNextFileA(hFind, &findData));
+    FindClose(hFind);
+}
+
 void SFileSystem::FindFiles(const char* path, const char* filter, SDArray<SString>* result)
 {
     if (IsFullPath(path)) {
         strcpy(fullname_1, path);
         strcat(fullname_1, filter);
-        WIN32_FIND_DATAA findData;
-        HANDLE hFind = FindFirstFileA(fullname_1, &findData);
-        if (hFind != INVALID_HANDLE_VALUE) {
-            do {
-                // Check for duplicates
-                bool duplicate = false;
-                for (int i = 0; i < result->size; i++) {
-                    const char* existing = result->array[i].buf ? result->array[i].buf : "";
-                    if (_stricmp(existing, findData.cFileName) == 0) {
-                        duplicate = true;
-                        break;
-                    }
-                }
-                if (!duplicate) {
-                    SString item;
-                    item.buf = _strdup(findData.cFileName);
-                    item.size = (int)strlen(findData.cFileName);
-                    result->Add(&item);
-                }
-            } while (FindNextFileA(hFind, &findData));
-            FindClose(hFind);
-        }
-    } else {
-        for (int i = 0; i < SearchPaths.size; i++) {
-            SSearchPath* sp = &SearchPaths.array[i];
-            if (sp->Path) {
-                strcpy(fullname_1, sp->Path);
-                strcat(fullname_1, path);
-                strcat(fullname_1, filter);
-                WIN32_FIND_DATAA findData;
-                HANDLE hFind = FindFirstFileA(fullname_1, &findData);
-                if (hFind != INVALID_HANDLE_VALUE) {
-                    do {
-                        bool duplicate = false;
-                        for (int j = 0; j < result->size; j++) {
-                            const char* existing = result->array[j].buf ? result->array[j].buf : "";
-                            if (_stricmp(existing, findData.cFileName) == 0) {
-                                duplicate = true;
-                                break;
-                            }
-                        }
-                        if (!duplicate) {
-                            SString item;
-                            item.buf = _strdup(findData.cFileName);
-                            item.size = (int)strlen(findData.cFileName);
-                            result->Add(&item);
-                        }
-                    } while (FindNextFileA(hFind, &findData));
-                    FindClose(hFind);
-                }
-            } else if (sp->Archive.Header) {
-                // Archive search — delegate to SArchiveInfo
-                sp->Archive.FindFiles(path, filter, result);
-            }
+        FindFilesInDirectory(fullname_1, result);
+        return;
+    }
+    for (int i = 0; i < SearchPathCount; i++) {
+        SSearchPathElement* e = &SearchPath[i];
+        if (e->Type == SEARCHPATH_DIRECTORY && e->Name.buf) {
+            strcpy(fullname_1, e->Name.buf);
+            strcat(fullname_1, path);
+            strcat(fullname_1, filter);
+            FindFilesInDirectory(fullname_1, result);
+        } else if (e->Type == SEARCHPATH_ARCHIVE && e->Toc) {
+            ArchiveFindFiles(e->Toc, path, filter, result);
         }
     }
+    // Panzers also lists the loose directory under Home (HD 0x65e720).
+    SString full;
+    FileNameProcess(&full, path);
+    strncpy(fullname_1, full.buf ? full.buf : "", sizeof(fullname_1) - 1);
+    fullname_1[sizeof(fullname_1) - 1] = 0;
+    FreeString(&full);
+    strncat(fullname_1, filter, sizeof(fullname_1) - strlen(fullname_1) - 1);
+    FindFilesInDirectory(fullname_1, result);
+}
+
+// SWINE EnumArchive entry point (extracts one archive below Home).
+void SFileSystem::EnumArchive(int index)
+{
+    SSearchPathElement* e = GetSearchPathElement(index);
+    if (e->Type != SEARCHPATH_ARCHIVE || !e->Toc)
+        return;
+    SString empty;
+    ArchiveIterate(this, e, e->Toc, empty);
 }

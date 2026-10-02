@@ -1,5 +1,6 @@
 # core — Engine core library
 add_library(core STATIC
+    gettext.cpp
     logger.cpp
     properties.cpp
     stream.cpp

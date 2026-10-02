@@ -76,16 +76,6 @@ SString* Format(SString* result, const char* fmt, ...)
 }
 
 // ---------------------------------------------------------------------------
-// GetText — localisation lookup (window/widget.h). SWINE defined it in
-// game/game.cpp on top of the game's messages ini. Here: returns the key.
-// ---------------------------------------------------------------------------
-char* GetText(const char* key)
-{
-    STUB_LOG("GetText");
-    return (char*)key;
-}
-
-// ---------------------------------------------------------------------------
 // TimerProc — Win32 timer callback that dispatches TimerList entries to
 // SWidget::OnTimer (window/widget.h). SWINE defined it in game/game.cpp.
 // Here: no-op, so SWidget timers never fire.

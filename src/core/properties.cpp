@@ -1,261 +1,459 @@
 // core/properties.cpp
 // INI/config file parser
-// Decompiled from: gameSplit/sfilesystem.c
+// Imported from the S.W.I.N.E. decomp (gameSplit/sfilesystem.c) and
+// re-lifted from the Codename Panzers HD exe (0x65fe80..0x660840).
+//
+// Panzers differences from SWINE:
+// - Sections and variables are kept in name-sorted arrays (_stricmp) and
+//   found by binary search; enumeration yields sections in sorted order.
+// - A UTF-8 BOM switches on in-place UTF-8 -> Latin-1 decoding of the rest
+//   of the file (2-byte sequences only). SWINE only skipped the BOM.
+// - '#' in a value is kept. SWINE turned it into a line end.
+// - Values are always right-trimmed. Panics name the file.
 
 #include "properties.h"
 #include "logger.h"
 #include "stream.h"
 
-//----- (004FF2C0) --------------------------------------------------------
+static void FreeStr(SString* s)
+{
+    if (s->buf) {
+        delete[] s->buf;
+        s->buf = nullptr;
+    }
+    s->size = 0;
+}
 
+static void PropertiesResetClassEnum(SProperties* p);
+
+static const char* FileNameOf(const SProperties* p)
+{
+    return p->FileName.buf ? p->FileName.buf : "";
+}
+
+// PANZERS 0x65fe80
 SProperties::SProperties(const char* filename, bool ExitOnReadError, bool trimSpaceAtEndOfValue)
 {
-    const char* caller = ExitOnReadError ? "SProperties::SProperties" : nullptr;
-    this->chain = nullptr;
-    char* buf = nullptr;
-    unsigned int fsize = 0;
-    FileSystem.ReadFile(filename, &buf, &fsize, caller);
-    ParseFileData(buf, &buf[fsize], trimSpaceAtEndOfValue);
-    free(buf);
-    this->pc_enum = nullptr;
-    this->p_enum = nullptr;
+    (void)trimSpaceAtEndOfValue;
+    Sections = nullptr;
+    SectionCount = 0;
+    SectionMax = 0;
+    FileName.buf = nullptr;
+    FileName.size = 0;
+    CurSection = -1;
+    CurVariable = 0;
+    Load(filename, ExitOnReadError);
 }
 
-//----- (004FF340) --------------------------------------------------------
-
+// PANZERS 0x660080
+// (frees the sections through 0x65ff70 and each variable array through 0x65fff0)
 SProperties::~SProperties()
 {
-    SPropertyClass* pc = this->chain;
-    while (pc) {
-        SProperty* prop = pc->chain;
-        SPropertyClass* next = pc->next;
-        while (prop) {
-            SProperty* pnext = prop->next;
-            operator delete(prop->name);
-            operator delete(prop->value);
-            operator delete(prop);
-            prop = pnext;
+    FreeStr(&FileName);
+    for (int i = 0; i < SectionCount; i++) {
+        SPropertySection* sec = &Sections[i];
+        for (int j = 0; j < sec->VarCount; j++) {
+            FreeStr(&sec->Vars[j].Value);
+            FreeStr(&sec->Vars[j].Name);
         }
-        operator delete(pc->name);
-        operator delete(pc);
-        pc = next;
+        if (sec->Vars) {
+            free(sec->Vars);
+            sec->Vars = nullptr;
+        }
+        sec->VarMax = 0;
+        sec->VarCount = 0;
+        FreeStr(&sec->Name);
     }
+    if (Sections) {
+        free(Sections);
+        Sections = nullptr;
+    }
+    SectionMax = 0;
+    SectionCount = 0;
 }
 
-//----- (004FF3B0) --------------------------------------------------------
-
-void SProperties::EnumProperties(const char* classname)
+// PANZERS 0x6607d0
+// Load() adds to what is already there; a section present twice panics.
+void SProperties::Load(const char* filename, bool ExitOnReadError)
 {
-    SPropertyClass* pc = this->chain;
-    while (pc) { if (_stricmp(pc->name, classname) == 0) break; pc = pc->next; }
-    this->p_enum = pc ? pc->chain : nullptr;
+    FileName = filename;
+    char* buf = nullptr;
+    unsigned int size = 0;
+    FileSystem.ReadFile(filename, &buf, &size, ExitOnReadError ? "SProperties::Load" : nullptr);
+    ParseFileData(buf, buf + size);
+    CurSection = -1;
+    if (buf)
+        operator delete[](buf);
 }
 
-//----- (004FF400) --------------------------------------------------------
+// PANZERS 0x6600b0
+SPropertySection* SProperties::GetSection(int index)
+{
+    if (index < 0 || index >= SectionCount)
+        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "struct SPropertySection", index);
+    return &Sections[index];
+}
 
-void SProperties::EnumPropertyClasses() { this->pc_enum = this->chain; }
+// PANZERS 0x660100
+SPropertyVariable* SProperties::GetVariable(SPropertySection* section, int index)
+{
+    if (index < 0 || index >= section->VarCount)
+        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "struct SPropertyVariable", index);
+    return &section->Vars[index];
+}
 
-//----- (004FF410) --------------------------------------------------------
+// PANZERS 0x6605d0
+int SProperties::InsertSection(int index)
+{
+    if (index < 0 || index > SectionCount)
+        Logger.g->Panic("SDArray<%s>::Insert: invalid index (%d)", "struct SPropertySection", index);
+    if (SectionCount == SectionMax) {
+        int newmax = (SectionMax < 16) ? 16 : (SectionMax * 6) / 5;
+        Sections = (SPropertySection*)realloc(Sections, newmax * sizeof(SPropertySection));
+        memset(&Sections[SectionMax], 0, (newmax - SectionMax) * sizeof(SPropertySection));
+        SectionMax = newmax;
+    }
+    if (index < SectionCount)
+        memmove(&Sections[index + 1], &Sections[index], (SectionCount - index) * sizeof(SPropertySection));
+    memset(&Sections[index], 0, sizeof(SPropertySection));
+    SectionCount++;
+    return index;
+}
 
+// PANZERS 0x6606c0
+int SProperties::InsertVariable(SPropertySection* section, int index)
+{
+    if (index < 0 || index > section->VarCount)
+        Logger.g->Panic("SDArray<%s>::Insert: invalid index (%d)", "struct SPropertyVariable", index);
+    if (section->VarCount == section->VarMax) {
+        int newmax = (section->VarMax < 16) ? 16 : (section->VarMax * 6) / 5;
+        section->Vars = (SPropertyVariable*)realloc(section->Vars, newmax * sizeof(SPropertyVariable));
+        memset(&section->Vars[section->VarMax], 0, (newmax - section->VarMax) * sizeof(SPropertyVariable));
+        section->VarMax = newmax;
+    }
+    if (index < section->VarCount)
+        memmove(&section->Vars[index + 1], &section->Vars[index],
+                (section->VarCount - index) * sizeof(SPropertyVariable));
+    memset(&section->Vars[index], 0, sizeof(SPropertyVariable));
+    section->VarCount++;
+    return index;
+}
+
+// PANZERS 0x6601c0
+// Checks the cached CurSection first, then binary-searches. On a miss,
+// CurSection is left at the insertion point.
+bool SProperties::FindSection(const char* name)
+{
+    if (CurSection >= 0 && CurSection < SectionCount) {
+        const char* cur = Sections[CurSection].Name.buf ? Sections[CurSection].Name.buf : "";
+        if (_stricmp(cur, name) == 0)
+            return true;
+    }
+    int lo = 0;
+    int hi = SectionCount - 1;
+    while (lo <= hi) {
+        int mid = (hi + lo) >> 1;
+        const char* s = GetSection(mid)->Name.buf;
+        int c = _stricmp(name, s ? s : "");
+        if (c == 0) {
+            CurSection = mid;
+            return true;
+        }
+        if (c < 0)
+            hi = mid - 1;
+        else
+            lo = mid + 1;
+    }
+    if (lo != hi + 1)
+        Logger.g->Panic("SProperties::FindSection: '%s': Internal error", FileNameOf(this));
+    CurSection = lo;
+    return false;
+}
+
+// PANZERS 0x6602c0
+// Binary search inside the CurSection section. CurVariable gets the match
+// or the insertion point.
+bool SProperties::FindVariable(const char* name)
+{
+    SPropertySection* sec = GetSection(CurSection);
+    if (sec->VarCount == 0) {
+        CurVariable = 0;
+        return false;
+    }
+    int lo = 0;
+    int hi = sec->VarCount - 1;
+    while (lo <= hi) {
+        int mid = (hi + lo) >> 1;
+        const char* s = GetVariable(sec, mid)->Name.buf;
+        int c = _stricmp(name, s ? s : "");
+        if (c == 0) {
+            CurVariable = mid;
+            return true;
+        }
+        if (c < 0)
+            hi = mid - 1;
+        else
+            lo = mid + 1;
+    }
+    if (lo != hi + 1)
+        Logger.g->Panic("SProperties::FindVariable: '%s': Internal error", FileNameOf(this));
+    CurVariable = lo;
+    return false;
+}
+
+// PANZERS 0x6607a0
+bool SProperties::Exists(const char* classname, const char* propname)
+{
+    return FindSection(classname) && FindVariable(propname);
+}
+
+// PANZERS 0x660490
+// Unlike SWINE, no setlocale(LC_NUMERIC, "C") before strtod.
 float SProperties::GetFloat(const char* classname, const char* propname, float def)
 {
-    SPropertyClass* pc = this->chain;
-    while (pc) { if (_stricmp(pc->name, classname) == 0) break; pc = pc->next; }
-    if (!pc) return def;
-    SProperty* prop = pc->chain;
-    while (prop) { if (_stricmp(prop->name, propname) == 0) break; prop = prop->next; }
-    if (!prop) return def;
-    setlocale(LC_NUMERIC, "C");
-    return (float)strtod(prop->value, nullptr);
+    if (SectionCount && FindSection(classname) && FindVariable(propname)) {
+        const char* v = GetVariable(GetSection(CurSection), CurVariable)->Value.buf;
+        return (float)strtod(v ? v : "", nullptr);
+    }
+    return def;
 }
 
-//----- (004FF4A0) --------------------------------------------------------
-
+// PANZERS 0x660500
 int SProperties::GetInt(const char* classname, const char* propname, int def)
 {
-    SPropertyClass* pc = this->chain;
-    while (pc) { if (_stricmp(pc->name, classname) == 0) break; pc = pc->next; }
-    if (!pc) return def;
-    SProperty* prop = pc->chain;
-    while (prop) { if (_stricmp(prop->name, propname) == 0) break; prop = prop->next; }
-    if (!prop) return def;
-    return strtol(prop->value, nullptr, 0);
+    if (SectionCount && FindSection(classname) && FindVariable(propname)) {
+        const char* v = GetVariable(GetSection(CurSection), CurVariable)->Value.buf;
+        return strtol(v ? v : "", nullptr, 0);
+    }
+    return def;
 }
 
-//----- (004FF520) --------------------------------------------------------
-
-char* SProperties::GetNextProperty()
+// PANZERS 0x660570
+// An empty value comes back as "" (not def).
+char* SProperties::GetString(const char* classname, const char* propname, const char* def)
 {
-    SProperty* p = this->p_enum;
-    if (!p) return nullptr;
-    this->p_enum = p->next;
-    return p->name;
+    if (SectionCount && FindSection(classname) && FindVariable(propname)) {
+        char* v = GetVariable(GetSection(CurSection), CurVariable)->Value.buf;
+        return v ? v : (char*)"";
+    }
+    return (char*)def;
+}
+
+// PANZERS 0x660150
+void SProperties::EnumPropertyClasses()
+{
+    CurSection = 0;
+    PropertiesResetClassEnum(this);   // SWINE-compat cursor, see below
+}
+
+// PANZERS 0x660160
+char* SProperties::GetPropertyClass()
+{
+    if (CurSection >= SectionCount)
+        return nullptr;
+    char* n = GetSection(CurSection)->Name.buf;
+    return n ? n : (char*)"";
+}
+
+// PANZERS 0x6601b0
+void SProperties::NextPropertyClass()
+{
+    ++CurSection;
+}
+
+// PANZERS 0x660840
+void SProperties::ParseFileData(char* buf, char* end)
+{
+    unsigned char* p = (unsigned char*)buf;
+    unsigned char* e = (unsigned char*)end;
+    CurSection = -1;
+
+    // UTF-8 BOM: decode the rest in place to Latin-1 (b0 << 6 | b1 & 0x3f).
+    if (buf + 3 <= end && p[0] == 0xEF && p[1] == 0xBB && p[2] == 0xBF) {
+        unsigned char* src = p + 3;
+        unsigned char* dst = p + 3;
+        p += 3;
+        if (src < e) {
+            unsigned char* next = src + 1;
+            do {
+                unsigned char b = *src;
+                if (b < 0x80 || next >= e) {
+                    *dst = b;
+                    src += 1;
+                    next += 1;
+                } else {
+                    *dst = (unsigned char)((b << 6) + (*next & 0x3F));
+                    src += 2;
+                    next += 2;
+                }
+                ++dst;
+            } while (src < e);
+        }
+        e = dst;
+    }
+
+    if (e <= p)
+        return;
+    do {
+        unsigned char c = *p;
+        if (c == '\r' || c == '\n' || c == ' ' || c == '\t') {
+            ++p;
+        } else if (c == ';') {
+            // Comment: skip through the end of the line
+            unsigned char ch;
+            do {
+                if (p >= e)
+                    return;
+                ch = *p++;
+            } while (ch != '\n');
+        } else if (c == '[') {
+            unsigned char* nameStart = p + 1;
+            unsigned char* q = nameStart;
+            while (true) {
+                if (q >= e || *q == '\n')
+                    Logger.g->Panic("SProperties::ParseFileData: '%s': SyntaxError, missing ']'", FileNameOf(this));
+                if (*q == ']')
+                    break;
+                ++q;
+            }
+            if (q <= nameStart)
+                Logger.g->Panic("SProperties::ParseFileData: '%s': Empty section name", FileNameOf(this));
+            *q = 0;
+            CurSection = -1;
+            if (FindSection((char*)nameStart))
+                Logger.g->Panic("SProperties::ParseFileData: '%s': Duplicate section (%s)", FileNameOf(this), nameStart);
+            InsertSection(CurSection);
+            GetSection(CurSection)->Name = (char*)nameStart;
+            while (true) {
+                ++q;
+                if (q >= e)
+                    return;
+                unsigned char ch = *q;
+                if (ch == '\n')
+                    break;
+                if (ch != '\r' && ch != ' ' && ch != '\t')
+                    Logger.g->Panic("SProperties::ParseFileData: '%s': SyntaxError, garbage after section name", FileNameOf(this));
+            }
+            p = q;
+        } else {
+            if (CurSection < 0)
+                Logger.g->Panic("SProperties::ParseFileData: '%s': Variable without section definition", FileNameOf(this));
+            unsigned char* q = p;
+            while (*q != '=') {
+                if (*q == '\n')
+                    Logger.g->Panic("SProperties::ParseFileData: '%s': SyntaxError, missing '='", FileNameOf(this));
+                ++q;
+                if (q >= e)
+                    Logger.g->Panic("SProperties::ParseFileData: '%s': SyntaxError, missing '='", FileNameOf(this));
+            }
+            unsigned char* nameEnd = q;
+            while (true) {
+                if (nameEnd <= p)
+                    Logger.g->Panic("SProperties::ParseFileData: '%s': Empty variable name", FileNameOf(this));
+                if (nameEnd[-1] != ' ' && nameEnd[-1] != '\t')
+                    break;
+                --nameEnd;
+            }
+            *nameEnd = 0;
+            if (FindVariable((char*)p)) {
+                const char* sec = GetSection(CurSection)->Name.buf;
+                Logger.g->Panic("SProperties::ParseFileData: '%s': Dublicate variable (%s::%s)",
+                                FileNameOf(this), sec ? sec : "", p);
+            }
+            SPropertySection* sec = GetSection(CurSection);
+            InsertVariable(sec, CurVariable);
+            GetVariable(sec, CurVariable)->Name = (char*)p;
+
+            unsigned char* valStart = q;
+            do {
+                ++valStart;
+            } while (valStart < e && (*valStart == ' ' || *valStart == '\t'));
+            unsigned char* valEnd = valStart;
+            while (valEnd < e && *valEnd != '\n' && *valEnd != '\r')
+                ++valEnd;
+            unsigned char* trim = valEnd;
+            while (trim > valStart && (trim[-1] == ' ' || trim[-1] == '\t'))
+                --trim;
+            // At EOF this writes one byte past the data; ReadFile allocates
+            // that byte (the HD exe overflowed its exact-size buffer here).
+            *trim = 0;
+            p = valEnd + 1;
+            GetVariable(sec, CurVariable)->Value = (char*)valStart;
+        }
+    } while (p < e);
+}
+
+// ------------------------------------------------------------------
+// SWINE-compat enumerators and OverrideFromFile (not in PANZERS.exe)
+// ------------------------------------------------------------------
+
+static SProperties* s_classEnumOwner = nullptr;
+static int s_classEnumIndex = 0;
+static SProperties* s_propEnumOwner = nullptr;
+static int s_propEnumSection = -1;
+static int s_propEnumIndex = 0;
+
+static void PropertiesResetClassEnum(SProperties* p)
+{
+    s_classEnumOwner = p;
+    s_classEnumIndex = 0;
 }
 
 //----- (004FF540) --------------------------------------------------------
 
 char* SProperties::GetNextPropertyClass()
 {
-    SPropertyClass* pc = this->pc_enum;
-    if (!pc) return nullptr;
-    this->pc_enum = pc->next;
-    return pc->name;
+    if (s_classEnumOwner != this || s_classEnumIndex >= SectionCount)
+        return nullptr;
+    char* n = Sections[s_classEnumIndex++].Name.buf;
+    return n ? n : (char*)"";
 }
 
-//----- (004FF560) --------------------------------------------------------
+//----- (004FF3B0) --------------------------------------------------------
 
-char* SProperties::GetString(const char* classname, const char* propname, const char* def)
+void SProperties::EnumProperties(const char* classname)
 {
-    SPropertyClass* pc = this->chain;
-    while (pc) { if (_stricmp(pc->name, classname) == 0) break; pc = pc->next; }
-    if (!pc) return (char*)def;
-    SProperty* prop = pc->chain;
-    while (prop) { if (_stricmp(prop->name, propname) == 0) break; prop = prop->next; }
-    if (!prop) return (char*)def;
-    return prop->value;
+    s_propEnumOwner = this;
+    s_propEnumIndex = 0;
+    s_propEnumSection = (SectionCount && FindSection(classname)) ? CurSection : -1;
 }
 
-//----- (004FF5D0) --------------------------------------------------------
+//----- (004FF520) --------------------------------------------------------
 
-SPropertyClass* SProperties::LookupClass(const char* name)
+char* SProperties::GetNextProperty()
 {
-    SPropertyClass* pc = this->chain;
-    while (pc) { if (_stricmp(pc->name, name) == 0) return pc; pc = pc->next; }
-    return nullptr;
-}
-
-//----- (004FF610) --------------------------------------------------------
-
-SProperty* SProperties::LookupVariable(SPropertyClass* pclass, const char* name)
-{
-    if (!pclass) return nullptr;
-    SProperty* prop = pclass->chain;
-    while (prop) { if (_stricmp(prop->name, name) == 0) return prop; prop = prop->next; }
-    return nullptr;
-}
-
-//----- (004FF660) --------------------------------------------------------
-
-void SProperties::ParseFileData(char* buf, char* end, bool trimSpaceAtEndOfValue)
-{
-    char* p = buf;
-    SPropertyClass* currentClass = nullptr;
-    SPropertyClass* lastClass = nullptr;
-    SProperty* lastProp = nullptr;
-    if (p && *p == (char)0xEF && p[1] == (char)0xBB && p[2] == (char)0xBF) p = buf + 3;
-    while (p < end) {
-        char c = *p;
-        if (c == '\r' || c == '\n' || c == '\t' || c == ' ') { ++p; continue; }
-        if (c == ';') { while (p < end) { if (*p++ == '\n') break; } continue; }
-        if (c == '[') {
-            char* nameStart = p + 1;
-            if (nameStart >= end) Logger.g->Panic("SProperties::ParseFileData: SyntaxError, missing ']'");
-            char* nameEnd = nameStart;
-            while (nameEnd < end) {
-                if (*nameEnd == '\n') Logger.g->Panic("SProperties::ParseFileData: SyntaxError, missing ']'");
-                if (*nameEnd == ']') break;
-                ++nameEnd;
-            }
-            if (nameEnd >= end) Logger.g->Panic("SProperties::ParseFileData: SyntaxError, missing ']'");
-            if (nameEnd <= nameStart) Logger.g->Panic("SProperties::ParseFileData: Empty section name");
-            *nameEnd = 0; p = nameEnd + 1;
-            if (LookupClass(nameStart)) Logger.g->Panic("SProperties::ParseFileData: Duplicate section (%s)", nameStart);
-            SPropertyClass* nc = (SPropertyClass*)operator new(sizeof(SPropertyClass));
-            if (!this->chain) { lastClass = nc; this->chain = nc; }
-            else { SPropertyClass* prev = lastClass; lastClass = nc; prev->next = nc; }
-            nc->name = _strdup(nameStart); nc->chain = nullptr; nc->next = nullptr;
-            currentClass = nc;
-            Logger.g->Log(2, "SProperties::ParseFileData: Class (%s)", nc->name);
-#ifdef HDB_PROPERTIES_TRACE
-            Logger.g->Log(1, "PTRACE: pc %p name=%p [%s]", nc, nc->name, nc->name);
-#endif
-            while (p < end) {
-                char ch = *p;
-                if (ch == '\n') break;
-                if (ch != '\r' && ch != ' ' && ch != '\t')
-                    Logger.g->Panic("SProperties::ParseFileData: SyntaxError, garbage after section name");
-                ++p;
-            }
-            continue;
-        }
-        if (!currentClass) Logger.g->Panic("SProperties::ParseFileData: Variable without section definition");
-        char* varStart = p;
-        while (p < end) {
-            if (*p == '\n') Logger.g->Panic("SProperties::ParseFileData: SyntaxError, missing '='");
-            if (*p == '=') break;
-            ++p;
-        }
-        if (p >= end) Logger.g->Panic("SProperties::ParseFileData: SyntaxError, missing '='");
-        char* eqPos = p;
-        if (eqPos <= varStart) Logger.g->Panic("SProperties::ParseFileData: Empty variable name");
-        while (eqPos > varStart && (*(eqPos-1) == ' ' || *(eqPos-1) == '\t')) --eqPos;
-        if (eqPos <= varStart) Logger.g->Panic("SProperties::ParseFileData: Empty variable name");
-        char* valStart = p + 1; *eqPos = 0;
-        if (LookupVariable(lastClass, varStart))
-            Logger.g->Panic("SProperties::ParseFileData: Dublicate variable (%s::%s)", lastClass->name, varStart);
-        SProperty* np = (SProperty*)operator new(sizeof(SProperty));
-        if (!lastClass->chain) { lastProp = np; lastClass->chain = np; }
-        else { SProperty* prev = lastProp; lastProp = np; prev->next = np; }
-        np->name = _strdup(varStart); np->next = nullptr;
-        while (valStart < end && (*valStart == ' ' || *valStart == '\t')) ++valStart;
-        char* valEnd = valStart;
-        while (valEnd < end) { char vc = *valEnd; if (vc == '\r' || vc == '\n') break; if (vc == '#') *valEnd = '\n'; ++valEnd; }
-        char* trimEnd = valEnd;
-        if (trimSpaceAtEndOfValue && trimEnd > valStart)
-            while (trimEnd > valStart && (*(trimEnd-1) == ' ' || *(trimEnd-1) == '\t')) --trimEnd;
-        if (valEnd < end) { *trimEnd = 0; }
-        else {
-            if (trimEnd - valStart > 0) memmove(valStart - 1, valStart, trimEnd - valStart);
-            --valStart; *(trimEnd - 1) = 0;
-        }
-        p = valEnd + 1;
-        np->value = _strdup(valStart);
-        Logger.g->Log(2, "SProperties::ParseFileData:   Variable (%s = %s)", lastProp->name, np->value);
-#ifdef HDB_PROPERTIES_TRACE
-        Logger.g->Log(1, "PTRACE: prop %p [%s] name=%p(%s) value=%p(%s)",
-                      np, lastClass->name, np->name, np->name, np->value, np->value);
-#endif
-        currentClass = lastClass;
-    }
-    Logger.g->Log(2, "SProperties::ParseFileData: ParseSuccessful");
+    if (s_propEnumOwner != this || s_propEnumSection < 0 || s_propEnumSection >= SectionCount)
+        return nullptr;
+    SPropertySection* sec = &Sections[s_propEnumSection];
+    if (s_propEnumIndex >= sec->VarCount)
+        return nullptr;
+    char* n = sec->Vars[s_propEnumIndex++].Name.buf;
+    return n ? n : (char*)"";
 }
 
 void SProperties::OverrideFromFile(const char* filename)
 {
     SProperties temp(filename, false, true);
-    SPropertyClass* pc = temp.chain;
-    while (pc) {
-        SPropertyClass* next = pc->next;
-        pc->next = nullptr;
-
-        SPropertyClass** pp = &this->chain;
-        while (*pp) {
-            if (_stricmp((*pp)->name, pc->name) == 0) {
-                SPropertyClass* dead = *pp;
-                *pp = dead->next;
-                SProperty* prop = dead->chain;
-                while (prop) {
-                    SProperty* pnext = prop->next;
-                    operator delete(prop->name);
-                    operator delete(prop->value);
-                    operator delete(prop);
-                    prop = pnext;
-                }
-                operator delete(dead->name);
-                operator delete(dead);
-                break;
+    for (int i = 0; i < temp.SectionCount; i++) {
+        SPropertySection* src = &temp.Sections[i];
+        const char* name = src->Name.buf ? src->Name.buf : "";
+        CurSection = -1;
+        if (FindSection(name)) {
+            // Drop the old section, keeping the slot for the new one
+            SPropertySection* dead = &Sections[CurSection];
+            for (int j = 0; j < dead->VarCount; j++) {
+                FreeStr(&dead->Vars[j].Name);
+                FreeStr(&dead->Vars[j].Value);
             }
-            pp = &(*pp)->next;
+            if (dead->Vars)
+                free(dead->Vars);
+            FreeStr(&dead->Name);
+        } else {
+            InsertSection(CurSection);
         }
-
-        SPropertyClass** tail = &this->chain;
-        while (*tail) tail = &(*tail)->next;
-        *tail = pc;
-
-        Logger.g->Log(2, "SProperties::OverrideFromFile: [%s] from (%s)", pc->name, filename);
-        pc = next;
+        Sections[CurSection] = *src;   // take ownership
+        memset(src, 0, sizeof(*src));
+        Logger.g->Log(2, "SProperties::OverrideFromFile: [%s] from (%s)", Sections[CurSection].Name.buf, filename);
     }
-    temp.chain = nullptr;
-    temp.pc_enum = nullptr;
-    temp.p_enum = nullptr;
+    CurSection = -1;
 }
