@@ -66,7 +66,15 @@ struct SWindow : SWidget {
     virtual void OnActivateApp(bool active);
     virtual LRESULT WindowProc(unsigned int message, unsigned int wParam, int lParam);
 
+    // Panzers HD SWindow vtable slots +0x7C / +0x80: two virtuals that SWINE
+    // does not have (empty in SWindow 0x539f40 / 0x539f30, both `ret 4`).
+    // SSuperWindow overrides them (0x659020 shows a status/notification text
+    // box from a message record, 0x658fc0 removes it). Real names unknown.
+    virtual void ShowStatusMessage(void *message);
+    virtual void HideStatusMessage(void *unused);
+
     // Non-virtual methods
+    void Run();
     void CloseEventStream();
     int Create(HICON icon, HCURSOR cursor, const wchar_t *title, unsigned int style, SWindow *parent, bool maximized);
     char EventFrame(int a2, int a3);

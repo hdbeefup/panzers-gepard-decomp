@@ -38,6 +38,9 @@ struct SIBoard {
     virtual int LoadFixedFont(const char* name, int w, int h, int cols, int rows, unsigned char* charset, HDMode mode) = 0;
     virtual int LoadCustomFont(const char* name, int count, SCustomGlyph* glyphs, HDMode mode) = 0;
     virtual int LoadSingleFont(const char* name, HDMode mode) = 0;
+    // Panzers: ".font" chunk files (menu/fonts/*.font + matching .tga).
+    // HD SBoard vtable slot +0x6C (0x6c61a0). Not in SWINE.
+    virtual int LoadFontFileFont(const char* filename) = 0;
     virtual void ReleaseFont(int font) = 0;
     virtual int GetFontTexture(int font) = 0;
     virtual float GetTextEffectiveScaleFactor(int font) = 0;

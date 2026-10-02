@@ -456,3 +456,9 @@ SDXWindow::~SDXWindow()
   // base destructor called automatically
 }
 
+// Layout tripwire against the HD exe (see 3dengine/panzers_hd_sizes.h).
+#include "panzers_hd_sizes.h"
+PANZERS_LAYOUT_CHECK(SWidget, SWIDGET);
+PANZERS_LAYOUT_CHECK(SWindow, SWINDOW);
+PANZERS_LAYOUT_CHECK(SDXWindow, SDXWINDOW);
+

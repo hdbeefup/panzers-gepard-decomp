@@ -508,6 +508,55 @@ int SWindow::ProcessMessages()
   return this->ModalResult;
 }
 
+// PANZERS 0x544db0
+// SWindow::Run: the main-loop message pump (called from SSuperWindow::Play
+// 0x65b470). Same shape as ProcessMessages() above, but the HD original
+// returns nothing and has no shouldClose/ModalResult handling: WM_CLOSE goes
+// straight to OnClose -> DestroyWindow, and the loop ends when hWnd is 0
+// (OnDestroy) or WM_QUIT is seen. OnIdle is vtable slot +0x90 (SSuperWindow
+// override 0x65ae50); returning false blocks in GetMessage.
+void SWindow::Run()
+{
+  MSG msg;
+  while ( this->hWnd )
+  {
+    if ( !this->OnIdle() )
+    {
+      if ( !this->hWnd )
+        return;
+      if ( !GetMessageA(&msg, 0, 0, 0) )
+        return;
+      TranslateMessage(&msg);
+      DispatchMessageA(&msg);
+    }
+    if ( !this->hWnd )
+      return;
+    while ( PeekMessageA(&msg, 0, 0, 0, PM_REMOVE) )
+    {
+      if ( msg.message == WM_QUIT )
+        return;
+      TranslateMessage(&msg);
+      DispatchMessageA(&msg);
+      if ( !this->hWnd )
+        return;
+    }
+  }
+}
+
+// PANZERS 0x539f40
+// Empty in SWindow (`ret 4`); see window.h.
+void SWindow::ShowStatusMessage(void *message)
+{
+  (void)message;
+}
+
+// PANZERS 0x539f30
+// Empty in SWindow (`ret 4`); see window.h.
+void SWindow::HideStatusMessage(void *unused)
+{
+  (void)unused;
+}
+
 //----- (004974A0) --------------------------------------------------------
 
 void SWindow::RecordEvents(char *filename)

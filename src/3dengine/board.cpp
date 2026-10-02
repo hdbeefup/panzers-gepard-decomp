@@ -209,24 +209,22 @@ SBoard::SBoard(SGepard *gepard)
     ++v4;
   }
   while ( v4 < 1120 );
- FileInSearchPath = FileSystem.FindFileInSearchPath("fonts/NotoSans-Condensed.ttf");
-#ifdef HD_DEBUG_FONTS
-  Logger.g->Log(0, "SBoard: Loading font: '%s'", FileInSearchPath);
-#endif
-  if ( !AddFontResourceExA(FileInSearchPath, 0x10u, 0) )
-    Logger.g->Panic("SBoard::SBoard: Failed to load small font");
-  v6 = FileSystem.FindFileInSearchPath("fonts/SWINPH.ttf");
-#ifdef HD_DEBUG_FONTS
-  Logger.g->Log(0, "SBoard: Loading font: '%s'", v6);
-#endif
-  if ( !AddFontResourceExA(v6, 0x10u, 0) )
-    Logger.g->Panic("SBoard::SBoard: Failed to load pig font");
-  v7 = FileSystem.FindFileInSearchPath("fonts/SWINRH.ttf");
-#ifdef HD_DEBUG_FONTS
-  Logger.g->Log(0, "SBoard: Loading font: '%s'", v7);
-#endif
-  if ( !AddFontResourceExA(v7, 0x10u, 0) )
-    Logger.g->Panic("SBoard::SBoard: Failed to load rabbit font");
+  // PANZERS 0x6c2500 (SBoard::SBoard, partial): the HD constructor registers
+  // no TrueType files. SWINE HD panicked unless fonts/NotoSans-Condensed.ttf,
+  // SWINPH.ttf and SWINRH.ttf (HD-remaster files) could be added; Panzers
+  // ships none of them, so they are now registered only if present.
+  // (HD instead creates a 32x32 A8R8G8B8 offscreen surface for the hardware
+  // cursor and calls SetHardwareMouseCursor; not ported, see ENGINE_DIFF.md.)
+  (void)FileInSearchPath; (void)v6; (void)v7;
+  static const char *const kHdFonts[] = {
+    "fonts/NotoSans-Condensed.ttf", "fonts/SWINPH.ttf", "fonts/SWINRH.ttf" };
+  for ( int i = 0; i < 3; ++i )
+  {
+    struct _stat st;
+    char *path = FileSystem.FindFileInSearchPath(kHdFonts[i]);
+    if ( _stat(path, &st) == 0 && AddFontResourceExA(path, 0x10u, 0) )
+      Logger.g->Log(0, "SBoard::SBoard: registered %s", path);
+  }
 }
 
 //----- (0041BA60) --------------------------------------------------------
@@ -5242,4 +5240,111 @@ void SBoard::UnloadCursorSet()
     this->CursorIcons = 0;
   }
 }
+
+// PANZERS 0x6c61a0
+// SBoard::LoadFontFileFont: loads a Panzers ".font" file (HD SBoard vtable
+// slot +0x6C). SWINE has no equivalent; the Panzers menu fonts
+// (menu/fonts/sans_serif_new/*_hq.font, strings at 0x80a558..) all go
+// through it.
+//
+// File layout (Stormregion chunk file):
+//   signature  "Sr\x1a\x1b\r\n\x87\n"
+//   chunk      'FONT' (0x544E4F46), size 0xE08
+//     int      version 'v100' (0x30303176)
+//     int      line height (14 for sans_serif_14)
+//     short    glyph[256][7] = { srcX, srcY, w, h, dstX, dstY, advance }
+// The bitmap has the same name with the extension replaced by "tga"
+// (SetExtension with the string at 0x8179d0).
+//
+// Differences from the HD body, on purpose:
+// - HD throws a `const char*` ("Not a font file", "Unsupported font file
+//   version") that its catch turns into Panic("SBoard::LoadFontFileFont:
+//   Error loading %s: %s"); here the Panic is called directly.
+// - HD keeps raw destination rects (0..w); SWINE's SBoard::Render expects the
+//   -0.5 texel offset that its own loaders (LoadFixedFont/LoadSingleFont)
+//   bake in, so it is baked in here too.
+// - The line height goes into SFontProp::fontSize (HD keeps it in its own
+//   field at +0x20 of the 0x4860-byte HD SFontProp; SWINE's is 0x2430).
+int SBoard::LoadFontFileFont(const char *filename)
+{
+  short raw[256][7];
+  const char *err = nullptr;
+  int lineHeight = 0;
+
+  SStream *s = FileSystem.OpenRead(filename, "SBoard::LoadFontFileFont");
+  s->ReadSignature();
+  if ( s->ReadChunkHeader() != 0x544E4F46 )      // 'FONT'
+    err = "Not a font file";
+  else if ( s->ReadInt() != 0x30303176 )         // 'v100'
+    err = "Unsupported font file version";
+  else
+  {
+    lineHeight = s->ReadInt();
+    s->Read(raw, sizeof(raw));                   // 0xE00 bytes
+  }
+  s->Release();
+  if ( err )
+    Logger.g->Panic("SBoard::LoadFontFileFont: Error loading %s: %s", filename, err);
+
+  char texname[MAX_PATH];
+  strncpy(texname, filename, sizeof(texname) - 5);
+  texname[sizeof(texname) - 5] = 0;
+  char *dot = strrchr(texname, '.');
+  char *slash = strrchr(texname, '/');
+  char *bslash = strrchr(texname, '\\');
+  if ( dot && dot > slash && dot > bslash )
+    strcpy(dot + 1, "tga");
+  else
+    strcat(texname, ".tga");
+
+  SBitmap bmap;
+  bmap.LoadTGA(texname, (char *)"SBoard::LoadFontFileFont");
+  int tex_width, tex_height;
+  this->Gepard->RoundToTextureSize(bmap.Width, bmap.Height, &tex_width, &tex_height);
+
+  SFontProp *fp = new SFontProp();               // value-init: all zero
+  fp->RefCount = 1;
+  fp->FirstGlyph = 0;
+  fp->LastGlyph = 255;
+  fp->fontSize = lineHeight;
+  const float su = 1.0f / (float)tex_width;
+  const float sv = 1.0f / (float)tex_height;
+  for ( int i = 0; i < 256; ++i )
+  {
+    const short *d = raw[i];
+    SGlyph *g = &fp->Glyphs[i];
+    g->Width = d[6];
+    g->Src.Left = (float)d[0] * su;
+    g->Src.Top = (float)d[1] * sv;
+    g->Src.Right = (float)(d[0] + d[2]) * su;
+    g->Src.Bottom = (float)(d[1] + d[3]) * sv;
+    g->Dest.Left = (float)d[4] - 0.5f;
+    g->Dest.Top = (float)d[5] - 0.5f;
+    g->Dest.Right = (float)(d[4] + d[2]) - 0.5f;
+    g->Dest.Bottom = (float)(d[5] + d[3]) - 0.5f;
+  }
+
+  if ( bmap.Width == tex_width && bmap.Height == tex_height )
+  {
+    fp->TextureIndex = this->Gepard->CreateTextureFromBitmap(texname, &bmap, 0);
+  }
+  else
+  {
+    SBitmap padded(tex_width, tex_height, bmap.Format, 0);
+    memset(padded.Data, 0, padded.Size);
+    padded.BitBlt(0, 0, bmap.Width, bmap.Height, &bmap, 0, 0);
+    fp->TextureIndex = this->Gepard->CreateTextureFromBitmap(texname, &padded, 0);
+  }
+
+  int idx = this->Fonts.Add();
+  memcpy(&this->Fonts.array[idx].data, fp, sizeof(SFontProp));
+  delete fp;
+  return idx;
+}
+
+// Layout tripwire against the HD exe (see panzers_hd_sizes.h).
+#include "panzers_hd_sizes.h"
+PANZERS_LAYOUT_CHECK(SBoard, SBOARD);
+PANZERS_LAYOUT_CHECK(SFontProp, SFONTPROP);
+PANZERS_LAYOUT_CHECK(SFrame, SFRAME);
 

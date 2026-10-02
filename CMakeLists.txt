@@ -108,8 +108,9 @@ find_package(Python3 COMPONENTS Interpreter)
 # Executable
 add_subdirectory(src/main)
 
-# Console test tools
+# Test tools
 add_subdirectory(src/tools/paktest)
+add_subdirectory(src/tools/rendertest)
 
 if(Python3_Interpreter_FOUND)
     execute_process(

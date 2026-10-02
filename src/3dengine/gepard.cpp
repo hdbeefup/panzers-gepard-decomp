@@ -792,7 +792,12 @@ SGepard::SGepard()
   this->IdentityMatrix._33 = 1.0;
   this->IdentityMatrix._22 = 1.0;
   this->IdentityMatrix._11 = 1.0;
-  v2 = new SProperties("decals.ini", 1, 1);
+  // PANZERS 0x676c20 (SGepard::SGepard, partial): the HD constructor opens
+  // no ini file. SWINE loaded "decals.ini" (editor decal scale overrides)
+  // here; that name is in neither PANZERS.exe nor the Panzers paks, and
+  // SProperties panics when the file is missing. The one user
+  // (SGepard::CreateShader) now treats a null DecalsIni as "no overrides".
+  v2 = 0;
   this->DecalsIni = v2;
 }
 
@@ -4852,8 +4857,13 @@ SShaderInfo *SGepard::CreateShader(float _x, float _z, const char *_filename, in
   if ( v15 >= 0x78 )
     ((void)0);
   newfilenamewithoutextension[v15] = '\0';
-  this->DecalsIni->EnumProperties("Decal scale overrides");
-  NextProperty = this->DecalsIni->GetNextProperty();
+  // Panzers: no decals.ini (see SGepard::SGepard), so DecalsIni can be null.
+  NextProperty = 0;
+  if ( this->DecalsIni )
+  {
+    this->DecalsIni->EnumProperties("Decal scale overrides");
+    NextProperty = this->DecalsIni->GetNextProperty();
+  }
   if ( NextProperty )
   {
     while ( 1 )
@@ -10355,7 +10365,11 @@ int SGepard::Initialize(HWND _hwnd, bool isfullscreen, bool vsync, D3DMULTISAMPL
     Logger.g->Log(0, atmstr);
     return 2;
   }
-  if ( caps.MaxTextureWidth < 0x800 || caps.MaxTextureHeight < 0x800 )
+  // PANZERS 0x67d1c0 (SGepard::Initialize, partial): Panzers HD only needs
+  // 1024x1024 textures (`cmp ecx,0x400` at 0x67d360); SWINE asks for 2048.
+  // Same log text and return code 4 ("doesn't support hi-resolution
+  // textures" in the caller 0x657540).
+  if ( caps.MaxTextureWidth < 0x400 || caps.MaxTextureHeight < 0x400 )
   {
     Logger.g->Log(0,
       "SGepard::Initialize: Maximum texture size is too small (%d x %d)",
@@ -15770,3 +15784,7 @@ int __cdecl CreateGepard(HWND hwnd, int a2, int a3, D3DMULTISAMPLE_TYPE a4,
 {
     return CreateGepard(hwnd, (bool)a2, (bool)a3, (int)a4, a5, a6, a7, ppGepard);
 }
+
+// Layout tripwire against the HD exe (see panzers_hd_sizes.h).
+#include "panzers_hd_sizes.h"
+PANZERS_LAYOUT_CHECK(SGepard, SGEPARD);

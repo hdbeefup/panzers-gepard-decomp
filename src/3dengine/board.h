@@ -175,6 +175,7 @@ struct SBoard : SIBoard {
     int LoadFixedFont(const char *filename, int width, int height, int row, int numglyphs, unsigned char *glyphs, HDMode hdmode);
     int LoadProportionalFont(const char *filename, int lineheight, int numglyphs, unsigned char *glyphs, int top_margin, int bottom_margin, int left_margin, int right_margin);
     int LoadSingleFont(const char *filename, HDMode hdmode);
+    int LoadFontFileFont(const char *filename);
     int LoadTrueTypeFont(int fontoverride, TypeFace typeface, FontEffect fontEffect, int fontsize, bool italic, bool bold);
     void MoveFrame(int idx, int x, int y);
     void MoveFrameFloat(int idx, float x, float y);
