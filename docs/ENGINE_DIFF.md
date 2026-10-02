@@ -353,7 +353,7 @@ factory, SpawnSound, OptimizeSoundGroup and the file and stream callbacks
   Panzers slot.
 - The Panzers-only methods are on `SIPanzersConcert : SIConcert`.
 - The object layout is the original's: `static_assert(sizeof == 0x80)`.
-- `SWINE_AUDIO_BACKEND` gains `miles`, which is now the default. `dsound`
+- `GEPARD_AUDIO_BACKEND` gains `miles`, which is now the default. `dsound`
   and `miniaudio` are still available.
 - `CreateConcert(HWND)` (called by `window/dxwindow.cpp`) creates the Miles
   concert with the default provider.

@@ -1,6 +1,6 @@
 # sound — Audio engine
 #
-# Two parallel backends, selected by SWINE_AUDIO_BACKEND in the root CMake:
+# Two parallel backends, selected by GEPARD_AUDIO_BACKEND in the root CMake:
 #   dsound    → concert.cpp (Win32 DirectSound + in-tree mdec/ MP3 decoder).
 #               Pixel-parity oracle on x86 Windows. Broken on x64 (MP3 stub).
 #   miniaudio → concert_ma.cpp + miniaudio_impl.cpp. Cross-platform, decodes
@@ -10,11 +10,11 @@
 #   miles     → milesconcert.cpp (Panzers HD SMilesConcert on mss32.dll, Miles
 #               6.5c; MP3 decoded by Miles' mssmp3.asi). Panzers default.
 
-if(SWINE_AUDIO_BACKEND STREQUAL "miles")
+if(GEPARD_AUDIO_BACKEND STREQUAL "miles")
     add_library(sound STATIC milesconcert.cpp)
     target_include_directories(sound PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(sound PUBLIC core rad_mss32)
-elseif(SWINE_AUDIO_BACKEND STREQUAL "miniaudio")
+elseif(GEPARD_AUDIO_BACKEND STREQUAL "miniaudio")
     add_library(sound STATIC concert_ma.cpp miniaudio_impl.cpp)
     target_include_directories(sound PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_include_directories(sound PRIVATE ${CMAKE_SOURCE_DIR}/third_party/miniaudio ${PANZERS_SRC_DIR})

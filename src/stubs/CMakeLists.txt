@@ -7,7 +7,11 @@ add_library(stubs STATIC
     stubs.cpp
     stub_globals.cpp
     stub_window.cpp
+    stub_panzers.cpp
+    # Lifted Panzers glue (TimerProc 0x543cf0, Format 0x51ee20). Built here, not in
+    # panzersgame, because the console tools (rendertest, ...) link stubs only.
+    ${PANZERS_SRC_DIR}/panzers/widgetglue.cpp
 )
 target_include_directories(stubs PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(stubs PRIVATE ${PANZERS_SRC_DIR}/sound)
+target_include_directories(stubs PRIVATE ${PANZERS_SRC_DIR}/sound ${PANZERS_SRC_DIR}/panzers)
 target_link_libraries(stubs PUBLIC core window)

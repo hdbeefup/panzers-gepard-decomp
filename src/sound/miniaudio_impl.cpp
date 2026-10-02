@@ -3,7 +3,7 @@
 // ~95k-line single-header library is compiled exactly once and the heavy
 // compile cost doesn't bleed into other TUs.
 //
-// Selected by SWINE_AUDIO_BACKEND=miniaudio (see sound/CMakeLists.txt).
+// Selected by GEPARD_AUDIO_BACKEND=miniaudio (see sound/CMakeLists.txt).
 
 #define MINIAUDIO_IMPLEMENTATION
 

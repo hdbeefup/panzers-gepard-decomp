@@ -6,7 +6,7 @@ add_executable(rendertest WIN32
 )
 
 set(RENDERTEST_LIBS core 3dengine window common sound platform)
-if(SWINE_AUDIO_BACKEND STREQUAL "dsound")
+if(GEPARD_AUDIO_BACKEND STREQUAL "dsound")
     list(APPEND RENDERTEST_LIBS mdec)
 endif()
 
@@ -21,7 +21,7 @@ endif()
 
 if(DXSDK_DIR)
     target_link_libraries(rendertest PRIVATE d3d9 d3dx9 dinput8)
-    if(SWINE_AUDIO_BACKEND STREQUAL "dsound")
+    if(GEPARD_AUDIO_BACKEND STREQUAL "dsound")
         target_link_libraries(rendertest PRIVATE dsound dxguid)
     endif()
 endif()

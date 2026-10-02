@@ -7,12 +7,13 @@
 # symbol must be satisfied by an explicit entry in src/stubs/.
 add_executable(panzers WIN32
     panzers_main.cpp
+    crashhandler.cpp
 )
 
-set(PANZERS_ENGINE_LIBS core 3dengine window common sound platform)
-if(SWINE_AUDIO_BACKEND STREQUAL "dsound")
+set(PANZERS_ENGINE_LIBS core 3dengine window common sound platform panzersgame)
+if(GEPARD_AUDIO_BACKEND STREQUAL "dsound")
     list(APPEND PANZERS_ENGINE_LIBS mdec)
-    target_compile_definitions(panzers PRIVATE SWINE_AUDIO_DSOUND=1)
+    target_compile_definitions(panzers PRIVATE GEPARD_AUDIO_DSOUND=1)
 endif()
 
 target_link_libraries(panzers PRIVATE ${PANZERS_ENGINE_LIBS} stubs)
@@ -31,7 +32,7 @@ endif()
 
 if(DXSDK_DIR)
     target_link_libraries(panzers PRIVATE d3d9 d3dx9 dinput8)
-    if(SWINE_AUDIO_BACKEND STREQUAL "dsound")
+    if(GEPARD_AUDIO_BACKEND STREQUAL "dsound")
         target_link_libraries(panzers PRIVATE dsound dxguid)
     endif()
 endif()

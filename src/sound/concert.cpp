@@ -92,7 +92,7 @@ extern "C" BOOL CALLBACK DSEnumCallback(LPGUID /*lpGuid*/, LPCSTR /*desc*/,
 
 // SIConcert factory for the DirectSound backend. The miniaudio backend
 // provides its own CreateConcert in concert_ma.cpp; CMake compiles exactly
-// one of these TUs based on SWINE_AUDIO_BACKEND.
+// one of these TUs based on GEPARD_AUDIO_BACKEND.
 SIConcert *__cdecl CreateConcert(HWND hwnd)
 {
   SConcert *c = new SConcert(hwnd);

@@ -14,6 +14,7 @@
 #include <string.h>
 #include "stub_log.h"
 #include "string2.h"
+#include "logger.h"
 
 struct IDirect3DDevice9;
 
@@ -24,6 +25,9 @@ void StubLogFirstCall(const char* name)
     buf[sizeof(buf) - 1] = '\0';
     OutputDebugStringA(buf);
     fputs(buf, stderr);
+    // Also into the game log, so a run's stub hits can be read from the log.
+    if (Logger.g)
+        Logger.g->Log(0, "STUB: %s called (not implemented)", name);
 }
 
 // ---------------------------------------------------------------------------
@@ -50,40 +54,6 @@ extern "C" const char* DXGetErrorStringA(HRESULT hr)
     _snprintf(buf, sizeof(buf) - 1, "HRESULT 0x%08X", (unsigned)hr);
     buf[sizeof(buf) - 1] = '\0';
     return buf;
-}
-
-// ---------------------------------------------------------------------------
-// Format — printf into a freshly allocated SString (common/swineversion.h).
-// SWINE defined it in game/game.cpp.
-// ---------------------------------------------------------------------------
-SString* Format(SString* result, const char* fmt, ...)
-{
-    STUB_LOG("Format");
-    char buf[1024];
-    va_list args;
-    va_start(args, fmt);
-    int len = _vsnprintf(buf, sizeof(buf), fmt, args);
-    va_end(args);
-    if (len > 0 && len < (int)sizeof(buf)) {
-        result->size = len;
-        result->buf = (char*)operator new[](len + 1);
-        memcpy(result->buf, buf, len + 1);
-    } else {
-        result->buf = nullptr;
-        result->size = 0;
-    }
-    return result;
-}
-
-// ---------------------------------------------------------------------------
-// TimerProc — Win32 timer callback that dispatches TimerList entries to
-// SWidget::OnTimer (window/widget.h). SWINE defined it in game/game.cpp.
-// Here: no-op, so SWidget timers never fire.
-// ---------------------------------------------------------------------------
-void CALLBACK TimerProc(HWND hwnd, UINT msg, UINT_PTR id, DWORD time)
-{
-    STUB_LOG("TimerProc");
-    (void)hwnd; (void)msg; (void)id; (void)time;
 }
 
 // ---------------------------------------------------------------------------

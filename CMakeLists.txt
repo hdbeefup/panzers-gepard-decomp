@@ -80,13 +80,13 @@ endif()
 # decoder); miniaudio is kept selectable as in SWINE (unverified).
 # Panzers HD uses Miles (SMilesConcert, src/sound/milesconcert.cpp) when
 # options.ini has "Use Miles = 1", the shipped default; that is the default here.
-set(SWINE_AUDIO_BACKEND "miles" CACHE STRING
+set(GEPARD_AUDIO_BACKEND "miles" CACHE STRING
     "Audio backend: miles (Panzers default), dsound (SWINE) or miniaudio (unverified)")
-set_property(CACHE SWINE_AUDIO_BACKEND PROPERTY STRINGS miles dsound miniaudio)
-if(NOT SWINE_AUDIO_BACKEND MATCHES "^(miles|dsound|miniaudio)$")
-    message(FATAL_ERROR "SWINE_AUDIO_BACKEND must be 'miles', 'dsound' or 'miniaudio' (got '${SWINE_AUDIO_BACKEND}')")
+set_property(CACHE GEPARD_AUDIO_BACKEND PROPERTY STRINGS miles dsound miniaudio)
+if(NOT GEPARD_AUDIO_BACKEND MATCHES "^(miles|dsound|miniaudio)$")
+    message(FATAL_ERROR "GEPARD_AUDIO_BACKEND must be 'miles', 'dsound' or 'miniaudio' (got '${GEPARD_AUDIO_BACKEND}')")
 endif()
-message(STATUS "Audio backend: ${SWINE_AUDIO_BACKEND}")
+message(STATUS "Audio backend: ${GEPARD_AUDIO_BACKEND}")
 
 # zstd is NOT built: its only engine user (ANI2 animations in
 # 3dengine/animation.cpp, a SWINE-HD-only format) is stubbed in src/stubs/.
@@ -97,7 +97,7 @@ add_subdirectory(src/3dengine)
 add_subdirectory(src/window)
 add_subdirectory(third_party/rad)   # mss32/binkw32 import libs from .def (no SDK)
 add_subdirectory(src/sound)
-if(SWINE_AUDIO_BACKEND STREQUAL "dsound")
+if(GEPARD_AUDIO_BACKEND STREQUAL "dsound")
     add_subdirectory(src/mdec)
 endif()
 add_subdirectory(src/platform)
@@ -109,7 +109,9 @@ add_subdirectory(src/stubs)
 add_library(panzers_bink STATIC src/panzers/bink.cpp src/panzers/bink.h)
 target_include_directories(panzers_bink PUBLIC ${PANZERS_SRC_DIR}/panzers)
 target_link_libraries(panzers_bink PUBLIC core rad_binkw32 rad_mss32 netapi32)
-if(SWINE_AUDIO_BACKEND STREQUAL "miles")
+# Panzers game layer (app shell + main menu)
+add_subdirectory(src/panzers)
+if(GEPARD_AUDIO_BACKEND STREQUAL "miles")
     add_subdirectory(src/tools/soundtest)
 endif()
 

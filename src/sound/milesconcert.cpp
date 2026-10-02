@@ -2,7 +2,7 @@
 // SMilesConcert — Panzers HD audio engine on Miles Sound System 6.5c.
 // Lifted from PANZERS.exe (HD, 2016); addresses are PANZERS.exe VAs.
 //
-// Built instead of sound/concert.cpp when SWINE_AUDIO_BACKEND=miles (the
+// Built instead of sound/concert.cpp when GEPARD_AUDIO_BACKEND=miles (the
 // default for Panzers). MP3 is decoded by Miles itself (mssmp3.asi from the
 // redist directory "miles"): sound effects through AIL_decompress_ASI in
 // PrecacheSound, music through AIL_open_stream. The SWINE mdec decoder and

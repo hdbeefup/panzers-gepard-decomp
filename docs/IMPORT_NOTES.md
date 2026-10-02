@@ -28,7 +28,7 @@ rewritten. Panzers-specific work comes later.
 Some imported files are not compiled by default:
 
 - `sound/concert_ma.cpp` and `sound/miniaudio_impl.cpp` are only built with
-  `-DSWINE_AUDIO_BACKEND=miniaudio`. This build is unverified, and
+  `-DGEPARD_AUDIO_BACKEND=miniaudio`. This build is unverified, and
   `third_party/miniaudio` exists only for it.
 - `platform/gogmanager.cpp` is only built with `-DPLATFORM_BACKEND=GOG`.
 

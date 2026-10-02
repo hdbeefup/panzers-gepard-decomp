@@ -1,7 +1,7 @@
 // sound/concert_ma.cpp
 // Portable audio backend — implements SIConcert via miniaudio.
 //
-// Selected by SWINE_AUDIO_BACKEND=miniaudio. Replaces the DirectSound +
+// Selected by GEPARD_AUDIO_BACKEND=miniaudio. Replaces the DirectSound +
 // in-tree mdec/ MP3 decoder path on x64 / non-Windows / WASM. The original
 // SConcert (concert.cpp) stays as the x86 Windows pixel-parity oracle.
 //
