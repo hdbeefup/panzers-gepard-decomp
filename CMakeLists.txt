@@ -76,13 +76,15 @@ if(DXSDK_DIR)
     link_directories(${DXSDK_LIB_DIR})
 endif()
 
-# Audio backend — DirectSound (+ in-tree mdec MP3 decoder) is the x86 default
-# and the only one verified here. miniaudio is kept selectable as in SWINE.
-set(SWINE_AUDIO_BACKEND "dsound" CACHE STRING
-    "Audio backend: dsound (default, verified) or miniaudio (unverified)")
-set_property(CACHE SWINE_AUDIO_BACKEND PROPERTY STRINGS dsound miniaudio)
-if(NOT SWINE_AUDIO_BACKEND STREQUAL "dsound" AND NOT SWINE_AUDIO_BACKEND STREQUAL "miniaudio")
-    message(FATAL_ERROR "SWINE_AUDIO_BACKEND must be 'dsound' or 'miniaudio' (got '${SWINE_AUDIO_BACKEND}')")
+# Audio backend. dsound = SWINE's DirectSound concert (+ in-tree mdec MP3
+# decoder); miniaudio is kept selectable as in SWINE (unverified).
+# Panzers HD uses Miles (SMilesConcert, src/sound/milesconcert.cpp) when
+# options.ini has "Use Miles = 1", the shipped default; that is the default here.
+set(SWINE_AUDIO_BACKEND "miles" CACHE STRING
+    "Audio backend: miles (Panzers default), dsound (SWINE) or miniaudio (unverified)")
+set_property(CACHE SWINE_AUDIO_BACKEND PROPERTY STRINGS miles dsound miniaudio)
+if(NOT SWINE_AUDIO_BACKEND MATCHES "^(miles|dsound|miniaudio)$")
+    message(FATAL_ERROR "SWINE_AUDIO_BACKEND must be 'miles', 'dsound' or 'miniaudio' (got '${SWINE_AUDIO_BACKEND}')")
 endif()
 message(STATUS "Audio backend: ${SWINE_AUDIO_BACKEND}")
 
@@ -93,6 +95,7 @@ message(STATUS "Audio backend: ${SWINE_AUDIO_BACKEND}")
 add_subdirectory(src/core)
 add_subdirectory(src/3dengine)
 add_subdirectory(src/window)
+add_subdirectory(third_party/rad)   # mss32/binkw32 import libs from .def (no SDK)
 add_subdirectory(src/sound)
 if(SWINE_AUDIO_BACKEND STREQUAL "dsound")
     add_subdirectory(src/mdec)
@@ -100,6 +103,15 @@ endif()
 add_subdirectory(src/platform)
 add_subdirectory(src/common)
 add_subdirectory(src/stubs)
+
+# Bink intro player (src/panzers/bink.*), lifted from SSuperWindow. A separate
+# library so SSuperWindow (src/panzers) and tools can link it.
+add_library(panzers_bink STATIC src/panzers/bink.cpp src/panzers/bink.h)
+target_include_directories(panzers_bink PUBLIC ${PANZERS_SRC_DIR}/panzers)
+target_link_libraries(panzers_bink PUBLIC core rad_binkw32 rad_mss32 netapi32)
+if(SWINE_AUDIO_BACKEND STREQUAL "miles")
+    add_subdirectory(src/tools/soundtest)
+endif()
 
 # Tripwire census: printed at configure time here, and POST_BUILD by the
 # panzers target (src/main). Python must be found before src/main is added.

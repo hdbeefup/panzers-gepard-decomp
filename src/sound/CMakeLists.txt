@@ -7,7 +7,14 @@
 #               MP3 + WAV (incl. ADPCM / float) via miniaudio's bundled dr_libs.
 # Both implement the same SIConcert (sound/iconcert.h) factory CreateConcert().
 
-if(SWINE_AUDIO_BACKEND STREQUAL "miniaudio")
+#   miles     → milesconcert.cpp (Panzers HD SMilesConcert on mss32.dll, Miles
+#               6.5c; MP3 decoded by Miles' mssmp3.asi). Panzers default.
+
+if(SWINE_AUDIO_BACKEND STREQUAL "miles")
+    add_library(sound STATIC milesconcert.cpp)
+    target_include_directories(sound PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(sound PUBLIC core rad_mss32)
+elseif(SWINE_AUDIO_BACKEND STREQUAL "miniaudio")
     add_library(sound STATIC concert_ma.cpp miniaudio_impl.cpp)
     target_include_directories(sound PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_include_directories(sound PRIVATE ${CMAKE_SOURCE_DIR}/third_party/miniaudio ${PANZERS_SRC_DIR})

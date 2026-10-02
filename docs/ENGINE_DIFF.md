@@ -303,3 +303,116 @@ SWINE has 33 slots. Compared with HD:
 - The HD texture compression cache is not ported.
 - SWINE's `BackbufferScreenshot` panics: the back buffer cannot be locked, which gives `LockRect: D3DERR_INVALIDCALL`.
 - Text rendering was checked visually with only one font (`sans_serif_21_shadow_hq.font`).
+
+## Sound/Bink
+
+### Which concert Panzers builds
+
+`SDXWindow::Create` 0x539d70 chooses the concert from options.ini:
+
+- With `Use Miles = 1` (window +0xC6, the shipped default), it calls the
+  factory 0x684fb0 with `(hwnd, "Miles provider" string, 0)`.
+  - The factory runs `new SMilesConcert` (0x80 bytes) and the ctor 0x684300.
+  - It then logs the FPU control word and loads `fldcw 0x007F`.
+- Otherwise it calls 0x6820a0, a DirectSound `SConcert` (ctor 0x681710,
+  vftable 0x81a3f0). That class is the SWINE-like path: it uses the in-exe
+  `SMpegAudioDecoder` / `SStreamingPlayer` (mdec) for MP3.
+- The result goes to the global concert pointer 0x8f1c5c. The live
+  SMilesConcert is also kept in 0x92e798.
+
+### SMilesConcert compared with SWINE's SConcert
+
+| | SWINE `SConcert` (src/sound/concert.cpp) | Panzers `SMilesConcert` (0x684300..0x6876ff) |
+|---|---|---|
+| Backend | DirectSound 8 | Miles 6.5c (`AIL_open_digital_driver(44100,16,2,0)`), 3D through a Miles provider (default "Miles Fast 2D Positional Audio", with fallback) |
+| MP3 | in-tree mdec decoder, which needs `MpegAudioPrecalculate` | Miles `mssmp3.asi` (redist dir `miles`). Sound effects use `AIL_decompress_ASI` in PrecacheSound 0x686220; music uses `AIL_open_stream` 0x684df0 |
+| File I/O | engine streams | `AIL_set_file_callbacks` routes Miles I/O to `SFileSystem::Open` 0x65f420 (callbacks 0x685540/520/590/560), so files inside paks work |
+| Vtable | 28 slots (`SIConcert`) | 34 slots (vftable 0x81ab4c). Same order as Panzers' DirectSound `SConcert` |
+| Music | `StartStreamingPlayback(file1, file2)` / `NextTrack` | Playlist API: Clear +0x6C, Add +0x70, Shuffle +0x74, Start(loop) +0x78, PlayNext +0x7C, Stop(fade) +0x80, IsPlaying +0x84. The next track starts from the stream callback 0x6875a0 |
+| Volumes | int dB tables | float gains: music +0x34, sfx +0x38, voice +0x3C = slider × 0.1. Per-sound gain is `sqrt(10^(dB/20))` |
+| Panzers-only | – | `GetDigitalDriver` +0x18 (for `BinkSetSoundSystem`), provider list/select +0x1C/+0x20, Pause/ResumeAll +0x60/+0x64, SetSoundVolume +0x48 |
+| SWINE-only | `AddRefToCachedSound`, `ReleaseCachedSound`, `DumpChannels` | none. The cache RefCount counts live sounds instead |
+
+How the menu uses it:
+
+- `SSuperWindow::Initialize` 0x657910 calls SetVolume(0/1/2, options), then
+  ClearPlaylist, AddToPlaylist("music/Menu.mp3"), StartPlaylist(true).
+- The scene setup at 0x658690 restarts `music/menu.mp3` (shuffled) when
+  `IsStreamPlaying()` is false.
+- Widgets call `PlaySound("menu/button_*.wav", dB, 0, -1)`. The file is
+  found as `sounds/menu/...`.
+
+### What was done (option a)
+
+`src/sound/milesconcert.{h,cpp}` lifts all 34 slots plus the ctor, dtor,
+factory, SpawnSound, OptimizeSoundGroup and the file and stream callbacks
+(46 `// PANZERS` markers).
+
+- `SMilesConcert` implements SWINE's `SIConcert`, so the existing engine
+  code needs no changes. Each SIConcert method maps onto the matching
+  Panzers slot.
+- The Panzers-only methods are on `SIPanzersConcert : SIConcert`.
+- The object layout is the original's: `static_assert(sizeof == 0x80)`.
+- `SWINE_AUDIO_BACKEND` gains `miles`, which is now the default. `dsound`
+  and `miniaudio` are still available.
+- `CreateConcert(HWND)` (called by `window/dxwindow.cpp`) creates the Miles
+  concert with the default provider.
+  - Once options.ini is lifted, call `CreateMilesConcert(hwnd, provider, 0)`
+    instead.
+  - The `Use Miles = 0` DirectSound SConcert of Panzers is **not** lifted.
+- **MpegAudioPrecalculate:** not needed on the Miles path. In Panzers, mdec
+  (`SMpegAudioDecoder` 0x6c18e0, `SStreamingPlayer` 0x6c1af0) is reached only
+  from the DirectSound SConcert (0x682670, 0x684140). The SWINE stub stays
+  for the dsound backend.
+
+Deliberate deviations, all commented in the code:
+
+- `SetProvider`'s failure log. The original passes an SString by value to a
+  `%s`.
+- `CreateConcert` uses a fixed provider string.
+- SWINE-compat shims for the methods Panzers lacks.
+
+These original bugs are kept as they are:
+
+- PlaySound with channel 0 never plays.
+- SpawnSound leaks the sample handle when `AIL_set_sample_file` fails.
+- OptimizeSoundGroup has no guard on its 128-entry buffer.
+
+### Bink intro (`src/panzers/bink.{h,cpp}`, library `panzers_bink`)
+
+The original keeps HBINK/HBINKBUFFER in SSuperWindow +0x1B4/+0x1B8:
+
+- Open 0x657ef0 runs `BinkSetSoundSystem(BinkOpenMiles, concert->GetDigitalDriver())`, then `BinkOpen`.
+  - In fullscreen it calls `BinkBufferSetResolution`.
+  - It calls `BinkBufferOpen(hwnd, w, h, 0x44800000)` and retries with `0x44000000`.
+  - It finishes with `BinkBufferSetScale(screen)`.
+- The step 0x65ba00 runs Wait, DoFrame, Lock, CopyToBuffer, Unlock and Blit.
+  - When `FrameNum == Frames` it closes and continues with Initialize + LoadMainMenu.
+  - Otherwise it calls NextFrame.
+- Close 0x65b830 calls window vtbl+0xA4(1,0) when fullscreen and
+  `NetWkstaGetInfo` major version > 9. It then closes the buffer and the video.
+
+**The video is blitted by BinkBuffer straight to the window
+(DirectDraw/DIB), not into a D3D9 texture.**
+
+Interface for SSuperWindow:
+
+- `SBinkVideo::Open(file, hwnd, w, h, fullscreen, driver)` returns false
+  when BinkOpen fails.
+- `Step()` returns false when the video is finished and already closed.
+  The caller then runs Initialize + LoadMainMenu.
+- `Draw()` re-blits the current frame.
+- `Close()`.
+- `OnRestoreDisplay` is a callback for the vtbl+0xA4 restore.
+- `BinkShouldSkipIntro(cmdline, file)` adds `-nointro` and a skip when the
+  file is missing. The original has neither.
+
+### Verification
+
+`soundtest.exe` (src/tools/soundtest) initialises Miles the Panzers way.
+
+- It plays `sounds/menu/button_down.wav` and streams `music/menu.mp3`,
+  both extracted from panzers.pak.
+- It steps `intro.bik` for 60 frames.
+- The checks are API return codes, `AIL_sample_status`, and the Bink frame
+  counter. Audible output was not checked.

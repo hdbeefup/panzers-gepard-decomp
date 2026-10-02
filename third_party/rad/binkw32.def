@@ -1,0 +1,21 @@
+; binkw32.def - import definitions for binkw32.dll (Bink 1.5q as shipped).
+; Hand-made: the 15 names PANZERS.exe (HD, 2016) imports from BINKW32.DLL,
+; checked against `dumpbin /exports binkw32.dll` of the shipped DLL.
+; Exported with the leading underscore; see README.md.
+LIBRARY binkw32.dll
+EXPORTS
+  _BinkBufferBlit@12
+  _BinkBufferClose@4
+  _BinkBufferLock@4
+  _BinkBufferOpen@16
+  _BinkBufferSetResolution@12
+  _BinkBufferSetScale@12
+  _BinkBufferUnlock@4
+  _BinkClose@4
+  _BinkCopyToBuffer@28
+  _BinkDoFrame@4
+  _BinkNextFrame@4
+  _BinkOpen@8
+  _BinkOpenMiles@4
+  _BinkSetSoundSystem@8
+  _BinkWait@4
