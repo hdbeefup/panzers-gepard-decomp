@@ -278,7 +278,8 @@ SWINE has 33 slots. Compared with HD:
   | +80 | ReleaseFont? (called on the old font in SetSpriteGlyph/SetText) |
   | +88 | GetTextExtent |
   | +8C | GetFontHeight |
-  | +94 | LoadCursorSet |
+  | +94 | LoadCursorSet(file, size, count, hotspots) 0x6c59e0: lifted as `SBoard::LoadCursorSetFile` |
+  | +98 | UnloadCursorSet 0x6cbd00 (SWINE `UnloadCursorSet`) |
   | +9C | SetCursor(x, y, cx, cy) |
   | +A0 | per-frame time |
   | +C4 | apply hardware cursor |
@@ -289,11 +290,13 @@ SWINE has 33 slots. Compared with HD:
 ### 6. Public API changes in this branch
 
 - `SIBoard` / `SBoard`: `+ int LoadFontFileFont(const char *filename)`. This is a new pure virtual in `SIBoard`, implemented by `SBoard`.
+- `SIBoard` / `SBoard` (P3-X): `+ void LoadCursorSetFile(const char *filename, int size, int count, const POINT *hotspots)` (`// PANZERS 0x6c59e0`, HD board +0x94). It loads the cursor glyphs with `LoadFixedFont(file, size, size, 256/size, count)` and copies the hotspot table; Panzers calls it with `menu/cursor2_hq.tga`, 40 px, 21 glyphs. SWINE's `LoadCursorSet(scale)` (atlas PNG plus `.cur` files) is kept but unused.
+  - Cursor model: HD draws the software cursor (0x6ca240) unless the D3D hardware cursor is on (+0xe4, set by +0xc8 from options.ini `Hardware Mouse Cursor`); glyph 10 is always software. SWINE's `SBoard::Render` draws the same way, and now also skips glyph -1, as HD does. **Not ported:** the D3D hardware cursor (+0xc4 0x6ca4e0: a 32x32 surface tinted by the cursor variant, then `SetCursorProperties`/`ShowCursor`), and the variant argument of +0x9c. The recompile always draws the software cursor and logs when `Hardware Mouse Cursor = 1`. The Windows cursor is hidden in the client area by `SDXWindow::OnSetCursor` -> `ApplyHardwareCursor` -> `::SetCursor(0)`, as in HD.
 - `SWindow`:
   - `+ void Run()`
   - `+ virtual void ShowStatusMessage(void *)`
   - `+ virtual void HideStatusMessage(void *)`
-- No signature in `gepard.h`, `dxwindow.h` or `board.h` changed, apart from the `SBoard` addition above.
+- No signature in `gepard.h`, `dxwindow.h` or `board.h` changed, apart from the `SBoard` additions above.
 
 ### 7. Not done / not verified
 

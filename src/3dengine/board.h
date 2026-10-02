@@ -171,6 +171,7 @@ struct SBoard : SIBoard {
     void InitHotspots();
     bool IsAnimPlaying(int idx);
     void LoadCursorSet(float windowScale);
+    void LoadCursorSetFile(const char *filename, int size, int count, const POINT *hotspots);
     int LoadCustomFont(const char *filename, int numglyphs, SCustomGlyph *glyphs, HDMode hdmode);
     int LoadFixedFont(const char *filename, int width, int height, int row, int numglyphs, unsigned char *glyphs, HDMode hdmode);
     int LoadProportionalFont(const char *filename, int lineheight, int numglyphs, unsigned char *glyphs, int top_margin, int bottom_margin, int left_margin, int right_margin);

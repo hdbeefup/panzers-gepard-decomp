@@ -16,6 +16,7 @@
 #include "superwindow.h"
 #include "settings.h"
 #include "mainmenu.h"
+#include "credits.h"
 #include "pzboard.h"
 #include "properties.h"
 #include "stream.h"
@@ -53,7 +54,6 @@ void PzStub_DestroyUnitRegistry(void* reg);        // 0x5d0c10
 void PzStub_LoadMenuWorld(SSuperWindow* sw);       // maps/menu.map scene in 0x658690
 void PzStub_SuperWindowAction(int action);         // OnAction cases beyond the main menu
 const char* PzStub_GetVersionString();             // SVersion::GetVersionString 0x65c070
-void PzStub_LoadMenuCursor();                      // board +0x94 "menu/cursor2_hq.tga"
 void PzStub_GepardRenderStates();                  // Gepard +0x10 render options in Initialize
 
 static void* s_UnitRegistry = nullptr;   // HD 0x929a4c (new 0x124)
@@ -317,6 +317,12 @@ void SSuperWindow::Initialize()
     // (2, shadows), (0,1), (5,1), (6,1); board +0x9c(-1,0,0,0) and +0xc8(HW
     // cursor); Concert +0x10 volumes. Only the volumes have a SWINE match.
     PzStub_GepardRenderStates();
+    Board->SetCursor(-1, 0, 0);                                    // board +0x9c(-1, 0, 0, 0): no cursor yet
+    // HD board +0xc8 SetHardwareMouseCursor(Settings +0x154 "Hardware Mouse
+    // Cursor"). The D3D hardware cursor is not ported: the board always
+    // draws the software cursor, as HD does with the default setting 0.
+    if (Settings.HardwareMouseCursor)
+        Logger.g->Log(0, "SSuperWindow::Initialize: Hardware Mouse Cursor = 1 ignored, using the software cursor");
     if (Concert) {
         Concert->SetVolume(0, Settings.MusicVolume);               // Concert +0x10
         Concert->SetVolume(1, Settings.SoundEffectVolume);
@@ -357,7 +363,22 @@ void SSuperWindow::Initialize()
     Gepard->RenderScene(0);
     PzReleaseTexture(splash);                                      // board +0x80
 
-    PzStub_LoadMenuCursor();                 // board +0x94("menu/cursor2_hq.tga", 0x28, 0x15, rects)
+    // Menu cursor: 21 glyphs of 40x40 in menu/cursor2_hq.tga. HD builds the
+    // hotspot table on the stack from the 16-byte .rdata blocks at
+    // 0x80ae00..0x80ae6f (MOVUPS pairs); values read from the PANZERS.exe
+    // bytes. Glyph 0 (hotspot 2,2) is the arrow every menu screen selects
+    // with SetCursor(0) (0x543970).
+    static const POINT kCursorHotspots[0x15] = {
+        {  2,  2 }, {  2,  2 }, {  2,  2 }, {  2,  2 }, {  2,  2 },   // 0x80ae10 x4, 0x80ae18 x4
+        {  2,  2 }, {  2,  2 }, {  2,  2 }, {  2,  2 },
+        { 15, 16 }, { 15, 16 },                                         // 0x80ae40
+        { 16, 16 }, {  0, 16 },                                         // 0x80ae30
+        {  0,  0 }, { 16,  0 },                                         // 0x80ae00
+        { 31,  0 }, { 31, 16 },                                         // 0x80ae50
+        { 31, 31 }, { 16, 31 },                                         // 0x80ae60
+        {  0, 31 }, { 15, 15 },                                         // 0x80ae20
+    };
+    Board->LoadCursorSetFile("menu/cursor2_hq.tga", 0x28, 0x15, kCursorHotspots);   // board +0x94 (0x6c59e0)
     LoadMenuSkins();                         // 0x544040
     // HD: DAT_00929f14 = Gepard +0x5c() (an engine object released in OnDestroy).
     s_UnitRegistry = PzStub_CreateUnitRegistry();   // new 0x124, 0x5cfe30
@@ -440,6 +461,18 @@ void SSuperWindow::LoadMainMenu()
     MainMenu->SetPosition(0, 0, 0x400, 0x300);                     // vtbl +0x08
     MainMenu->Create();                                            // 0x6352f0
     Logger.g->Log(0, "SSuperWindow::LoadMainMenu: releasing scene");
+}
+
+// PANZERS 0x658300
+void SSuperWindow::LoadMainCreditMenu()
+{
+    // HD: delete SPanzersCampaign (DAT_00929a0c) — never created here.
+    LoadMenuBackground(false);                                     // 0x658690(0)
+    CreditMenu = new SMainCreditMenu();                            // new 0xd4, 0x632fd0
+    InsertChild(CreditMenu);                                       // vtbl +0x54
+    CreditMenu->SetPosition(0, 0, 0x400, 0x300);                   // vtbl +0x08
+    CreditMenu->Create();                                          // 0x635190
+    Logger.g->Log(0, "SSuperWindow::LoadMainCreditMenu: releasing scene");
 }
 
 // PANZERS 0x65b8c0
@@ -539,13 +572,31 @@ bool SSuperWindow::OnAction(SWidget* source, int action, int param)
     case PZA_MAIN_TUTORIAL:                        // 0x4d4d3 -> maps/tutorial.map
     case PZA_MAIN_TRAINING:                        // 0x4d4d4 -> training camp menu
     case PZA_MAIN_OPTIONS:                         // 0x4d4d5 -> 0x658500 options
-    case PZA_MAIN_CREDITS:                         // 0x4d4d6 -> 0x658300 credits
     case PZA_MAIN_ALLIED2:                         // 0x4d4d9 -> maps/us-02.map
     case PZA_MAIN_NEWGAME_DONE:                    // 0x4d4d1 -> SPanzersCampaign
         // HD deletes the main menu first for every one of these; the
         // recompile keeps it (the target screens are stubs) so the user can
         // still pick Exit.
         PzStub_SuperWindowAction(action);
+        return true;
+    case PZA_MAIN_CREDITS:                         // 0x4d4d6
+        if (MainMenu) {
+            delete MainMenu;
+            MainMenu = nullptr;
+        }
+        LoadMainCreditMenu();                      // 0x658300
+        return true;
+    case PZA_CREDITS_DONE:                         // 0x43521 from SMainCreditMenu
+        if (CreditMenu) {
+            delete CreditMenu;
+            CreditMenu = nullptr;
+        }
+        if (SIPanzersConcert* pc = PzConcert()) {
+            pc->ClearPlaylist();                   // Concert +0x6c
+            pc->AddToPlaylist("music/Menu.mp3");   // +0x70
+            pc->StartPlaylist(true);               // +0x78(1)
+        }
+        LoadMainMenu();                            // 0x6583e0
         return true;
     case PZA_MAIN_EXIT:                            // 0x4d4d8 (also 0x47564)
     case 0x47564:
@@ -606,7 +657,8 @@ void SSuperWindow::OnDestroy()
     if (Menu_114) { delete Menu_114; Menu_114 = nullptr; }
     if (AchimMenu) { delete AchimMenu; AchimMenu = nullptr; }
     UnloadMenuBackground();                        // 0x65b940
-    // HD: board +0x98 (unload cursor) and ReleaseFont 0..11 (board +0x80).
+    Board->UnloadCursorSet();                      // board +0x98 (0x6cbd00)
+    // HD: ReleaseFont 0..11 (board +0x80).
     for (int i = 0; i < 6; ++i)
         if (g_PzFont[i] >= 0) { Board->ReleaseFont(g_PzFont[i]); g_PzFont[i] = -1; }
     if (s_UnitRegistry) {

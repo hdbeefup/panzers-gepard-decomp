@@ -103,7 +103,7 @@ void PzStub_LoadMenuWorld(SSuperWindow* sw)
 
 // HD 0x659250: SSuperWindow::OnAction cases the shell does not handle yet
 // (campaign 0x4d4d1, multiplayer 0x4d4d2, tutorial 0x4d4d3, training camp
-// 0x4d4d4, options 0x4d4d5, credits 0x4d4d6, us-02 0x4d4d9, game view, ...).
+// 0x4d4d4, options 0x4d4d5, us-02 0x4d4d9, game view, ...).
 void PzStub_SuperWindowAction(int action)
 {
     STUB_LOG("SSuperWindow::OnAction unhandled action (0x659250)");
@@ -134,16 +134,9 @@ const char* PzStub_GetVersionString()
     return "1.25";
 }
 
-// HD SSuperWindow::Initialize 0x657910: board +0x94("menu/cursor2_hq.tga",
-// 0x28, 0x15, 8 hotspot rects at 0x80ae00..0x80ae6c). No SWINE-board match.
-void PzStub_LoadMenuCursor()
-{
-    STUB_LOG("SSuperWindow::Initialize menu cursor menu/cursor2_hq.tga (board +0x94)");
-}
-
 // HD SSuperWindow::Initialize 0x657910: Gepard +0x10 render options (8/9
-// texture filter, 3 shadow buffer size, 2 shadows, 0/5/6 = 1) and board
-// +0x9c/+0xc8. No SWINE-renderer match.
+// texture filter, 3 shadow buffer size, 2 shadows, 0/5/6 = 1). No
+// SWINE-renderer match. (Board +0x9c/+0x94 are lifted in superwindow.cpp.)
 void PzStub_GepardRenderStates()
 {
     STUB_LOG("SSuperWindow::Initialize Gepard render options (Gepard +0x10)");

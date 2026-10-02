@@ -290,7 +290,8 @@ void SBoard::ApplyHardwareCursor()
 
 {
   int CursorGlyph;
-  if ( !this->HardwareCursor || this->ForceSoftwareCursor || (CursorGlyph = this->CursorGlyph, CursorGlyph < 0) )
+  if ( !this->HardwareCursor || this->ForceSoftwareCursor || (CursorGlyph = this->CursorGlyph, CursorGlyph < 0)
+       || !this->CursorIcons )   // Panzers cursor sets (LoadCursorSetFile) have no HICONs
     ::SetCursor(0);
   else
     ::SetCursor(this->CursorIcons[CursorGlyph]);
@@ -1042,6 +1043,39 @@ bool SBoard::IsAnimPlaying(int idx)
   // event (most visible on enemy reportanims via EventAnimFrames[2]). Cf. the
   // matching write-side notes in StartAnim/StopAnim below.
   return array[idx].data.Anim.Anim != nullptr;
+}
+
+// PANZERS 0x6c59e0
+// SBoard::LoadCursorSet as HD Panzers has it (vtable +0x94), called once from
+// SSuperWindow::Initialize 0x657910 with ("menu/cursor2_hq.tga", 0x28, 0x15,
+// hotspots). HD:
+//   +0x3c = new POINT[count], memcpy(hotspots)   -> CursorHotspots
+//   +0x50 = count                                -> NumCursors
+//   +0x40 = LoadFixedFont(file, size, size, 256/size, count, 0) -> CursorFont
+//   +0x58 = 0, +0x44 = -1 (glyph), +0x54 = 0 (cursor variant)
+//   +0xdc = new 0x20 SBitmap loaded from the same file, +0xe0 = size: the
+//           source of the D3D hardware cursor (+0xc4 0x6ca4e0).
+// The hardware-cursor bitmap is not ported (see ENGINE_DIFF.md): the
+// recompile always draws the software cursor, which is what HD does with
+// options.ini "Hardware Mouse Cursor" = 0 (the default).
+void SBoard::LoadCursorSetFile(const char *filename, int size, int count, const POINT *hotspots)
+{
+  if ( this->CursorFont >= 0 || this->CursorHotspots )
+    this->UnloadCursorSet();
+  this->CursorHotspots = new POINT[count];
+  memcpy(this->CursorHotspots, hotspots, sizeof(POINT) * count);
+  this->NumCursors = count;
+  this->CursorFont = this->LoadFixedFont(filename, size, size, 256 / size, count, 0, Default);
+  this->CursorGlyph = -1;
+  this->CursorX = 0;
+  this->CursorY = 0;
+  this->CursorSize = size;
+  this->CursorIcons = 0;
+  // SWINE flags read by Render/ApplyHardwareCursor. HD: +0xe4 (hardware
+  // cursor) is set by SetHardwareMouseCursor +0xc8; forced off here.
+  this->CursorVisible = true;
+  this->HardwareCursor = false;
+  this->ForceSoftwareCursor = false;
 }
 
 //----- (0041D580) --------------------------------------------------------
@@ -2480,7 +2514,9 @@ void SBoard::Render(float a2, int a3, int a4)
   }
 
   // Draw software cursor
-  if (CursorVisible && (!HardwareCursor || ForceSoftwareCursor) && CursorFont >= 0)
+  // HD 0x6ca240 also requires 0 <= glyph < NumCursors (glyph -1 = hidden).
+  if (CursorVisible && (!HardwareCursor || ForceSoftwareCursor) && CursorFont >= 0
+      && CursorGlyph >= 0 && CursorGlyph < NumCursors)
   {
     int fontIdx = CursorFont;
     if (fontIdx >= 0 && fontIdx < Fonts.size && Fonts.array[fontIdx].use == 0x7FFFFFFF)

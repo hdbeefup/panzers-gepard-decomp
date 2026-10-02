@@ -49,6 +49,11 @@ struct SIBoard {
     virtual void UnloadCursorSet() = 0;
     virtual void SetCursor(int cursor, int x, int y) = 0;
     virtual void ApplyHardwareCursor() = 0;
+    // Panzers: cursor set from one fixed-grid TGA (size x size cells, 256/size
+    // per row) with a caller-supplied hotspot table. HD SBoard vtable slot
+    // +0x94 (0x6c59e0). SWINE's LoadCursorSet(scale) loads its own atlas PNG
+    // and .cur files instead.
+    virtual void LoadCursorSetFile(const char* filename, int size, int count, const POINT* hotspots) = 0;
 };
 
 #endif // DENGINE3_IBOARD_H

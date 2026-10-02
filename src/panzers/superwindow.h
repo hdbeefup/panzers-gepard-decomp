@@ -25,6 +25,7 @@
 struct SProperties;
 struct SMainMenu;
 struct SAchimMenu;
+struct SMainCreditMenu;
 
 // HD SSuperWindow fields 0xe4..0x1c0. Names follow SWINE's SSuperWindow
 // where the use matches; unknown ones keep the HD offset.
@@ -36,7 +37,7 @@ struct SSuperWindowData {
     SWidget*     Menu_f4;           // 0xf4
     SWidget*     Menu_f8;           // 0xf8
     SWidget*     Menu_fc;           // 0xfc
-    SWidget*     Menu_100;          // 0x100
+    SMainCreditMenu* CreditMenu;    // 0x100 (LoadMainCreditMenu 0x658300, new 0xd4 0x632fd0)
     SWidget*     BriefingMenu;      // 0x104 (actions 0x434d1..0x434d5)
     SWidget*     Menu_108;          // 0x108 (actions 0x534b1..0x534b4)
     SWidget*     Menu_10c;          // 0x10c (actions 0x424d1/0x424d2)
@@ -97,6 +98,7 @@ struct SSuperWindow : SDXWindow, SSuperWindowData {
     void Play();                                           // 0x65b470
     void Initialize();                                     // 0x657910 (exported)
     void LoadMainMenu();                                   // 0x6583e0
+    void LoadMainCreditMenu();                             // 0x658300
     void LoadMenuBackground(bool keepScene);               // 0x658690
     void UnloadMenuBackground();                           // 0x65b940
     void CloseBinkVideo();                                 // 0x65b830

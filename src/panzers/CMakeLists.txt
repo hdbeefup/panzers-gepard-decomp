@@ -2,6 +2,8 @@
 # SSettings) and the main menu. bink.* is built separately as panzers_bink
 # (top-level CMakeLists.txt).
 add_library(panzersgame STATIC
+    credits.cpp
+    credits.h
     gamemain.cpp
     mainmenu.cpp
     mainmenu.h
