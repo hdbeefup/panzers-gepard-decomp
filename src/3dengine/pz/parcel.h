@@ -108,6 +108,9 @@ void TerrainReleaseTexture(int texture);                  // Gepard +0x48
 int  TerrainLoadTexture(const char* file, int mipmap, bool alpha);   // Gepard +0x44
 int  TerrainOption(unsigned option);                      // Gepard +0x14 GetOption
 void TerrainSetWorldIdentity(IDirect3DDevice9* dev);      // 0x680fe0
+// Set while an HD render pass (SRenderPass with a pixel shader) draws
+// terrain geometry: TerrainDraw then keeps the bound shaders.
+extern bool g_TerrainDrawKeepShaders;
 void TerrainDraw(IDirect3DDevice9* dev, DWORD fvf, const void* verts, int nverts, int stride,
                  const unsigned short* idx, int nidx);
 

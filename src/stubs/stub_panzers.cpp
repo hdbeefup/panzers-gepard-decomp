@@ -120,16 +120,8 @@ const char* PzStub_GetVersionString()
 void PzStub_ApplyGraphicsOptions(int shadows, int shadowBuffer, int textureFilter,
                                  int textureDetail, bool hardwareCursor)
 {
-    STUB_LOG("SSuperWindow::OnAction 0x4f564 Gepard/board graphics options (0x659250)");
+    STUB_LOG("SSuperWindow::OnAction 0x4f564 board hardware cursor (0x659250)");
+    (void)shadows; (void)shadowBuffer; (void)textureFilter; (void)textureDetail;
     if (Logger.g)
-        Logger.g->Log(0, "STUB: graphics options not applied live: shadows %d, buffer %d, filter %d, detail %d, hw cursor %d",
-                      shadows, shadowBuffer, textureFilter, textureDetail, (int)hardwareCursor);
-}
-
-// HD SSuperWindow::Initialize 0x657910: Gepard +0x10 render options (8/9
-// texture filter, 3 shadow buffer size, 2 shadows, 0/5/6 = 1). No
-// SWINE-renderer match. (Board +0x9c/+0x94 are lifted in superwindow.cpp.)
-void PzStub_GepardRenderStates()
-{
-    STUB_LOG("SSuperWindow::Initialize Gepard render options (Gepard +0x10)");
+        Logger.g->Log(0, "STUB: hardware cursor %d not applied (Gepard options are)", (int)hardwareCursor);
 }

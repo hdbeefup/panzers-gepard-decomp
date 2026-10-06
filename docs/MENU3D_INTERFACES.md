@@ -71,7 +71,8 @@ object over the same SWINE device:
 | Slot | Facade behaviour |
 |---|---|
 | +0x0c CreateScene | `new pz::SScene(0)`, logs "Scene created" |
-| +0x10/+0x14/+0x18 Set/GetOption, GetCap | stored; GetCap(0) = 2 (PS 2.0 shadow technique, as optionsmenu.cpp assumes) |
+| +0x10/+0x14/+0x18 Set/GetOption, GetCap | lifted (0x680910, 0x67c380, 0x67a7d0); GetCap(0) = the shadow technique picked by PS version (4 on PS 2.0) |
+| +0x40 DestroyViewport | lifted (0x67a3f0) for the offscreen viewports (shadow buffer) |
 | +0x20 LoadModelPrototype | SPModel heap + Load4DFile (agent A) |
 | +0x28 PurgeModelPrototypes | lifted (0x678210) |
 | +0x3c GetViewport(0) | the primary `pz::SViewport` |
@@ -161,7 +162,7 @@ entry points:
 - **The state block covers only the SWINE board.** It restores the state after the HD scene. It does not isolate the HD scene from the state SWINE set before it.
 - **Clears and the hook.** SWINE clears with `FogColor` before the hook. HD clears inside `SScene::RenderScene` with `SViewport::Clear`. A second clear is harmless, but use the HD one.
 - **Prepare and update.** `PrepareViewport` and `UpdateViewport` run before BeginScene, as in HD. Render-target changes (for example the shadow buffer) are legal there.
-- **Device reset.** It is handled by SWINE `SGepard::RenderScene` (`ResetDevice`), not by HD 0x67fde0. `D3DPOOL_DEFAULT` resources created by the HD path will not be recreated yet; use `D3DPOOL_MANAGED` until a reset hook exists.
+- **Device reset.** It is handled by SWINE `SGepard::RenderScene` (`ResetDevice`), not by HD 0x67fde0. The facade registers `SGepard::RegisterResetCallbacks`: before `Reset` every scene drops its shadow buffer (as 0x67fde0 does through 0x6a2670) and the offscreen viewports are released; they are rebuilt on the next frame. Other HD-path resources still use `D3DPOOL_MANAGED` / `SYSTEMMEM`.
 - **The viewport facade is not HD-sized.** The device, swap chain and board are SWINE's.
 - **Textures.** The facade texture handles are SWINE `SGepard` texture indices. HD's `_hq` DXT cache is not ported.
 - **Unload order.** `UnloadMenuBackground` releases `g_WindowScene`, deletes SGameLogic, then deletes SWorld. The SWorld dtor releases `g_Scene`. Exit, then Back, reloads the world, as HD does.
@@ -197,23 +198,63 @@ across the squad direction). HD's squad formation belongs to
 `SPanzersSquadUnit` and its driver (M2) and was not lifted.
 
 Remaining differences against the original menu (`p4scope/shots/menu_126.png`):
-- **No shadows.** The original runs with `Shadows = 2`, and so does our
-  `options.ini`. Not lifted: `SScene::GenerateShadowBuffer` 0x6aac20 (the
-  shadow render target from 0x678c70, the light-space fit 0x6a27f0 /
-  0x6a3c80), `SModel::RenderShadow` 0x6d9570, `SMesh::DrawShadow` 0x6cdb70,
-  the PS shadow combiners in 0x6cbe00, and the Gepard render options of
-  `SSuperWindow::Initialize` 0x657910 (still `PzStub_GepardRenderStates`,
-  so Gepard option 2 stays 0 and the scene renders as with `Shadows = 0`).
+- **Shadows** are lifted (section 8a). Side by side the ground and road
+  brightness match within 2/255; not compared pixel by pixel.
 - **No convoy and no marching squad.** Both are spawned and moved by the map
   triggers (`SGameLogic::RunTriggers` 0x579ab0, M2).
 - **Smoke** over the Panther wreck is fainter and darker than in the
   original; the fire effect is not visible in either.
+
+## 8a. Shadows (agent SH)
+
+`Shadows = 2` (Self Shadow) gives Gepard option 2 = GetCap(0); `1` (Normal
+Shadow) the compatible technique 1; `0` none (`SSuperWindow::Initialize`
+0x657910, Graphics Apply 0x659250). `SGepard::Initialize` 0x67d1c0 picks the
+technique by pixel shader version: PS >= 2.0 -> 4, PS < 2.0 with a D24X8
+depth texture -> 2, PS 1.4 -> 3, else 1. It creates the HD pixel shaders
+(`hdshaders.inc`, the token streams from PANZERS.exe: PS 2.0 ids 8..0x22,
+PS 1.4, depth-texture, and the PS 1.x reflection ids 2..7) and the two
+inline vs_2_0 shaders 0x41/0x42.
+
+Technique 4, per frame (`SScene::PrepareViewport` -> `GenerateShadowBuffer` 0x6aac20):
+1. Offscreen viewport (0x678c70): ShadowBufferSize^2 G16R16 render-target
+   texture + D16 depth surface, `D3DPOOL_DEFAULT`, linear filter.
+2. Light projection (`shadowmath.cpp`): points are moved along the sun onto
+   y = 2 * lowest visible ground and seen by the camera (L * View * Proj),
+   depth = height (top 0, bottom 1). The trapezoidal fit 0x6a3c80 (Martin &
+   Tan TSM, focus 20 / (far - near), xi from the sun/camera angle) replaces
+   it unless the near and far quads overlap; then the bounds of the visible
+   cells clipped by the frustum (0x6a27f0) are scaled to the buffer.
+3. Shadow pass, VIEW identity, PROJECTION = that matrix, cleared white,
+   lights off: terrain (0x6f4530), models of the visible cells and free
+   models (`SModel::RenderShadow` 0x6d9570 -> `SMesh::DrawShadow` 0x6cdb70,
+   animated/skinned via 0x6ce170). PS 8 writes the height (t0 = camera-space
+   position * scene +0x58), PS 9 also kills alpha < 0.5; meshes go through
+   vs 0x41/0x42.
+4. Receivers: scene +0x58 = inverse view * light * bias. Terrain (0x6f46e0,
+   PS 10) and materials (`SMaterial::Begin` 0x6cbe00, PS 0xb..0x22, c1 =
+   ambient + alpha, c2 = tint) compare `t0.z - stored` (bias -0.002 -
+   0.0003 (1 - |fwd.y|)^3, or -1e-4 without the trapezoid) and take the
+   ambient in shadow, the lit vertex colour elsewhere. With shadows on the
+   terrain base layers and the roads are drawn unlit (0x708ee0, 0x6f7810);
+   0x6f46e0 multiplies the light in and adds the fog.
+
+The matrix code (0x6a3c80, 0x6a27f0 and the matrix part of 0x6aac20) was
+checked against PANZERS.exe run under an x86 emulator (unicorn) on 300 / 300
+/ 150 random cameras, suns and cell sets: no mismatch beyond 2e-3 relative.
+
+Recompile differences: the pass runs before the SWINE frame, so a lost
+device skips it and a `D3DSBT_ALL` state block isolates it; 0x6a27f0's
+polyhedron clip (0x7c7610) is replaced by the equivalent vertex enumeration
+of the clipped box; DrawWires (0x6b8b10) in the pass is not lifted; the
+`0x68d1e0` VS constant of `RenderShadow` is dropped (DrawShadow sets it).
 
 ## 9. Not verified
 
 - Slot semantics marked "(name guessed)". The parameter lists of unnamed slots are only dword counts.
 - The `STerrainBuffers` field meanings beyond Heights/Blend/Diffuse.
 - The SPixie ctor refcount (assumed 1, like SScene and SModel).
-- Device loss with the world path on was not exercised.
+- Device loss with the world path on was not exercised (the shadow-buffer release/rebuild on reset is untested).
+- Shadow techniques 1, 2 and 3 were not run (this machine picks 4); only Shadows = 2 and 0 were run.
 - The global-state name table of `GetGlobalStateStandText` 0x5c7f90 is not read: the placed units are assumed to be in state 0 = "normal". The idle-relax variants (`%s_idle_relax%d%s`, timer in 0x5cae80) are not played.
 - The SBuildingUnit "Indoor" rule for the type's +0x13c == 6 is not applied (the stand-in type has no such field).

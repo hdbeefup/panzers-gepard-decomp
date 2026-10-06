@@ -221,6 +221,7 @@ struct STerrain : SITerrain {
     void MarkAllVisible();                 // 0x6f8610 every parcel visible (RenderScene)
     void Render(SViewport* vp);            // 0x6f2aa0 parcels, roads, map decals, effect decals pass 0
     void RenderShadowPass();               // 0x6f46e0 shadow-buffer and fog passes (Gepard option 2 on)
+    void RenderShadowCasters();            // 0x6f4530 the ground into the shadow buffer (RET 4: an unused matrix)
     void RenderLate(SViewport* vp);        // 0x6f33c0 effect decals pass 1, flora
 
     // ---- Internals ----

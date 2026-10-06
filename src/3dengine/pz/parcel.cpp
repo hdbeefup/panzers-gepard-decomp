@@ -88,6 +88,8 @@ void TerrainSetWorldIdentity(IDirect3DDevice9* dev)
     dev->SetTransform(D3DTS_WORLD, &m);
 }
 
+bool g_TerrainDrawKeepShaders = false;
+
 void TerrainDraw(IDirect3DDevice9* dev, DWORD fvf, const void* verts, int nverts, int stride,
                  const unsigned short* idx, int nidx)
 {
@@ -95,8 +97,10 @@ void TerrainDraw(IDirect3DDevice9* dev, DWORD fvf, const void* verts, int nverts
     // UP draw here: nothing in D3DPOOL_DEFAULT to rebuild on device reset.
     if (!dev || nverts <= 0 || nidx < 3)
         return;
-    dev->SetVertexShader(nullptr);
-    dev->SetPixelShader(nullptr);
+    if (!g_TerrainDrawKeepShaders) {
+        dev->SetVertexShader(nullptr);
+        dev->SetPixelShader(nullptr);
+    }
     dev->SetFVF(fvf);
     dev->DrawIndexedPrimitiveUP(D3DPT_TRIANGLELIST, 0, nverts, nidx / 3, idx, D3DFMT_INDEX16,
                                 verts, stride);
@@ -460,7 +464,7 @@ void SParcel::DrawLayered(int x0, int z0, const float* heights, const unsigned* 
     st.SetAlphaOp(0, D3DTOP_SELECTARG2, D3DTA_TEXTURE, D3DTA_CURRENT);
     st.SetTexture(0, textures[baseLayer], true);
     if (shadowPass)
-        st.SetFog(2, 0);
+        { st.SetFog(2, 0); st.Lighting = false; }   // 0x709572: unlit, the shadow pass lights it
     st.Apply(dev);
     TerrainDraw(dev, kTerrainFVF, v, 0x51, sizeof(STerrainVertex), g_ParcelIndices, 0x180);
 
@@ -482,7 +486,7 @@ void SParcel::DrawLayered(int x0, int z0, const float* heights, const unsigned* 
         st.SetTexture(0, tex, true);
         st.SetBlendMode(2);
         if (shadowPass)
-            st.SetFog(2, 0);
+            { st.SetFog(2, 0); st.Lighting = false; }   // 0x709c8f: unlit, the shadow pass lights it
         st.Apply(dev);
         TerrainDraw(dev, kTerrainFVF, v, 0x51, sizeof(STerrainVertex), g_ParcelIndices, 0x180);
     }

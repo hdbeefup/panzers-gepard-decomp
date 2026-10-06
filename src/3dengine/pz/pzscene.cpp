@@ -15,6 +15,8 @@
 #include "parcel.h"
 #include "pzpixie.h"
 #include "mesh.h"
+#include "shadowmath.h"
+#include <vector>
 #include "timer.h"
 #include "logger.h"
 #include "stub_log.h"
@@ -27,13 +29,22 @@ static void Identity44(float* m)
     m[0] = m[5] = m[10] = m[15] = 1.0f;   // 0x67cbc0
 }
 
+// The live scenes (HD: SGepard scene heap +0x4e4, filled by CreateScene).
+static std::vector<SScene*> s_Scenes;
+
+void ReleaseAllShadowBuffers()
+{
+    for (SScene* s : s_Scenes)
+        s->ReleaseShadowBuffer();   // 0x6a2670
+}
+
 // PANZERS 0x69faf0
 SScene::SScene(int param)
 {
     PZ_TRACE("SScene::SScene (0x69faf0)");
     memset(static_cast<void*>(&RefCount), 0, sizeof(SScene) - offsetof(SScene, RefCount));
     RefCount = 1;
-    Identity44(Matrix18);
+    Identity44(ShadowProjection);
     Identity44(ShadowMatrix);
     FrameCount = 1;
     Interpolation = 0.0;
@@ -53,9 +64,10 @@ SScene::SScene(int param)
     SunElevation = -1000.0f;
     SunMatrix[0] = SunMatrix[4] = SunMatrix[8] = 1.0f;
     RiverTexture = -1;
-    RoadFlag = -1;
+    ShadowViewport = -1;
     ShadowTexture = -1;
     FocusHeight = 0.0f;
+    s_Scenes.push_back(this);
     Logger.g->Log(0, "Scene created");
 }
 
@@ -82,6 +94,12 @@ SScene::~SScene()
     FreeModels.Free();
     Lights.Free();
     Rivers.Free();
+    ReleaseShadowBuffer();
+    for (size_t i = 0; i < s_Scenes.size(); ++i)
+        if (s_Scenes[i] == this) {
+            s_Scenes.erase(s_Scenes.begin() + i);
+            break;
+        }
     free(CellLinks);
     free(Deferred);
     delete[] AtmosphereName;
@@ -591,10 +609,8 @@ void SScene::PrepareViewport(SViewport* vp)
     if (Terrain)
         Terrain->Cull(vp);
     UpdateModels(vp, true);
-    if (Terrain) {
-        // 0x6aac20 SScene::GenerateShadowBuffer: shadow technique of
-        // Gepard option 2; Shadows = 0 in the menu (not lifted).
-    }
+    if (Terrain)
+        GenerateShadowBuffer(vp);   // 0x6aac20
 }
 
 // PANZERS 0x6a24c0
@@ -645,7 +661,7 @@ void SScene::RenderViewport(SViewport* vp)
     g_HdFog.End = FogEnd;
     if (Terrain) {
         Terrain->Render(vp);                          // 0x6f2aa0
-        if (GepardOption(2) != 0 && RoadFlag >= 0)
+        if (GepardOption(2) != 0 && ShadowViewport >= 0)
             Terrain->RenderShadowPass();              // 0x6f46e0
     }
     if (Terrain && !Terrain->GetCompactMode()) {
@@ -675,6 +691,177 @@ void SScene::RenderViewport(SViewport* vp)
     g_MeshDraw.DrawingDeferred = false;
     // HD: GetOption(2) > 2 && GetOption(4): debug quad of the shadow buffer.
     ++FrameCount;
+}
+
+// PANZERS 0x6a2670
+// Drops the shadow buffer: the models' second terrain shadow decal (0x6da0c0),
+// the offscreen viewport (Gepard +0x40) and its texture.
+void SScene::ReleaseShadowBuffer()
+{
+    for (int i = FreeModels.Next(-1); i >= 0; i = FreeModels.Next(i)) {
+        SModel* m = FreeModels[i];
+        if (m->ShadowDecal2 >= 0)
+            m->ShadowDecal2 = -1;   // terrain +0x64 (decals are not placed by the menu)
+    }
+    if (ShadowViewport >= 0)
+        PzGepard()->DestroyViewport(ShadowViewport);
+    ShadowTexture = -1;
+    ShadowViewport = -1;
+}
+
+// PANZERS 0x6aac20
+// Renders the shadow buffer before the frame (from PrepareViewport):
+//  - the offscreen viewport, made on first use with the Gepard option 3
+//    size: technique 4 G16R16 (the height in red), 3 X8R8G8B8, 2 a D24X8
+//    depth texture beside X8R8G8B8 / R5G6B5, 1 R5G6B5; linear filtering
+//    except for technique 1;
+//  - the light projection (shadowmath.cpp) as the PROJECTION with an
+//    identity VIEW, cleared to white;
+//  - the casters drawn black with the lights off: the terrain (depth, and
+//    the height for techniques 3/4), then the models of the visible cells
+//    and the free-heap models;
+//  - scene +0x58 becomes camera space -> shadow texture for the receivers.
+// Recompile: the SWINE frame tests the device only after this, so a lost
+// device skips the pass, and a D3DSBT_ALL state block keeps the shadow
+// pass's device state from the SWINE frame.
+void SScene::GenerateShadowBuffer(SViewport* vp)
+{
+    PZ_TRACE("SScene::GenerateShadowBuffer (0x6aac20)");
+    int tech = GepardOption(2);
+    if (tech == 0)
+        return;
+    IDirect3DDevice9* dev = HD().Device;
+    if (!dev || dev->TestCooperativeLevel() != D3D_OK)
+        return;
+    if (ShadowViewport < 0) {
+        int size = GepardOption(3);
+        unsigned fmt, flags = 3;
+        if (tech == 2) {
+            fmt = (HD().VendorId == 0x10de && HD().DeviceId < 0x250) ? D3DFMT_X8R8G8B8 : D3DFMT_R5G6B5;
+            flags = 7;
+        } else if (tech == 3) {
+            fmt = D3DFMT_X8R8G8B8;
+        } else if (tech == 4) {
+            fmt = D3DFMT_G16R16;
+        } else {
+            fmt = D3DFMT_R5G6B5;
+        }
+        ShadowViewport = GepardCreateRenderTarget(size, size, fmt, flags);   // 0x678c70
+        if (ShadowViewport < 0)
+            return;
+        if (tech == 2 || tech == 3 || tech == 4)
+            GepardSetTextureFilter(GepardRenderTargetTexture(ShadowViewport, false), 1);   // 0x680bf0
+    }
+    IDirect3DStateBlock9* saved = nullptr;
+    if (FAILED(dev->CreateStateBlock(D3DSBT_ALL, &saved)))
+        saved = nullptr;
+    GepardSelectRenderTarget(ShadowViewport);   // 0x6803e0
+
+    // The matrices.
+    static std::vector<SShadowCell> s_Cells;   // reused every frame
+    int cells = CellsX * CellsZ;
+    s_Cells.resize(cells);
+    for (int c = 0; c < cells; ++c) {
+        SShadowCell& sc = s_Cells[c];
+        sc.Visible = Terrain->Parcels[c].Visible;
+        sc.MinY = Terrain->Parcels[c].MinY;
+        sc.MaxY = Terrain->Parcels[c].MaxY;
+        memcpy(&sc.ModelTop, &CellTails[c], 4);   // a float in the int array
+    }
+    SShadowFrame f;
+    memset(&f, 0, sizeof(f));
+    memcpy(f.Cam.View, vp->View, sizeof(f.Cam.View));
+    memcpy(f.Cam.Proj, vp->Proj, sizeof(f.Cam.Proj));
+    f.Cam.Near = vp->Camera.NearZ;
+    f.Cam.Far = vp->Camera.FarZ;
+    float camX, camZ, pitch;
+    vp->GetCamera(&camX, &f.CamY, &camZ, &f.Yaw, &pitch);   // vp +0x24
+    memcpy(f.SunDir, SunDir, sizeof(f.SunDir));
+    f.SunAzimuth = SunAzimuth;
+    f.SunElevation = SunElevation;
+    f.Cells = s_Cells.data();
+    f.CellsX = CellsX;
+    f.CellsZ = CellsZ;
+    f.Technique = tech;
+    f.BufferSize = GepardOption(3);
+    f.DepthTextureFlag = HD().DepthTextureFlag;
+    ShadowFrameMatrices(f);
+    FocusHeight = f.FocusHeight;
+    ShadowCull = f.Cull;
+    float identity[16];
+    Identity44(identity);
+    dev->SetTransform(D3DTS_VIEW, (const D3DMATRIX*)identity);
+    dev->SetTransform(D3DTS_PROJECTION, (const D3DMATRIX*)f.Projection);
+    memcpy(ShadowProjection, f.Projection, 64);
+    if (tech == 2) {
+        float bias = 4.0e-05f, slope = 1.1f;   // 0x3827c5ac, 0x3f8ccccd
+        dev->SetRenderState(D3DRS_DEPTHBIAS, *(DWORD*)&bias);
+        dev->SetRenderState(D3DRS_SLOPESCALEDEPTHBIAS, *(DWORD*)&slope);
+    }
+    if (tech == 3 || tech == 4)
+        memcpy(ShadowMatrix, f.PassMatrix, 64);
+    GepardClearRenderTarget(0xffffff, 1.0f, 0);   // 0x689f10
+    if (FAILED(dev->BeginScene())) {
+        Logger.g->Log(0, "%s", "SScene::GenerateShadowBuffer\\IDirect3DDevice::BeginScene failed");
+        GepardUnselectRenderTarget();
+        if (saved) {
+            saved->Apply();
+            saved->Release();
+        }
+        return;
+    }
+    // Recompile: the device state the HD passes expect (the SWINE frame
+    // ran in between), as RenderViewport does.
+    ApplyHdDeviceDefaults(dev);
+    InvalidateRenderPassCache();
+    GepardEnableLights(false);                  // 0x67a720(0)
+    const float black[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    GepardSetAmbient(black);                    // 0x680510
+    Terrain->RenderShadowCasters();             // 0x6f4530
+    for (int c = 0; c < cells; ++c) {
+        if (!Terrain->Parcels[c].Visible)
+            continue;
+        for (int k = CellHeads[c]; k >= 0; k = CellLinks[k].Next) {
+            int i = CellLinks[k].Model;
+            if (!Models.Valid(i))
+                continue;
+            SModel* m = Models[i];
+            if (m->Frame == FrameCount) {
+                float p[3];
+                m->GetPosition(p);              // +0x10 (unused)
+                m->RenderShadow(vp);            // 0x6d9570
+            }
+        }
+    }
+    for (int i = FreeModels.Next(-1); i >= 0; i = FreeModels.Next(i)) {
+        SModel* m = FreeModels[i];
+        if (m->Frame != FrameCount)
+            continue;
+        if (m->ShadowDecal < 0 || GepardOption(5) != 0)
+            m->RenderShadow(vp);
+    }
+    // HD also draws the wires (0x6b8b10(vp, 1)); DrawWires is not lifted.
+    if (FAILED(dev->EndScene()))
+        Logger.g->Log(0, "%s", "SScene::GenerateShadowBuffer\\IDirect3DDevice::EndScene failed");
+    GepardUnselectRenderTarget();               // 0x6814b0
+    memcpy(ShadowMatrix, f.TexMatrix, 64);
+    if (tech == 1 && GepardOption(4) != 0) {
+        if (ShadowTexture == -1)
+            ShadowTexture = HD().DebugShadowTexture;   // SGepard +0x548
+    } else {
+        ShadowTexture = GepardRenderTargetTexture(ShadowViewport, tech == 2);
+    }
+    GepardEnableLights(true);
+    GepardSetAmbient(Ambient);
+    if (tech == 2) {
+        dev->SetRenderState(D3DRS_DEPTHBIAS, 0);
+        dev->SetRenderState(D3DRS_SLOPESCALEDEPTHBIAS, 0);
+    }
+    if (saved) {
+        saved->Apply();
+        saved->Release();
+    }
+    InvalidateRenderPassCache();
 }
 
 // 0x6b0920: water courses of scene +0x220 (Slot_B0, rivers and waterfalls;
@@ -1021,10 +1208,14 @@ void SScene::ClearSkybox()
 }
 
 // HD SScene vtbl +0x104 -> 0x6ba950 (0 arg dwords)
+// PANZERS 0x6ba950
+// Drops the shadow buffer (Graphics Apply, after a new buffer size); the
+// next frame creates it again. The texture handle +0x14 is left as is.
 void SScene::Slot_104_RecreateShadowBuffer()
 {
-    STUB_LOG("SScene::Slot_104_RecreateShadowBuffer (0x6ba950)");
     PZ_TRACE("SScene::Slot_104_RecreateShadowBuffer (0x6ba950)");
+    PzGepard()->DestroyViewport(ShadowViewport);   // Gepard +0x40
+    ShadowViewport = -1;
 }
 
 } // namespace pz

@@ -14,6 +14,8 @@
 
 struct IDirect3DDevice9;
 struct IDirect3DVertexBuffer9;
+struct IDirect3DPixelShader9;
+struct IDirect3DVertexShader9;
 
 namespace pz {
 
@@ -42,6 +44,16 @@ struct SGepardHDState {
     unsigned                DynTypeStride[8];
     int                     DynTypeCount;
     int                     DynType112;     // +0x5fc vertex type of FVF 0x112 (32 bytes)
+    // Shader caps and the shadow technique (SGepard::Initialize 0x67d1c0).
+    unsigned                VSVersion;      // +0x488 D3DCAPS9 VertexShaderVersion & 0xffff
+    unsigned                PSVersion;      // +0x48c D3DCAPS9 PixelShaderVersion & 0xffff
+    unsigned                VendorId;       // +0x434 adapter identifier
+    unsigned                DeviceId;       // +0x438
+    bool                    DepthTextureFlag; // +0x499 (0 after the depth-texture choice)
+    int                     ShadowCap;      // +0x540 GetCap(0): 1 compatible, 2 depth texture, 3 PS 1.4, 4 PS 2.0
+    int                     DebugShadowTexture; // +0x548 option 4 (editor/shadow_buffer_256_hq.tga)
+    IDirect3DPixelShader9*  PixelShaders[0x23];   // +0x754 + id*4, ids 1..0x22
+    IDirect3DVertexShader9* VertexShaders[0x43];  // +0x648 + id*4, ids 1..0x42 (HD creates 0x41/0x42)
 };
 SGepardHDState& HD();
 
@@ -59,12 +71,30 @@ void GepardDrawDynamicVB(int prim, int minIndex, int numVerts, int startIndex,
                          int primCount, int withIndices);          // 0x67a650
 void GepardAdvanceDynamicVB(int count);                            // 0x677fc0
 void GepardSetAmbient(const float* rgba);                          // 0x680510
+unsigned GepardArgb(const float* rgba);                            // 0x5aa900 clamped float4 -> ARGB
 SPModel* GepardModelPrototype(int index);                          // 0x6778a0
 SPAnim*  GepardAnim(int index);                                    // 0x67a760
 int      GepardLoadAnim(const char* file);                         // 0x67d920
 void     GepardReleaseAnim(int index);
 int      GepardOption(unsigned option);                            // 0x67c380 (no trace)
 SIPixie* GepardPixie();                                            // SGepard+0x7f4, no AddRef
+void     GepardSetPixelShaderConstant(unsigned reg, const float* v, unsigned count); // device +0x1b4
+void     GepardSetVertexShaderConstant(unsigned reg, const float* v, unsigned count); // device +0x178
+void     GepardEnableLights(bool on);                              // 0x67a720 (the scene's lights)
+
+// Offscreen viewports (HD SViewport 0x244 with a render-target texture in
+// the SGepard viewport heap +0x578). The recompile keeps only what the
+// shadow buffer needs: a colour render-target texture and a depth surface
+// (or a depth texture), both D3DPOOL_DEFAULT, released before a device
+// reset (HD: SGepard::ResetDevice 0x67fde0 frees every scene's shadow
+// buffer through 0x6a2670) and recreated on the next use.
+int  GepardCreateRenderTarget(int width, int height, unsigned format, unsigned flags); // 0x678c70 (0x68aa60, 0x689710)
+void GepardDestroyRenderTarget(int index);                         // Gepard +0x40 0x67a3f0
+int  GepardRenderTargetTexture(int index, bool depth);             // 0x67cb60 +0x20 / +0x24
+void GepardSetTextureFilter(int texture, unsigned flags);          // 0x680bf0
+void GepardSelectRenderTarget(int index);                          // 0x6803e0 SGepard::SelectViewport
+void GepardUnselectRenderTarget();                                 // 0x6814b0 SGepard::UnselectViewport
+void GepardClearRenderTarget(unsigned color, float z, unsigned stencil); // 0x689f10 on the selected one
 
 struct SPzGepard : SIGepardHD {
     SPzGepard();
@@ -86,7 +116,7 @@ struct SPzGepard : SIGepardHD {
     void Slot_34() override;
     void SwitchModelPrototypeNodes(int proto, int node1, int node2) override;
     SIViewport* GetViewport(int index) override;
-    void Slot_40() override;
+    void DestroyViewport(int index) override;
     int LoadTexture(const char* file, int mipmap, bool alpha) override;
     void ReleaseTexture(int texture) override;
     void UpdateTexture(int texture, int p2, int p3, void* data) override;

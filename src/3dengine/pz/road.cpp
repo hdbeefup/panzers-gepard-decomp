@@ -526,6 +526,8 @@ void STerrain::RenderRoads(SViewport* vp, bool shadowPass)
             st.SetColorOp(0, D3DTOP_MODULATE2X, D3DTA_TEXTURE, D3DTA_CURRENT, D3DTA_CURRENT);
         st.SetTexture(0, j.Texture, false, false);
         st.SetBlendMode(2);
+        if (TerrainOption(2) != 0)
+            st.Lighting = false;   // 0x6f797d / 0x6f804d: lit by the shadow pass (0x6f46e0)
         st.Apply(dev);
         TerrainSetWorldIdentity(dev);
         DrawRoadMeshes(this, dev, &j.Meshes);
@@ -542,6 +544,8 @@ void STerrain::RenderRoads(SViewport* vp, bool shadowPass)
         bool swap = ((r.Flags >> 4) & 1) != 0;
         st.SetTexture(0, r.Texture, !swap, swap);
         st.SetBlendMode(2);
+        if (TerrainOption(2) != 0)
+            st.Lighting = false;   // 0x6f797d / 0x6f804d: lit by the shadow pass (0x6f46e0)
         st.Apply(dev);
         TerrainSetWorldIdentity(dev);
         DrawRoadMeshes(this, dev, &r.Meshes);

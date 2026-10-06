@@ -38,7 +38,7 @@ struct SIGepardHD {
     virtual void Slot_34() = 0;                             // +0x34 HD 0x67c170 (2 arg dwords)
     virtual void SwitchModelPrototypeNodes(int proto, int node1, int node2) = 0; // +0x38 HD 0x681010 (3 arg dwords) SGepard::SwitchModelPrototypeNodes
     virtual SIViewport* GetViewport(int index) = 0;         // +0x3c HD 0x67cb00 (1 arg dword) no AddRef
-    virtual void Slot_40() = 0;                             // +0x40 HD 0x67a3f0 (1 arg dword)
+    virtual void DestroyViewport(int index) = 0;            // +0x40 HD 0x67a3f0 (1 arg dword) SGepard viewport heap; scene shadow buffer (0x6a2670, 0x6ba950)
     virtual int LoadTexture(const char* file, int mipmap, bool alpha) = 0; // +0x44 HD 0x67ea30 (3 arg dwords) SGepard::LoadTexture; shared with the SWINE 2D path
     virtual void ReleaseTexture(int texture) = 0;           // +0x48 HD 0x67f740 (1 arg dword)
     virtual void UpdateTexture(int texture, int p2, int p3, void* data) = 0; // +0x4c HD 0x681540 (4 arg dwords) SGepard::UpdateTexture

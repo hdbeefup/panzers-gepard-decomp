@@ -62,7 +62,6 @@ void PzStub_LoadChatRoomView();                    // 0x658050
 void PzStub_LoadMenuWorld(SSuperWindow* sw);       // maps/menu.map world in 0x658690 (-menu3d off)
 void PzStub_SuperWindowAction(int action);         // OnAction cases beyond the main menu
 const char* PzStub_GetVersionString();             // SVersion::GetVersionString 0x65c070
-void PzStub_GepardRenderStates();                  // Gepard +0x10 render options in Initialize
 
 static pz::SUnitRegistry* s_UnitRegistry = nullptr;   // HD 0x929a4c (new 0x124)
 
@@ -317,10 +316,29 @@ void SSuperWindow::Play()
 // PANZERS 0x657910 (exported ?Initialize@SSuperWindow@@AAEXXZ)
 void SSuperWindow::Initialize()
 {
-    // HD: Gepard +0x10(8/9, TextureFilter), (3, ShadowBufferSize),
-    // (2, shadows), (0,1), (5,1), (6,1); board +0x9c(-1,0,0,0) and +0xc8(HW
-    // cursor); Concert +0x10 volumes. Only the volumes have a SWINE match.
-    PzStub_GepardRenderStates();
+    // Gepard render options (Gepard +0x10 SetOption): 8/9 texture filter
+    // (0: 0/0, 1: 1/0, else 1/1), 3 shadow buffer size, 2 the shadow
+    // technique (Shadows = 2 "Self Shadow": GetCap(0), the one the card
+    // supports; 1 "Normal Shadow": the compatible technique 1; 0 off), and
+    // 0, 5, 6 on.
+    pz::SIGepardHD* g = pz::PzGepard();
+    if (Settings.TextureFilter == 0) {
+        g->SetOption(8, 0);
+        g->SetOption(9, 0);
+    } else if (Settings.TextureFilter == 1) {
+        g->SetOption(8, 1);
+        g->SetOption(9, 0);
+    } else {
+        g->SetOption(8, 1);
+        g->SetOption(9, 1);
+    }
+    g->SetOption(3, Settings.ShadowBufferSize);
+    g->SetOption(2, Settings.Shadows == 2 ? g->GetCap(0) : Settings.Shadows);   // 0x64e240
+    g->SetOption(0, 1);
+    g->SetOption(5, 1);
+    g->SetOption(6, 1);
+    // HD then: board +0x9c(-1,0,0,0) and +0xc8(HW cursor); Concert +0x10
+    // volumes.
     Board->SetCursor(-1, 0, 0);                                    // board +0x9c(-1, 0, 0, 0): no cursor yet
     // HD board +0xc8 SetHardwareMouseCursor(Settings +0x154 "Hardware Mouse
     // Cursor"). The D3D hardware cursor is not ported: the board always
@@ -521,7 +539,7 @@ void SSuperWindow::LoadMainMenu()
 // PANZERS 0x658300
 void SSuperWindow::LoadMainCreditMenu()
 {
-    // HD: delete SPanzersCampaign (DAT_00929a0c) — never created here.
+    // HD: delete SPanzersCampaign (DAT_00929a0c) ï¿½ never created here.
     LoadMenuBackground(false);                                     // 0x658690(0)
     CreditMenu = new SMainCreditMenu();                            // new 0xd4, 0x632fd0
     InsertChild(CreditMenu);                                       // vtbl +0x54

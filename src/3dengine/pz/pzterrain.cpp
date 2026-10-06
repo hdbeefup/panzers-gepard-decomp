@@ -10,6 +10,8 @@
 #include "pzterrain.h"
 #include "parcel.h"
 #include "pzscene.h"
+#include "pzgepard.h"
+#include "mesh.h"
 #include "pzviewport.h"
 #include "effect.h"
 #include "igepardhd.h"
@@ -793,71 +795,138 @@ void STerrain::Render(SViewport* vp)
     }
 }
 
-// HD 0x6f46e0 (the shadow-buffer projection part is reimplemented without
-// the per-technique texture transforms; the fog pass is lifted)
+// The pass state the terrain's own draw state (STerrainDrawState) does not
+// carry (pixel shader, texture transforms) goes back to the defaults after
+// an HD render pass, so the following terrain draws start clean.
+static void EndHdTerrainPass(IDirect3DDevice9* dev)
+{
+    g_TerrainDrawKeepShaders = false;
+    dev->SetPixelShader(nullptr);
+    dev->SetVertexShader(nullptr);
+    for (DWORD i = 0; i < 2; ++i) {
+        dev->SetTextureStageState(i, D3DTSS_TEXCOORDINDEX, i);
+        dev->SetTextureStageState(i, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_DISABLE);
+    }
+    InvalidateRenderPassCache();
+}
+
+// PANZERS 0x6f4530
+// The ground into the shadow buffer: unlit, no culling, no fog, black
+// vertices. Techniques 3/4 write the height (t0 through scene +0x58, pixel
+// shader 8); the others write depth only (colour writes off).
+void STerrain::RenderShadowCasters()
+{
+    PZ_TRACE("STerrain::RenderShadowCasters (0x6f4530)");
+    IDirect3DDevice9* dev = TerrainDevice();
+    if (!dev)
+        return;
+    Update();                                         // vtable +0x24
+    GepardSetWorldIdentity();                         // 0x680fe0
+    InvalidateRenderPassCache();                      // the terrain draw state ran before
+    SRenderPass p;
+    p.Init();
+    p.Lighting = false;
+    p.CullMode = D3DCULL_NONE;
+    p.SetFogMode(2, 0);
+    int tech = GepardOption(2);
+    if (tech == 3 || tech == 4) {
+        p.SetTexTransform(0, D3DTSS_TCI_CAMERASPACEPOSITION, D3DTTFF_COUNT3, Scene->ShadowMatrix);
+        p.PixelShader = 8;
+    } else {
+        p.ColorWrite = 0;
+    }
+    p.Apply();
+    g_TerrainDrawKeepShaders = true;
+    bool fixedFunction = p.VertexShader == 0;
+    for (int pz = 0; pz < ParcelsZ; ++pz)
+        for (int px = 0; px < ParcelsX; ++px) {
+            if (!Parcels[ParcelsX * pz + px].Visible)
+                continue;
+            int v0 = (Stride * pz + px) * 8;
+            ParcelRenderer->DrawSketch(px * 8, pz * 8, Heights + v0, nullptr, 0xff000000, Normals + v0 * 3, Stride,
+                                       2.0f / (float)Width, 2.0f / (float)Height, fixedFunction);
+        }
+    EndHdTerrainPass(dev);
+}
+
+// PANZERS 0x6f46e0
+// After the terrain (drawn unlit and without fog while shadows are on):
+// pass 1 multiplies the lighting over it (z equal; MODULATE2X with Gepard
+// option 0x10), pass 2 adds the fog (black terrain, additive, scene fog).
+//  4/3/2: pixel shader 10, the lit vertex colour where the shadow buffer
+//    is not above the ground, else the scene ambient (c1); t0 = camera-space
+//    position through scene +0x58 (technique 2: projected depth texture).
+//  1: the shadow texture (projected, column 2 = column 3) times the sun
+//    light alone (ambient off) plus the ambient as texture factor.
 void STerrain::RenderShadowPass()
 {
     PZ_TRACE("STerrain::RenderShadowPass (0x6f46e0)");
     IDirect3DDevice9* dev = TerrainDevice();
     if (!dev)
         return;
-    Update();
-    TerrainSetWorldIdentity(dev);
-    STerrainDrawState st;
-    // Pass 1: multiply the scene shadow texture (scene+0x14) over the
-    // terrain, texture coordinates from the world position through the
-    // scene shadow matrix (scene+0x58). Technique 1 (option 2) blacks out
-    // the ambient while it draws. Same geometry, z equal.
-    int shadowTex = SceneField<int>(Scene, 0x14);
-    if (shadowTex >= 0) {
-        st.SetTexture(0, shadowTex, false);
-        st.SetBlendModeEx(TerrainOption(0x10) ? 4 : 3, -1);
-        st.SetFog(1, 0);
-        st.ZFunc = D3DCMP_EQUAL;
-        st.Apply(dev);
-        dev->SetTransform(D3DTS_TEXTURE0, reinterpret_cast<const D3DMATRIX*>(
-                              reinterpret_cast<unsigned char*>(Scene) + 0x58));
-        dev->SetTextureStageState(0, D3DTSS_TEXCOORDINDEX, D3DTSS_TCI_CAMERASPACEPOSITION);
-        dev->SetTextureStageState(0, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_COUNT4 | D3DTTFF_PROJECTED);
-        DWORD ambient = 0;
-        int tech = TerrainOption(2);
-        if (tech == 1) {
-            dev->GetRenderState(D3DRS_AMBIENT, &ambient);
-            dev->SetRenderState(D3DRS_AMBIENT, 0);
+    Update();                                         // vtable +0x24
+    GepardSetWorldIdentity();                         // 0x680fe0
+    InvalidateRenderPassCache();
+    SRenderPass p;
+    p.Init();
+    float m[16];
+    memcpy(m, Scene->ShadowMatrix, 64);
+    int tech = GepardOption(2);
+    if (tech == 2 || tech == 3 || tech == 4) {
+        if (tech == 3)
+            p.SetTexTransform(0, D3DTSS_TCI_CAMERASPACEPOSITION, D3DTTFF_COUNT4, m);
+        p.SetTexTransform(tech == 3 ? 1 : 0, D3DTSS_TCI_CAMERASPACEPOSITION,
+                          tech == 2 ? D3DTTFF_COUNT4 | D3DTTFF_PROJECTED : D3DTTFF_COUNT4, m);
+        p.SetTexture(0, Scene->ShadowTexture, false);
+        GepardSetPixelShaderConstant(1, Scene->Ambient, 1);
+        p.PixelShader = 10;
+    } else {
+        m[2] = m[3];
+        m[6] = m[7];
+        m[10] = m[11];
+        m[14] = m[15];
+        p.SetTexTransform(0, D3DTSS_TCI_CAMERASPACEPOSITION, D3DTTFF_COUNT3 | D3DTTFF_PROJECTED, m);
+        p.SetTexture(0, Scene->ShadowTexture, false);
+        p.TextureFactor = (int)GepardArgb(Scene->Ambient);   // 0x5aa900
+        p.SetColorOp(1, D3DTOP_ADD, D3DTA_TFACTOR, D3DTA_CURRENT, D3DTA_CURRENT);
+    }
+    p.ZFunc = D3DCMP_EQUAL;
+    p.SetBlendMode(GepardOption(0x10) != 0 ? 4 : 3, -1);
+    p.SetFogMode(1, 0);
+    p.Apply();
+    g_TerrainDrawKeepShaders = true;
+    if (tech == 1) {
+        const float black[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        GepardSetAmbient(black);
+    }
+    for (int pz = 0; pz < ParcelsZ; ++pz)
+        for (int px = 0; px < ParcelsX; ++px) {
+            if (!Parcels[ParcelsX * pz + px].Visible)
+                continue;
+            int v0 = (Stride * pz + px) * 8;
+            ParcelRenderer->DrawSketch(px * 8, pz * 8, Heights + v0, nullptr, 0xffffffff, Normals + v0 * 3, Stride,
+                                       2.0f / (float)Width, 2.0f / (float)Height, true);
         }
+    if (tech == 1 || tech == 2)
+        GepardSetAmbient(Scene->Ambient);
+    float fogStart = Scene->FogStart, fogEnd = Scene->FogEnd;
+    if (fogStart < fogEnd && Scene->FogColor != 0) {
+        SRenderPass f;
+        f.Init();
+        f.ZFunc = D3DCMP_EQUAL;
+        f.SetBlendMode(1, -1);
+        f.SetFogMode(0, 0);
+        f.Apply();
         for (int pz = 0; pz < ParcelsZ; ++pz)
             for (int px = 0; px < ParcelsX; ++px) {
                 if (!Parcels[ParcelsX * pz + px].Visible)
                     continue;
                 int v0 = (Stride * pz + px) * 8;
-                ParcelRenderer->DrawSketch(px * 8, pz * 8, Heights + v0, nullptr, 0xffffffff,
-                                           Normals + v0 * 3, Stride, 2.0f / (float)Width,
-                                           2.0f / (float)Height, true);
-            }
-        if (tech == 1)
-            dev->SetRenderState(D3DRS_AMBIENT, ambient);
-        dev->SetTextureStageState(0, D3DTSS_TEXCOORDINDEX, 0);
-        dev->SetTextureStageState(0, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_DISABLE);
-    }
-    // Pass 2: fog. The terrain itself was drawn without fog (fog mode 2 when
-    // option 2 is on); black terrain drawn additively with fog adds the fog.
-    float fogStart = SceneField<float>(Scene, 0x164), fogEnd = SceneField<float>(Scene, 0x168);
-    if (fogStart < fogEnd && SceneField<unsigned>(Scene, 0x15c) != 0) {
-        st.Reset();
-        st.ZFunc = D3DCMP_EQUAL;
-        st.SetBlendModeEx(1, -1);
-        st.SetFog(0, 0);
-        st.Apply(dev);
-        for (int pz = 0; pz < ParcelsZ; ++pz)
-            for (int px = 0; px < ParcelsX; ++px) {
-                if (!Parcels[ParcelsX * pz + px].Visible)
-                    continue;
-                int v0 = (Stride * pz + px) * 8;
-                ParcelRenderer->DrawSketch(px * 8, pz * 8, Heights + v0, nullptr, 0xff000000,
-                                           Normals + v0 * 3, Stride, 2.0f / (float)Width,
-                                           2.0f / (float)Height, true);
+                ParcelRenderer->DrawSketch(px * 8, pz * 8, Heights + v0, nullptr, 0xff000000, Normals + v0 * 3,
+                                           Stride, 2.0f / (float)Width, 2.0f / (float)Height, true);
             }
     }
+    EndHdTerrainPass(dev);
 }
 
 // PANZERS 0x6f33c0

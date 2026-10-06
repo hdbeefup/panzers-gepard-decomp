@@ -9,6 +9,7 @@
 #include "mesh.h"
 #include "pzgepard.h"
 #include "pzscene.h"
+#include "shadowmath.h"
 #include "logger.h"
 #include "stub_log.h"
 
@@ -545,6 +546,16 @@ void SMaterial::SetTexture(unsigned slot, int texture)
     Textures[slot] = texture;
 }
 
+// PANZERS 0x6c27f0 (ARGB -> r, g, b, a in 0..1)
+static void ArgbToFloat4(float* o, unsigned c)
+{
+    const double k = 1.0 / 255.0;   // 0x80ca20
+    o[0] = (float)((double)(c >> 16 & 0xff) * k);
+    o[1] = (float)((double)(c >> 8 & 0xff) * k);
+    o[2] = (float)((double)(c & 0xff) * k);
+    o[3] = (float)((double)(c >> 24) * k);
+}
+
 static const float kSphereMap[16] = {   // 0x883080 / 0x8830a0 / 0 / 0x883090
     0.5f, 0.0f, 0.0f, 0.0f,
     0.0f, -0.5f, 0.0f, 0.0f,
@@ -638,9 +649,10 @@ void SMaterial::Begin(SScene* scene, int type)
         return;
     }
 
-    // Shadow-receiving materials (scene shadow texture +0x14, type 0) are
-    // the shadow-buffer techniques 2..4 (GetOption(2)); the menu runs with
-    // Shadows = 0 and no shadow texture, so this branch is not taken.
+    // Shadow-receiving materials (type 0, a diffuse texture or no
+    // reflection/illumination map, scene shadow texture +0x14 present): the
+    // shadow buffer on stage 0 (and 1 for PS 1.4), texture coordinates from
+    // the camera-space position through scene +0x58.
     bool shadowed = type == 0 && (Textures[0] >= 0 || (Textures[4] < 0 && Textures[2] < 0)) &&
                     scene && scene->ShadowTexture >= 0;
     PassCount = 1;
@@ -719,10 +731,31 @@ void SMaterial::Begin(SScene* scene, int type)
         STUB_LOG("SMaterial::Begin vertex-shader technique (0x6cbe00 types 1..4)");
     }
     if (GepardOption(2) > 1 && shadowed) {
-        // 0x6cbe00 PS shadow combiners (pixel shader ids 0xb..0x22, PS
-        // constants c1/c2 from the scene ambient). Not lifted: needs the
-        // HD pixel shader bytecode and the shadow buffer (Shadows = 0 here).
-        STUB_LOG("SMaterial::Begin shadow pixel-shader path (0x6cbe00)");
+        // Shadow-buffer combiners (pixel shaders 0xb..0x22): texture * (lit
+        // diffuse, or the ambient c1 where the shadow buffer holds a higher
+        // caster), c1.w the alpha; the colour overrides tint with c2.
+        static float c[8];   // 0x93cf04 (a static: c2 keeps its last tint)
+        c[0] = scene->Ambient[0];
+        c[1] = scene->Ambient[1];
+        c[2] = scene->Ambient[2];
+        c[3] = g_MeshDraw.AlphaOverride ? g_MeshDraw.Alpha : 1.0f;
+        int m2x = mod2x ? 1 : 0;
+        if (g_MeshDraw.ColorOverride || g_MeshDraw.Color2Override) {
+            ArgbToFloat4(c + 4, (unsigned)(g_MeshDraw.ColorOverride ? g_MeshDraw.Color : g_MeshDraw.Color2));   // 0x6c27f0
+            GepardSetPixelShaderConstant(1, c, 2);
+            int base0 = g_MeshDraw.ColorOverride ? 0x1b : 0x13;
+            if (Textures[4] < 0)
+                p0.PixelShader = (Textures[2] < 0 ? base0 : base0 + 2) + m2x;
+            else
+                p0.PixelShader = (Textures[1] < 0 ? base0 + 4 : base0 + 6) + m2x;
+            return;
+        }
+        GepardSetPixelShaderConstant(1, c, 1);
+        if (Textures[4] < 0)
+            p0.PixelShader = (Textures[2] < 0 ? 0xb : 0xd) + m2x;
+        else
+            p0.PixelShader = (Textures[1] < 0 ? 0xf : 0x11) + m2x;
+        return;
     }
     int alphaOp = D3DTOP_SELECTARG1;
     int alphaArg2 = D3DTA_CURRENT;
@@ -746,9 +779,26 @@ void SMaterial::Begin(SScene* scene, int type)
         }
     } else if (Textures[1] >= 0) {
         if (Textures[0] >= 0) {
-            // PS 1.x reflection combiner (pixel shader ids 2..7 + c1). Only
-            // reachable with PixelShader1x, which the facade leaves off.
-            STUB_LOG("SMaterial::Begin PS 1.x reflection path (0x6cbe00)");
+            // PS 1.x reflection combiner (pixel shaders 2..7, PixelShader1x):
+            // c1 = the colour override tint (a static, kept when none is
+            // set) and the alpha.
+            static float c[4];   // 0x93cef0
+            if (g_MeshDraw.ColorOverride || g_MeshDraw.Color2Override) {
+                float t[4];
+                ArgbToFloat4(t, (unsigned)(g_MeshDraw.ColorOverride ? g_MeshDraw.Color : g_MeshDraw.Color2));
+                c[0] = t[0];
+                c[1] = t[1];
+                c[2] = t[2];
+            }
+            c[3] = g_MeshDraw.AlphaOverride ? g_MeshDraw.Alpha : 1.0f;
+            GepardSetPixelShaderConstant(1, c, 1);
+            int m2x = mod2x ? 1 : 0;
+            if (g_MeshDraw.ColorOverride)
+                p0.PixelShader = 6 + m2x;
+            else if (g_MeshDraw.Color2Override)
+                p0.PixelShader = 4 + m2x;
+            else
+                p0.PixelShader = 2 + m2x;
             return;
         }
         p0.SetColorOp(base, D3DTOP_SELECTARG1, D3DTA_TEXTURE, D3DTA_CURRENT, D3DTA_CURRENT);
@@ -1029,13 +1079,123 @@ void SMesh::Draw(SScene* scene)
     }
 }
 
+// The material loop of the shadow-buffer draws (0x6cdb70 static vertex
+// buffer, 0x6ce170 dynamic one). One pass for the whole mesh: no
+// lighting-dependent colour (stage 0 SELECTARG2 = diffuse, black with the
+// lights off), no fog, no culling; alpha-blended materials cast nothing.
+//  4 (PS 2.0): t0 = camera-space position * scene +0x58 (the height), PS 8
+//    writes it; alpha-tested materials use PS 9 (texkill below 0.5) with
+//    the diffuse texture on s0 and its uv on t1. With a vs_2_0 device the
+//    mesh goes through vertex shader 0x41 / 0x42 instead of fixed function.
+//  3 (PS 1.4): the same with the texture on stage 1 and the alpha mode.
+//  1, 2: colour only (alpha test from the texture).
+void SMesh::DrawShadowMaterials(SScene* scene, bool dynamic)
+{
+    SRenderPass pass;
+    pass.Init();                                      // 0x687730
+    pass.SetColorOp(0, D3DTOP_SELECTARG2, D3DTA_TEXTURE, D3DTA_CURRENT, D3DTA_CURRENT);
+    pass.SetFogMode(2, 0);
+    pass.CullMode = scene->ShadowCull;
+    int start = 0;
+    for (unsigned i = 0; i < MaterialCount; ++i) {
+        SMaterial& m = Materials[i];
+        int tex = m.Textures[0];                      // 0x6cc9b0(0)
+        if (GepardGetTextureAlpha(tex) != 2) {
+            int tech = GepardOption(2);
+            if (tech == 4) {
+                pass.SetTexTransform(0, D3DTSS_TCI_CAMERASPACEPOSITION, D3DTTFF_COUNT3, scene->ShadowMatrix);
+                if (GepardGetTextureAlpha(tex) == 1) {
+                    pass.PixelShader = 9;
+                    pass.SetTexCoordIndex(1, 0);
+                    pass.SetTexture(0, tex, true);
+                } else {
+                    pass.PixelShader = 8;
+                    pass.SetTexCoordIndex(1, 0);
+                    pass.SetTexture(0, -1, true);
+                }
+            } else {
+                int alphaMode;
+                if (tech == 3) {
+                    pass.SetTexTransform(0, D3DTSS_TCI_CAMERASPACEPOSITION, D3DTTFF_COUNT3, scene->ShadowMatrix);
+                    pass.SetTexCoordIndex(1, 0);
+                    if (GepardGetTextureAlpha(tex) == 1) {
+                        pass.PixelShader = 9;
+                        pass.SetTexture(1, tex, true);
+                        alphaMode = 1;
+                    } else {
+                        pass.PixelShader = 8;
+                        pass.SetTexture(1, -1, true);
+                        alphaMode = 0;
+                    }
+                } else if (GepardGetTextureAlpha(tex) == 1) {
+                    pass.SetTexture(0, tex, true);
+                    alphaMode = 1;
+                } else {
+                    pass.SetTexture(0, -1, true);
+                    alphaMode = 0;
+                }
+                pass.SetAlphaMode(alphaMode);
+            }
+            pass.CullMode = D3DCULL_NONE;
+            pass.Apply();                             // 0x687a50
+            bool vs = GepardOption(2) == 4 && pass.VertexShader == 0 && HD().VertexShaders[0x41];
+            if (vs) {
+                // c0 = (W V P)^T, c12 = (W V)^T, c8 = (T0)^T from the device.
+                float W[16], V[16], P[16], T[16], WV[16], WVP[16], c[16];
+                Device->GetTransform(D3DTS_WORLD, (D3DMATRIX*)W);
+                Device->GetTransform(D3DTS_VIEW, (D3DMATRIX*)V);
+                Device->GetTransform(D3DTS_PROJECTION, (D3DMATRIX*)P);
+                Device->GetTransform(D3DTS_TEXTURE0, (D3DMATRIX*)T);
+                GepardSetVertexFormat(Decl, Fvf);
+                GepardSetVertexShader(pass.PixelShader == 9 ? 0x42 : 0x41);
+                M44Mul(WV, W, V);
+                M44Mul(WVP, WV, P);
+                M44Transpose(c, WVP);
+                GepardSetVertexShaderConstant(0, c, 4);
+                M44Transpose(c, WV);
+                GepardSetVertexShaderConstant(0xc, c, 4);
+                M44Transpose(c, T);
+                GepardSetVertexShaderConstant(8, c, 4);
+            }
+            if (dynamic) {
+                GepardDrawDynamicVB(m.PrimType, m.MinIndex, m.NumVertices, start, m.PrimCount, 1);
+            } else {
+                Device->DrawIndexedPrimitive((D3DPRIMITIVETYPE)m.PrimType, 0, m.MinIndex, m.NumVertices, start,
+                                             m.PrimCount);
+                HD().PolyCount += m.PrimCount;
+                HD().VertexCount += m.NumVertices;
+            }
+            if (vs)
+                GepardSetVertexShader(0);
+        }
+        start = AdvanceStart(m, start);
+    }
+}
+
 // PANZERS 0x6cdb70
-// Shadow-buffer geometry pass. The menu runs with Shadows = 0
-// (SScene::GenerateShadowBuffer 0x6aac20 is not lifted), so nothing calls it.
 void SMesh::DrawShadow(SScene* scene)
 {
-    STUB_LOG("SMesh::DrawShadow (0x6cdb70)");
-    (void)scene;
+    if (!VertexBuffer) { Logger.g->Panic("SMesh::DrawShadow: pVertexBuffer is NULL"); return; }
+    if (!IndexBuffer) { Logger.g->Panic("SMesh::DrawShadow: pIndexBuffer is NULL"); return; }
+    if (!Materials) { Logger.g->Panic("SMesh::DrawShadow: Materials is NULL"); return; }
+    Device->SetIndices(IndexBuffer);
+    HRESULT hr = Device->SetStreamSource(0, VertexBuffer, 0, Stride);
+    if (FAILED(hr)) {
+        Logger.g->Panic("%s: %08x", "SMesh::Draw: SetStreamSource failed", (unsigned)hr);
+        return;
+    }
+    GepardSetVertexFormat(Decl, Fvf);
+    DrawShadowMaterials(scene, false);
+}
+
+// PANZERS 0x6ce170
+// The dynamic-buffer variant (animated and skinned meshes): the vertices
+// the caller filled, then the buffer advances.
+void SMesh::DrawShadowDynamic(SScene* scene)
+{
+    Device->SetIndices(IndexBuffer);
+    DrawShadowMaterials(scene, true);
+    GepardAdvanceDynamicVB(VertexCount);
 }
 
 // PANZERS 0x6cda70
@@ -1121,29 +1281,36 @@ void SAnimesh::Unlock()
     Vertices = nullptr;
 }
 
-// PANZERS 0x6cef00
-void SAnimesh::DrawFrame(SScene* scene, int frame)
+// PANZERS 0x6cef00 (vertex fill)
+// HD locks twice the vertex count here and copies one frame.
+bool SAnimesh::FillFrame(int frame)
 {
-    // HD locks twice the vertex count here and copies one frame.
     float* dst = (float*)GepardLockDynamicVB(HD().DynType112, VertexCount * 2);
     if (frame < 0 || frame >= FrameCount) {
         GepardUnlockDynamicVB();
         Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "unsigned char*", frame);
-        return;
+        return false;
     }
     memcpy(dst, Frames[frame], (size_t)VertexCount * 32);
     GepardUnlockDynamicVB();
-    DrawDynamic(scene);
+    return true;
 }
 
-// PANZERS 0x6cf140
-void SAnimesh::DrawFramesLerp(SScene* scene, int a0, int a1, float t)
+// PANZERS 0x6cef00
+void SAnimesh::DrawFrame(SScene* scene, int frame)
+{
+    if (FillFrame(frame))
+        DrawDynamic(scene);
+}
+
+// PANZERS 0x6cf140 (vertex fill)
+bool SAnimesh::FillFramesLerp(int a0, int a1, float t)
 {
     float* dst = (float*)GepardLockDynamicVB(HD().DynType112, VertexCount);
     if (a0 < 0 || a0 >= FrameCount || a1 < 0 || a1 >= FrameCount) {
         GepardUnlockDynamicVB();
         Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "unsigned char*", a0);
-        return;
+        return false;
     }
     const float* A = (const float*)Frames[a0];
     const float* B = (const float*)Frames[a1];
@@ -1154,17 +1321,24 @@ void SAnimesh::DrawFramesLerp(SScene* scene, int a0, int a1, float t)
         dst[7] = A[7];
     }
     GepardUnlockDynamicVB();
-    DrawDynamic(scene);
+    return true;
 }
 
-// PANZERS 0x6cf500
-void SAnimesh::DrawFramesBlend(SScene* scene, int a0, int a1, float t, int b, float w)
+// PANZERS 0x6cf140
+void SAnimesh::DrawFramesLerp(SScene* scene, int a0, int a1, float t)
+{
+    if (FillFramesLerp(a0, a1, t))
+        DrawDynamic(scene);
+}
+
+// PANZERS 0x6cf500 (vertex fill)
+bool SAnimesh::FillFramesBlend(int a0, int a1, float t, int b, float w)
 {
     float* dst = (float*)GepardLockDynamicVB(HD().DynType112, VertexCount);
     if (a0 < 0 || a0 >= FrameCount || a1 < 0 || a1 >= FrameCount || b < 0 || b >= FrameCount) {
         GepardUnlockDynamicVB();
         Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "unsigned char*", a0);
-        return;
+        return false;
     }
     const float* A = (const float*)Frames[a0];
     const float* B = (const float*)Frames[a1];
@@ -1178,22 +1352,46 @@ void SAnimesh::DrawFramesBlend(SScene* scene, int a0, int a1, float t, int b, fl
         dst[7] = A[7];
     }
     GepardUnlockDynamicVB();
-    DrawDynamic(scene);
+    return true;
 }
 
-// Vertex-shader frame tweening (0x6d0400 / 0x6cfe00 / 0x6cf9c0): only
-// reached with SGepard vertex shader 0x11, which HD never creates.
-void SAnimesh::Slot_0C(SScene*, int, int, float, int, float)
+// PANZERS 0x6cf500
+void SAnimesh::DrawFramesBlend(SScene* scene, int a0, int a1, float t, int b, float w)
 {
-    STUB_LOG("SAnimesh vertex-shader blend (0x6d0400)");
+    if (FillFramesBlend(a0, a1, t, b, w))
+        DrawDynamic(scene);
 }
-void SAnimesh::Slot_10(SScene*, int, int, float)
+
+// The shadow-buffer draws of an animated mesh (Gepard option 6). HD only
+// takes its vertex-shader branch with SGepard vertex shader 0x11, which it
+// never creates; the CPU branch fills the dynamic buffer as the colour
+// draws do and draws it with SMesh::DrawShadowDynamic 0x6ce170.
+
+// PANZERS 0x6d0400
+void SAnimesh::DrawShadowFramesBlend(SScene* scene, int a0, int a1, float t, int b, float w)
 {
-    STUB_LOG("SAnimesh vertex-shader lerp (0x6cfe00)");
+    if (GepardOption(6) == 0)
+        return;
+    if (FillFramesBlend(a0, a1, t, b, w))
+        DrawShadowDynamic(scene);
 }
-void SAnimesh::Slot_14(SScene*, int)
+
+// PANZERS 0x6cfe00
+void SAnimesh::DrawShadowFramesLerp(SScene* scene, int a0, int a1, float t)
 {
-    STUB_LOG("SAnimesh vertex-shader frame (0x6cf9c0)");
+    if (GepardOption(6) == 0)
+        return;
+    if (FillFramesLerp(a0, a1, t))
+        DrawShadowDynamic(scene);
+}
+
+// PANZERS 0x6cf9c0
+void SAnimesh::DrawShadowFrame(SScene* scene, int frame)
+{
+    if (GepardOption(6) == 0)
+        return;
+    if (FillFrame(frame))
+        DrawShadowDynamic(scene);
 }
 
 // ---------------------------------------------------------------------------
@@ -1244,9 +1442,16 @@ void SSkinnedMesh::Unlock()
 }
 
 // PANZERS 0x6d0e30
-void SSkinnedMesh::Slot_18(SScene*, int, const float*)
+// Shadow-buffer draw of a skinned mesh (Gepard option 6): without SGepard
+// vertex shader 1 (HD never creates it) the CPU skinning of 0x6d2200, then
+// SMesh::DrawShadowDynamic 0x6ce170.
+void SSkinnedMesh::DrawShadowSkinned(SScene* scene, int bones, const float* m)
 {
-    STUB_LOG("SSkinnedMesh vertex-shader skinning (0x6d0e30)");
+    (void)bones;
+    if (GepardOption(6) == 0)
+        return;
+    FillSkinned(m);
+    DrawShadowDynamic(scene);
 }
 
 // PANZERS 0x6d2200
@@ -1254,9 +1459,8 @@ void SSkinnedMesh::Slot_18(SScene*, int, const float*)
 // floats): position, normal, uv, UBYTE4 bone indices, 4 weights. A weight
 // of 0.0 ends the bone list (w3, then w2, then w1 tested, as HD does). Bone
 // matrices are 3x4 (row vectors), normals renormalised in double.
-void SSkinnedMesh::DrawSkinned(SScene* scene, int bones, const float* m)
+void SSkinnedMesh::FillSkinned(const float* m)
 {
-    (void)bones;
     float* dst = (float*)GepardLockDynamicVB(HD().DynType112, VertexCount);
     const float* v = (const float*)SkinVertices;
     for (int i = 0; i < VertexCount; ++i, v += 13, dst += 8) {
@@ -1293,6 +1497,13 @@ void SSkinnedMesh::DrawSkinned(SScene* scene, int bones, const float* m)
         dst[7] = v[7];
     }
     GepardUnlockDynamicVB();
+}
+
+// PANZERS 0x6d2200
+void SSkinnedMesh::DrawSkinned(SScene* scene, int bones, const float* m)
+{
+    (void)bones;
+    FillSkinned(m);
     DrawDynamic(scene);
 }
 

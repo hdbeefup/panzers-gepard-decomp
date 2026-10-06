@@ -13,6 +13,10 @@ add_library(pz3d STATIC
     ipixie.h
     pzgepard.h
     pzgepard.cpp
+    hdshaders.inc
+    # agent SH: the shadow buffer's light-space fit
+    shadowmath.h
+    shadowmath.cpp
     pzviewport.h
     pzviewport.cpp
     pzscene.h

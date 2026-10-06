@@ -16,6 +16,9 @@
 #include "milesconcert.h"
 #include "logger.h"
 #include "window.h"
+#include "pz/igepardhd.h"
+#include "pz/iscene.h"
+#include "worldapi.h"
 
 void PzStub_ApplyGraphicsOptions(int shadows, int shadowBuffer, int textureFilter,
                                  int textureDetail, bool hardwareCursor);   // src/stubs
@@ -416,9 +419,8 @@ void SGraphicsOptionsMenu::Create(bool instant)
     Shadows.AddItem(Tx("Normal Shadow"), 0);
     // HD: Gepard GetCap(0) (0x67a7d0, SGepard +0x540) > 1 offers self
     // shadows. The cap is the shadow technique picked by PS version in
-    // SGepard::Initialize; the SWINE renderer has no such cap and a D3D9
-    // device here always has PS 2.0, so the HD result (2) is assumed.
-    const int shadowCap = 2;
+    // SGepard::Initialize (4 on a PS 2.0 card).
+    const int shadowCap = pz::PzGepard()->GetCap(0);
     if (shadowCap > 1)
         Shadows.AddItem(Tx("Self Shadow"), 0);
     Shadows.SetCurSel(Settings.Shadows);
@@ -951,9 +953,31 @@ bool SuperWindowOptionsAction(SSuperWindow* sw, int action, int param)
                           Settings.FullScreenWidth, Settings.FullScreenHeight,
                           sw->DisplayMode == Windowed ? "" : " (device reset not lifted; applies on restart)");
         }
-        // HD: Gepard SetOption 3 (shadow buffer), 2 (shadows), 8/9 (texture
-        // filter), 10 (texture detail), scene +0x104, board +0xc8 (hardware
-        // cursor). No SWINE renderer counterpart: logged stub.
+        // Gepard options (0x659250): a new shadow buffer size drops the
+        // scene's buffer (scene +0x104); 2 the shadow technique as at start;
+        // 8/9 texture filter; 10 texture detail when changed.
+        {
+            pz::SIGepardHD* g = pz::PzGepard();
+            if (Settings.ShadowBufferSize != g->GetOption(3)) {
+                g->SetOption(3, Settings.ShadowBufferSize);
+                if (pz::g_Scene)
+                    pz::g_Scene->Slot_104_RecreateShadowBuffer();
+            }
+            g->SetOption(2, Settings.Shadows == 2 ? g->GetCap(0) : Settings.Shadows);
+            if (Settings.TextureFilter == 0) {
+                g->SetOption(8, 0);
+                g->SetOption(9, 0);
+            } else if (Settings.TextureFilter == 1) {
+                g->SetOption(8, 1);
+                g->SetOption(9, 0);
+            } else {
+                g->SetOption(8, 1);
+                g->SetOption(9, 1);
+            }
+            if (g->GetOption(10) != Settings.TextureDetail)
+                g->SetOption(10, Settings.TextureDetail != 0);
+        }
+        // HD then board +0xc8 (hardware cursor): not ported.
         PzStub_ApplyGraphicsOptions(Settings.Shadows, Settings.ShadowBufferSize, Settings.TextureFilter,
                                     Settings.TextureDetail, Settings.HardwareMouseCursor);
         return true;

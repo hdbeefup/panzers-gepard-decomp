@@ -127,6 +127,7 @@ struct SModel : SIModel, SIAttachable {
     // Non-virtual HD members.
     void Initialize(SPModel* proto, SPModel* proto2);            // 0x6d82b0
     void Render(SViewport* vp);                                  // 0x6d8830
+    void RenderShadow(SViewport* vp);                            // 0x6d9570
     void ComputeNodes(int frame, const float* attach, bool prev); // 0x6dc7b0
     void UpdateFade();                                           // 0x6dc4f0
     SAnimState Advance(const SAnimState& s, float dt) const;     // 0x6dae20
@@ -162,7 +163,7 @@ struct SModel : SIModel, SIAttachable {
     int            ExtraFrame;        // +0xe4 (Slot_58)
     bool           Drawn;             // +0xe8 Render: once per frame
     bool           DrawnDeferred;     // +0xe9
-    bool           FlagBit8;          // +0xea
+    bool           FlagBit8;          // +0xea shadow drawn this frame (Update: Flags & 0x100 = casts none)
     unsigned char  _eb;
     int            ShadowDecal;       // +0xec terrain decal (Slot_CC texture), -1
     int            ShadowDecal2;      // +0xf0 -1

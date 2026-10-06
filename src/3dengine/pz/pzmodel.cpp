@@ -1156,4 +1156,77 @@ void SModel::Render(SViewport* vp)
     }
 }
 
+// PANZERS 0x6d9570
+// The model into the shadow buffer (SScene::GenerateShadowBuffer): once per
+// frame, visible and not fading out, every visible node mesh of the full
+// prototype through the shadow variants of the mesh draws.
+void SModel::RenderShadow(SViewport* vp)
+{
+    (void)vp;   // HD 0x68d1e0(vp, node) sets VS c12 for the node; DrawShadow sets it again
+    if (FlagBit8)
+        return;
+    FlagBit8 = true;
+    if (FadeState < 0 || !Visible)
+        return;
+    static float s_Bones[0x1c * 12];   // 0x93cf28 (shared with Render)
+    for (int i = 0; i < Proto->NodeCount; ++i) {
+        SMesh* mesh = Proto->Nodes[i].Mesh;
+        SModelNode& mn = Nodes[i];
+        if (!mesh || !mn.EffVisible)
+            continue;
+        if (Proto->SequenceCount == 0 || !Proto->FrameSequences) {
+            SPModelNode& pn = Proto->Nodes[i];
+            if (pn.BoneCount == 0) {
+                GepardSetWorld(mn.World);             // 0x680fb0
+                mesh->DrawShadow(Scene);               // +0x08
+            } else {
+                int n = pn.BoneCount;
+                if (0x1c < n)
+                    Logger.g->Panic("SModel::RenderShadow: Too many bones (%d)", n);
+                // Without SGepard vertex shader 1 (never created): CPU bones.
+                for (int b = 0; b < n; ++b)
+                    Mat34Mul(s_Bones + b * 12, pn.Bones[b].Matrix, Nodes[pn.Bones[b].Node].World);
+                GepardSetWorldIdentity();              // 0x680fe0
+                mesh->DrawShadowSkinned(Scene, n, s_Bones);   // +0x18
+            }
+            continue;
+        }
+        GepardSetWorld(mn.World);
+        SAnimState st = Anim;
+        if (Flags & 4)
+            st = Advance(Anim, (float)((1.0 - Scene->Interpolation) * (double)AnimDelta));   // 0x6dae20
+        const SPSequence* seqs = Proto->Sequences;
+        const SPSequence& s = seqs[st.Seq];
+        if (st.PrevSeq < 0) {
+            if (s.FrameCount < 2 || s.Length <= st.Time) {
+                mesh->DrawShadowFrame(Scene, s.FrameCount + s.FirstFrame - 1);   // +0x14
+            } else {
+                int k = 0;
+                for (int j = 1; j < s.FrameCount - 1 && !(st.Time < s.FrameTimes[j]); ++j)
+                    k = j;
+                float a = s.FrameTimes[k];
+                int f = s.FirstFrame + k;
+                mesh->DrawShadowFramesLerp(Scene, f, f + 1, (st.Time - a) / (s.FrameTimes[k + 1] - a));   // +0x10
+            }
+        } else {
+            const SPSequence& p = seqs[st.PrevSeq];
+            if (p.BlendTime <= st.PrevTime) {
+                if (p.FrameCount < 2 || p.Length <= st.PrevTime) {
+                    mesh->DrawShadowFramesLerp(Scene, p.FrameCount + p.FirstFrame - 1, s.FirstFrame, st.Blend);
+                } else {
+                    int k = 0;
+                    for (int j = 1; j < p.FrameCount - 1 && !(st.PrevTime < p.FrameTimes[j]); ++j)
+                        k = j;
+                    float a = p.FrameTimes[k];
+                    int f = p.FirstFrame + k;
+                    mesh->DrawShadowFramesBlend(Scene, f, f + 1, (st.PrevTime - a) / (p.FrameTimes[k + 1] - a),
+                                                s.FirstFrame, st.Blend);   // +0x0c
+                }
+            } else {
+                mesh->DrawShadowFramesLerp(Scene, p.FirstFrame, s.FirstFrame, st.Blend);
+            }
+        }
+    }
+}
+
 } // namespace pz

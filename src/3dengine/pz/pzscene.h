@@ -124,17 +124,19 @@ struct SScene : SIScene {
     void SetLightDirection(int light, const float* dir);        // 0x6babe0
     int  CreateDirectionalLight(const float* rgba, const float* dir);
     void SetLights();                                           // 0x680620 (SGepard)
+    void GenerateShadowBuffer(SViewport* vp);                   // 0x6aac20
+    void ReleaseShadowBuffer();                                 // 0x6a2670
 
     // --- HD layout (offsets asserted below) ---
     int           RefCount;          // +0x04
     int           Param;             // +0x08
     void*         Device;            // +0x0c SGepard +0x478
-    int           RoadFlag;          // +0x10 (-1; roads drawn when >= 0 and Gepard option 2)
-    int           ShadowTexture;     // +0x14 (-1: no shadow buffer)
-    float         Matrix18[16];      // +0x18
-    float         ShadowMatrix[16];  // +0x58 shadow texture projection
-    float         FocusHeight;       // +0x98 (+0x24 SetFocusHeight)
-    int           _9c;
+    int           ShadowViewport;    // +0x10 offscreen viewport of the shadow buffer (-1: none yet)
+    int           ShadowTexture;     // +0x14 its texture (-1: no shadow buffer)
+    float         ShadowProjection[16]; // +0x18 world -> shadow buffer (the device PROJECTION of the shadow pass)
+    float         ShadowMatrix[16];  // +0x58 camera space -> shadow texture (shadow pass: -> height)
+    float         FocusHeight;       // +0x98 (+0x24 SetFocusHeight; the shadow pass: 2 * lowest visible ground)
+    int           ShadowCull;        // +0x9c 2 CW / 3 CCW (camera above / below the focus height)
     int           FrameCount;        // +0xa0 (RenderViewport ++; passed to pixie +0x48)
     int           TimeMs;            // +0xa4 (+0x1c AdvanceTime)
     int           LastTimeMs;        // +0xa8
@@ -186,6 +188,7 @@ struct SScene : SIScene {
 PZ_HD_SIZE(SScene, kHdSizeSScene);
 static_assert(offsetof(SScene, RefCount) == 0x04, "SScene layout");
 static_assert(offsetof(SScene, ShadowMatrix) == 0x58, "SScene layout");
+static_assert(offsetof(SScene, ShadowCull) == 0x9c, "SScene layout");
 static_assert(offsetof(SScene, FocusHeight) == 0x98, "SScene layout");
 static_assert(offsetof(SScene, FrameCount) == 0xa0, "SScene layout");
 static_assert(offsetof(SScene, TimeMs) == 0xa4, "SScene layout");
@@ -204,6 +207,10 @@ static_assert(offsetof(SScene, Terrain) == 0x1c8, "SScene layout");
 static_assert(offsetof(SScene, Rivers) == 0x220, "SScene layout");
 static_assert(offsetof(SScene, RiverTexture) == 0x234, "SScene layout");
 static_assert(offsetof(SScene, Deferred) == 0x2a0, "SScene layout");
+
+// Every live scene (HD: the SGepard scene heap +0x4e4) drops its shadow
+// buffer: Gepard option 2 / 4 changes and device resets (0x680910, 0x67fde0).
+void ReleaseAllShadowBuffers();
 
 } // namespace pz
 

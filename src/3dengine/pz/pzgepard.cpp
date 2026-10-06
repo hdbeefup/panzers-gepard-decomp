@@ -48,6 +48,426 @@ static SGepardHDState s_HD;
 
 static SGepard* SwineGepard() { return static_cast<SGepard*>(::Gepard); }
 
+// ---------------------------------------------------------------------------
+// HD shaders (SGepard::CreatePixelShader 0x678e60, CreateVertexShader
+// 0x679eb0). The token streams are the ones PANZERS.exe creates.
+// ---------------------------------------------------------------------------
+
+struct SHdShader {
+    int          Id;
+    const DWORD* Tokens;
+};
+#include "hdshaders.inc"
+
+// PANZERS 0x678e60
+static void CreatePixelShader(int id, const DWORD* tokens)
+{
+    SGepardHDState& hd = s_HD;
+    if (id < 1 || id > 0x22 || hd.PixelShaders[id]) {
+        Logger.g->Panic("SGepard::CreatePixelShader: Invalid id: %d", id);
+        return;
+    }
+    HRESULT hr = hd.Device->CreatePixelShader(tokens, &hd.PixelShaders[id]);
+    if (FAILED(hr)) {
+        Logger.g->Panic("%s: %08x", "SGepard::CreatePixelShader: CreatePixelShader failed", (unsigned)hr);
+        hd.PixelShaders[id] = nullptr;
+    }
+}
+
+static void CreatePixelShaders(const SHdShader* set, int count)
+{
+    for (int i = 0; i < count; ++i)
+        CreatePixelShader(set[i].Id, set[i].Tokens);
+}
+
+// PANZERS 0x679eb0
+static void CreateVertexShader(int id, const DWORD* tokens)
+{
+    SGepardHDState& hd = s_HD;
+    if (id < 1 || id > 0x42 || hd.VertexShaders[id]) {
+        Logger.g->Panic("SGepard::CreateVertexShader: Invalid id: %d", id);
+        return;
+    }
+    HRESULT hr = hd.Device->CreateVertexShader(tokens, &hd.VertexShaders[id]);
+    if (FAILED(hr)) {
+        Logger.g->Panic("%s: %08x", "SGepard::CreateVertexShader: CreateVertexShader failed", (unsigned)hr);
+        hd.VertexShaders[id] = nullptr;
+    }
+}
+
+// The two vs_2_0 shaders SGepard::Initialize builds inline when the vertex
+// shader version is at least 2.0 (0x67d1c0, again after a reset in
+// 0x67fde0). The shadow-buffer pass of technique 4 draws model meshes with
+// them (SMesh::DrawShadow 0x6cdb70): c0..c3 world*view*projection,
+// c12..c15 world*view, c8..c11 the texture 0 matrix (all transposed).
+static const DWORD kVsShadow41[] = {
+    0xfffe0200,                                  // vs_2_0
+    0x0200001f, 0x80000000, 0x900f0000,          // dcl_position v0
+    0x03000014, 0xc00f0000, 0x90e40000, 0xa0e40000,  // m4x4 oPos, v0, c0
+    0x03000014, 0x800f0000, 0x90e40000, 0xa0e4000c,  // m4x4 r0, v0, c12
+    0x03000014, 0xe00f0000, 0x80e40000, 0xa0e40008,  // m4x4 oT0, r0, c8
+    0x02000001, 0xd00f0000, 0xa0000005,          // mov oD0, c5.x
+    0x0000ffff,
+};
+static const DWORD kVsShadow42[] = {
+    0xfffe0200,                                  // vs_2_0
+    0x0200001f, 0x80000000, 0x900f0000,          // dcl_position v0
+    0x0200001f, 0x80000005, 0x900f0001,          // dcl_texcoord v1
+    0x03000014, 0xc00f0000, 0x90e40000, 0xa0e40000,  // m4x4 oPos, v0, c0
+    0x03000014, 0x800f0000, 0x90e40000, 0xa0e4000c,  // m4x4 r0, v0, c12
+    0x03000014, 0xe00f0000, 0x80e40000, 0xa0e40008,  // m4x4 oT0, r0, c8
+    0x02000001, 0xd00f0000, 0xa0000005,          // mov oD0, c5.x
+    0x02000001, 0xe00f0001, 0x90e40001,          // mov oT1, v1
+    0x0000ffff,
+};
+
+// PANZERS 0x67d1c0 (the shader and shadow-technique part, after the device
+// is created): PS 1.x reflection shaders on PS > 1.0, the two inline
+// vertex shaders on VS >= 2.0, and the shadow technique by PS version.
+static void InitShadowCaps(IDirect3DDevice9* dev)
+{
+    SGepardHDState& hd = s_HD;
+    D3DCAPS9 caps;
+    memset(&caps, 0, sizeof(caps));
+    dev->GetDeviceCaps(&caps);
+    hd.VSVersion = caps.VertexShaderVersion & 0xffff;
+    hd.PSVersion = caps.PixelShaderVersion & 0xffff;
+    hd.DepthTextureFlag = true;
+    hd.DebugShadowTexture = -1;
+    IDirect3D9* d3d = nullptr;
+    D3DDEVICE_CREATION_PARAMETERS cp;
+    memset(&cp, 0, sizeof(cp));
+    dev->GetCreationParameters(&cp);
+    D3DDISPLAYMODE mode;
+    memset(&mode, 0, sizeof(mode));
+    dev->GetDisplayMode(0, &mode);
+    if (SUCCEEDED(dev->GetDirect3D(&d3d)) && d3d) {
+        D3DADAPTER_IDENTIFIER9 id;
+        if (SUCCEEDED(d3d->GetAdapterIdentifier(cp.AdapterOrdinal, 0, &id))) {
+            hd.VendorId = id.VendorId;
+            hd.DeviceId = id.DeviceId;
+        }
+    }
+    if (0x1ff < hd.VSVersion) {
+        CreateVertexShader(0x41, kVsShadow41);
+        CreateVertexShader(0x42, kVsShadow42);
+    }
+    if (0x100 < hd.PSVersion)
+        CreatePixelShaders(kPs1x, sizeof(kPs1x) / sizeof(kPs1x[0]));   // 0x67df80
+    Logger.g->Log(0, "SGepard::Initialize: Detected pixel shader version: %d", hd.PSVersion);
+    if (hd.PSVersion < 0x200) {
+        HRESULT hr = d3d ? d3d->CheckDeviceFormat(cp.AdapterOrdinal, cp.DeviceType, mode.Format,
+                                                  D3DUSAGE_DEPTHSTENCIL, D3DRTYPE_TEXTURE, D3DFMT_D24X8)
+                         : E_FAIL;
+        if (hr == D3D_OK) {
+            hd.ShadowCap = 2;
+            hd.DepthTextureFlag = false;
+            Logger.g->Log(0, "SGepard::Initialize: Choosing depth texture shadow buffering.");
+            CreatePixelShaders(kPsDepth, sizeof(kPsDepth) / sizeof(kPsDepth[0]));   // 0x67dff0
+        } else if (hd.PSVersion < 0x104) {
+            hd.ShadowCap = 1;
+            Logger.g->Log(0, "SGepard::Initialize: Choosing compatible shadow buffering.");
+        } else {
+            hd.ShadowCap = 3;
+            Logger.g->Log(0, "SGepard::Initialize: Choosing PS1.4 based shadow buffering.");
+            CreatePixelShaders(kPs14, sizeof(kPs14) / sizeof(kPs14[0]));   // 0x67e1c0
+        }
+    } else {
+        hd.ShadowCap = 4;
+        Logger.g->Log(0, "SGepard::Initialize: Choosing PS2.0 based shadow buffering.");
+        CreatePixelShaders(kPs20, sizeof(kPs20) / sizeof(kPs20[0]));   // 0x67e3b0
+    }
+    hd.PixelShader1x = hd.PixelShaders[2] != nullptr;
+    if (d3d)
+        d3d->Release();
+}
+
+static void ReleaseShaders()
+{
+    for (auto*& p : s_HD.PixelShaders)
+        if (p) {
+            p->Release();
+            p = nullptr;
+        }
+    for (auto*& v : s_HD.VertexShaders)
+        if (v) {
+            v->Release();
+            v = nullptr;
+        }
+}
+
+// ---------------------------------------------------------------------------
+// Offscreen viewports (render targets)
+// ---------------------------------------------------------------------------
+
+struct SHdRenderTarget {
+    bool               Used;
+    int                Width, Height;     // vp +0x128 / +0x12c
+    D3DFORMAT          Format;            // vp +0x68
+    D3DFORMAT          DepthFormat;       // vp +0x6c (0x689d50)
+    unsigned           Flags;             // vp +0x74: 1 depth, 2 colour texture, 4 depth texture, 8 stencil
+    IDirect3DTexture9* ColorTexture;      // vp +0x18
+    IDirect3DTexture9* DepthTexture;      // vp +0x1c
+    IDirect3DSurface9* Color;             // vp +0x10
+    IDirect3DSurface9* Depth;             // vp +0x14
+    unsigned           Filter[2];         // texture records +0x24 of +0x20 / +0x24
+};
+static const int kMaxRenderTargets = 8;
+static SHdRenderTarget s_Rt[kMaxRenderTargets];
+static const int kRtTextureBase = 0x40000000;   // texture handle base + index * 2 (+1: depth)
+static int s_RtSelected = -1;
+static IDirect3DSurface9* s_SavedColor = nullptr;
+static IDirect3DSurface9* s_SavedDepth = nullptr;
+static D3DVIEWPORT9 s_SavedViewport;
+
+static void ReleaseRenderTarget(SHdRenderTarget& rt)
+{
+    if (rt.Color) rt.Color->Release();
+    if (rt.Depth) rt.Depth->Release();
+    if (rt.ColorTexture) rt.ColorTexture->Release();
+    if (rt.DepthTexture) rt.DepthTexture->Release();
+    memset(&rt, 0, sizeof(rt));
+}
+
+// PANZERS 0x689d50 (SViewport::ChooseDepthStencilFormat)
+static D3DFORMAT ChooseDepthFormat(IDirect3DDevice9* dev, D3DFORMAT color, unsigned flags)
+{
+    if (!(flags & 1))
+        return D3DFMT_UNKNOWN;
+    IDirect3D9* d3d = nullptr;
+    if (FAILED(dev->GetDirect3D(&d3d)) || !d3d)
+        return D3DFMT_UNKNOWN;
+    D3DDEVICE_CREATION_PARAMETERS cp;
+    dev->GetCreationParameters(&cp);
+    D3DDISPLAYMODE mode;
+    dev->GetDisplayMode(0, &mode);
+    DWORD usage = D3DUSAGE_DEPTHSTENCIL;
+    D3DRESOURCETYPE type = (flags & 4) ? D3DRTYPE_TEXTURE : D3DRTYPE_SURFACE;
+    auto ok = [&](D3DFORMAT f) {   // 0x68c990
+        return SUCCEEDED(d3d->CheckDeviceFormat(cp.AdapterOrdinal, cp.DeviceType, mode.Format, usage, type, f)) &&
+               SUCCEEDED(d3d->CheckDepthStencilMatch(cp.AdapterOrdinal, cp.DeviceType, mode.Format, color, f));
+    };
+    static const D3DFORMAT kStencil[] = { D3DFMT_D24S8, D3DFMT_D24X4S4, D3DFMT_D15S1 };
+    static const D3DFORMAT kNv[] = { D3DFMT_D32, D3DFMT_D24X8, D3DFMT_D24X4S4, D3DFMT_D16 };
+    static const D3DFORMAT kOther[] = { D3DFMT_D16, D3DFMT_D32, D3DFMT_D24X8, D3DFMT_D24X4S4 };
+    const D3DFORMAT* list;
+    int n;
+    if (flags & 8) {
+        list = kStencil;
+        n = 3;
+    } else if ((color == D3DFMT_X8R8G8B8 || color == D3DFMT_A8R8G8B8) && s_HD.VendorId == 0x10de) {
+        list = kNv;
+        n = 4;
+    } else {
+        list = kOther;
+        n = 4;
+    }
+    D3DFORMAT r = D3DFMT_UNKNOWN;
+    for (int i = 0; i < n && r == D3DFMT_UNKNOWN; ++i)
+        if (ok(list[i]))
+            r = list[i];
+    d3d->Release();
+    if (r == D3DFMT_UNKNOWN && (flags & 8))
+        Logger.g->Panic("SViewport::ChooseDepthStencilFormat: Stecil-buffer is not available");
+    return r;
+}
+
+// PANZERS 0x689710 (SViewport::AllocOffscreenBuffers)
+static bool AllocRenderTarget(SHdRenderTarget& rt)
+{
+    IDirect3DDevice9* dev = s_HD.Device;
+    HRESULT hr;
+    if (rt.Flags & 2) {
+        hr = dev->CreateTexture(rt.Width, rt.Height, 1, D3DUSAGE_RENDERTARGET, rt.Format, D3DPOOL_DEFAULT,
+                                &rt.ColorTexture, nullptr);
+        if (FAILED(hr)) {
+            Logger.g->Log(0, "%s: %08x", "SViewport::AllocOffscreenBuffers: CreateRenderTargetTexture failed", (unsigned)hr);
+            return false;
+        }
+        rt.ColorTexture->GetSurfaceLevel(0, &rt.Color);
+    } else {
+        hr = dev->CreateRenderTarget(rt.Width, rt.Height, rt.Format, D3DMULTISAMPLE_NONE, 0, TRUE, &rt.Color, nullptr);
+        if (FAILED(hr)) {
+            Logger.g->Log(0, "%s: %08x", "SViewport::CreateSurface: CreateRenderTarget failed", (unsigned)hr);
+            return false;
+        }
+    }
+    if (!(rt.Flags & 1) || rt.DepthFormat == D3DFMT_UNKNOWN)
+        return true;
+    if (rt.Flags & 4) {
+        hr = dev->CreateTexture(rt.Width, rt.Height, 1, D3DUSAGE_DEPTHSTENCIL, rt.DepthFormat, D3DPOOL_DEFAULT,
+                                &rt.DepthTexture, nullptr);
+        if (FAILED(hr)) {
+            Logger.g->Log(0, "%s: %08x", "SViewport::AllocOffscreenBuffers: CreateDepthStencilTexture failed", (unsigned)hr);
+            return false;
+        }
+        rt.DepthTexture->GetSurfaceLevel(0, &rt.Depth);
+    } else {
+        hr = dev->CreateDepthStencilSurface(rt.Width, rt.Height, rt.DepthFormat, D3DMULTISAMPLE_NONE, 0, TRUE,
+                                            &rt.Depth, nullptr);
+        if (FAILED(hr)) {
+            Logger.g->Log(0, "%s: %08x", "SViewport::AllocOffscreenBuffers: CreateDepthStencilSurface failed", (unsigned)hr);
+            return false;
+        }
+    }
+    return true;
+}
+
+// PANZERS 0x678c70
+// new SViewport(0x244) in the viewport heap, then 0x68aa60: format, flags,
+// depth format, size (texture sizes clamped to the device), buffers.
+int GepardCreateRenderTarget(int width, int height, unsigned format, unsigned flags)
+{
+    IDirect3DDevice9* dev = HD().Device;
+    if (!dev)
+        return -1;
+    int index = -1;
+    for (int i = 0; i < kMaxRenderTargets && index < 0; ++i)
+        if (!s_Rt[i].Used)
+            index = i;
+    if (index < 0) {
+        Logger.g->Log(0, "SGepard::CreateViewport: no free offscreen viewport");
+        return -1;
+    }
+    SHdRenderTarget& rt = s_Rt[index];
+    memset(&rt, 0, sizeof(rt));
+    rt.Used = true;
+    rt.Format = (D3DFORMAT)format;
+    rt.Flags = flags;
+    rt.DepthFormat = ChooseDepthFormat(dev, rt.Format, flags);   // 0x689d50
+    rt.Width = width;
+    rt.Height = height;
+    if (flags & 6) {   // 0x680230: a texture size the device takes
+        D3DCAPS9 caps;
+        dev->GetDeviceCaps(&caps);
+        if ((DWORD)rt.Width > caps.MaxTextureWidth) rt.Width = (int)caps.MaxTextureWidth;
+        if ((DWORD)rt.Height > caps.MaxTextureHeight) rt.Height = (int)caps.MaxTextureHeight;
+    }
+    rt.Filter[0] = rt.Filter[1] = (GepardOption(9) != 0) + 1 | (GepardOption(8) != 0 ? 4u : 0u) | 8u;
+    if (!AllocRenderTarget(rt)) {
+        ReleaseRenderTarget(rt);
+        return -1;
+    }
+    return index;
+}
+
+// PANZERS 0x67a3f0
+void GepardDestroyRenderTarget(int index)
+{
+    if (index < 0 || index >= kMaxRenderTargets || !s_Rt[index].Used)
+        return;
+    if (s_RtSelected == index)
+        GepardUnselectRenderTarget();
+    ReleaseRenderTarget(s_Rt[index]);
+}
+
+// PANZERS 0x67cb60 (+0x20 colour texture, +0x24 depth texture)
+int GepardRenderTargetTexture(int index, bool depth)
+{
+    if (index < 0 || index >= kMaxRenderTargets || !s_Rt[index].Used)
+        return -1;
+    return kRtTextureBase + index * 2 + (depth ? 1 : 0);
+}
+
+static SHdRenderTarget* RtFromTexture(int texture, bool* depth)
+{
+    if (texture < kRtTextureBase)
+        return nullptr;
+    int i = (texture - kRtTextureBase) >> 1;
+    if (i < 0 || i >= kMaxRenderTargets || !s_Rt[i].Used)
+        return nullptr;
+    *depth = (texture & 1) != 0;
+    return &s_Rt[i];
+}
+
+// PANZERS 0x680bf0 (flags 8: from options 8/9)
+void GepardSetTextureFilter(int texture, unsigned flags)
+{
+    bool depth;
+    SHdRenderTarget* rt = RtFromTexture(texture, &depth);
+    if (!rt)
+        return;   // SWINE textures take the option filter in GepardSetTexture
+    if (flags == 8)
+        flags = (GepardOption(9) != 0) + 1 | (GepardOption(8) != 0 ? 4u : 0u) | 8u;
+    rt->Filter[depth ? 1 : 0] = flags;
+}
+
+// PANZERS 0x6803e0
+// Pushes the current target and selects the offscreen one: render target,
+// depth surface and the D3D viewport (0x68c770 / 0x68d620).
+void GepardSelectRenderTarget(int index)
+{
+    IDirect3DDevice9* dev = HD().Device;
+    if (!dev || index < 0 || index >= kMaxRenderTargets || !s_Rt[index].Used || s_RtSelected >= 0)
+        return;
+    SHdRenderTarget& rt = s_Rt[index];
+    dev->GetRenderTarget(0, &s_SavedColor);
+    dev->GetDepthStencilSurface(&s_SavedDepth);
+    dev->GetViewport(&s_SavedViewport);
+    if (FAILED(dev->SetRenderTarget(0, rt.Color)))
+        Logger.g->Log(0, "SViewport::Select: SetRenderTarget failed");
+    if (FAILED(dev->SetDepthStencilSurface(rt.Depth)))
+        Logger.g->Log(0, "SViewport::Select: SetDepthStencilSurface failed");
+    D3DVIEWPORT9 v = { 0, 0, (DWORD)rt.Width, (DWORD)rt.Height, 0.0f, 1.0f };
+    dev->SetViewport(&v);
+    s_RtSelected = index;
+}
+
+// PANZERS 0x6814b0
+void GepardUnselectRenderTarget()
+{
+    IDirect3DDevice9* dev = HD().Device;
+    if (s_RtSelected < 0) {
+        Logger.g->Log(0, "SGepard::UnselectViewport: called without SelectViewport");
+        return;
+    }
+    s_RtSelected = -1;
+    if (!dev)
+        return;
+    dev->SetRenderTarget(0, s_SavedColor);
+    dev->SetDepthStencilSurface(s_SavedDepth);
+    dev->SetViewport(&s_SavedViewport);
+    if (s_SavedColor) s_SavedColor->Release();
+    if (s_SavedDepth) s_SavedDepth->Release();
+    s_SavedColor = nullptr;
+    s_SavedDepth = nullptr;
+}
+
+// PANZERS 0x689f10 (on the selected offscreen viewport)
+void GepardClearRenderTarget(unsigned color, float z, unsigned stencil)
+{
+    IDirect3DDevice9* dev = HD().Device;
+    if (!dev || s_RtSelected < 0)
+        return;
+    const SHdRenderTarget& rt = s_Rt[s_RtSelected];
+    DWORD flags = D3DCLEAR_TARGET;
+    if (rt.Depth) {
+        flags |= D3DCLEAR_ZBUFFER;
+        if (rt.DepthFormat == D3DFMT_D24S8 || rt.DepthFormat == D3DFMT_D24X4S4 || rt.DepthFormat == D3DFMT_D15S1)
+            flags |= D3DCLEAR_STENCIL;
+    }
+    dev->Clear(0, nullptr, flags, color, z, stencil);
+}
+
+// Device reset: HD SGepard::ResetDevice 0x67fde0 frees every scene's shadow
+// buffer (0x6a2670) before Reset; the scenes recreate it on their next
+// shadow pass. The recompile hooks the SWINE reset the same way.
+static void PreDeviceReset(void*)
+{
+    ReleaseAllShadowBuffers();
+    if (s_RtSelected >= 0)
+        GepardUnselectRenderTarget();
+    for (auto& rt : s_Rt)
+        if (rt.Used)
+            ReleaseRenderTarget(rt);
+    Logger.g->Log(0, "pz: offscreen viewports released for the device reset");
+}
+
+static void PostDeviceReset(void*)
+{
+    InvalidateRenderPassCache();
+}
+
 SGepardHDState& HD()
 {
     if (!s_HD.Device && ::Gepard) {
@@ -62,10 +482,9 @@ SGepardHDState& HD()
             s_HD.TransformStages = blend < 5 ? blend : 5;
             s_HD.BlendStages = blend < 5 ? blend : 5;
             s_HD.SamplerStages = tex < 5 ? tex : 5;
-            // HD: PS id 2 exists on PS 1.1+ cards (0x67df80). The recompile
-            // does not create the HD pixel shaders, so it takes HD's PS-less
-            // paths (two-pass reflection; see SMaterial::Begin).
-            s_HD.PixelShader1x = false;
+            // HD: PS id 2 exists on PS 1.1+ cards (0x67df80); then
+            // SMaterial::Begin draws reflections in one PS 1.x pass.
+            InitShadowCaps(dev);
             s_HD.DynVBSize = 0x1fffe0;   // 0x678730
             s_HD.DynType112 = 0;
             s_HD.DynTypeFvf[0] = 0x112;
@@ -115,6 +534,8 @@ SIGepardHD* PzGepard()
         s_Facade = new SPzGepard();
         SGepard::PanzersScenePass = &ViewportScenePass;
         g_FloraDraw = &DrawFloraInstance;
+        if (SwineGepard())
+            SwineGepard()->RegisterResetCallbacks(&PreDeviceReset, &PostDeviceReset, nullptr);
         if (Logger.g)
             Logger.g->Log(0, "pz: Gepard facade created (HD scene pass hooked into SGepard::RenderScene)");
     }
@@ -127,9 +548,19 @@ void PzGepardShutdown()
         return;
     SGepard::PanzersScenePass = nullptr;
     g_FloraDraw = nullptr;
+    if (SwineGepard())
+        SwineGepard()->RegisterResetCallbacks(nullptr, nullptr, nullptr);
+    if (s_HD.DebugShadowTexture >= 0)
+        s_Facade->ReleaseTexture(s_HD.DebugShadowTexture);
     delete s_Facade;
     s_Facade = nullptr;
     ReleaseMeshVertexDecls();
+    if (s_RtSelected >= 0)
+        GepardUnselectRenderTarget();
+    for (auto& rt : s_Rt)
+        if (rt.Used)
+            ReleaseRenderTarget(rt);
+    ReleaseShaders();
     if (s_HD.DynVB)
         s_HD.DynVB->Release();
     memset(&s_HD, 0, sizeof(s_HD));
@@ -184,14 +615,62 @@ SIScene* SPzGepard::CreateScene()
     return new SScene(0);
 }
 
+// PANZERS 0x680910
+// Options (SGepard +0x4f8): 2 shadow technique (0 off, else GetCap(0) or
+// 1), 3 shadow buffer size, 4 shadow-buffer debug texture, 5 shadows of
+// free-heap models with a terrain shadow decal, 6 animated-mesh shadows,
+// 8/9 texture filter, 10/11 texture detail, 0x10 MODULATE2X lighting.
 void SPzGepard::SetOption(unsigned option, int value)
 {
     PZ_TRACE("SGepard::SetOption (0x680910)");
-    // HD 0x680910 also applies options (3 = shadow buffer size reloads
-    // editor/shadow_buffer_*.tga ...). Stored only; the SWINE renderer has
-    // no counterpart (see PzStub_ApplyGraphicsOptions).
-    if (option < sizeof(Options) / sizeof(Options[0]))
-        Options[option] = value;
+    if (0x11 < option) {
+        Logger.g->Panic("SGepard::SetOption: Invalid option %d", option);
+        return;
+    }
+    int old = Options[option];
+    Options[option] = value;
+    switch (option) {
+    case 2:
+        // Every scene drops its shadow buffer (0x6a2670) and rebuilds it
+        // for the new technique on its next frame.
+        if (old != value)
+            ReleaseAllShadowBuffers();
+        break;
+    case 4:
+        if (old != value) {
+            ReleaseAllShadowBuffers();
+            if (value != 0) {
+                s_HD.DebugShadowTexture = LoadTexture("editor/shadow_buffer_256_hq.tga", 1, true);
+                return;
+            }
+            ReleaseTexture(s_HD.DebugShadowTexture);
+            s_HD.DebugShadowTexture = -1;
+            return;
+        }
+        break;
+    case 8:
+    case 9:
+        // HD re-derives every texture's filter flags (0x680bf0(i, 8)); the
+        // recompile reads options 8/9 when it binds a texture.
+        if (old != value)
+            for (auto& rt : s_Rt)
+                if (rt.Used)
+                    rt.Filter[0] = rt.Filter[1] = (Options[9] != 0) + 1 | (Options[8] != 0 ? 4u : 0u) | 8u;
+        break;
+    case 10:
+    case 11:
+        if (old != value)
+            Slot_54();   // texture detail reload (0x67fb50)
+        break;
+    case 0xc:
+    case 0xd:
+    case 0xf:
+        // 0x67cc30 re-applies the default render states; the recompile
+        // resets them at every scene pass (pzscene.cpp).
+        break;
+    default:
+        break;
+    }
 }
 
 // PANZERS 0x67c380
@@ -206,12 +685,14 @@ int GepardOption(unsigned option)
     return s_Facade && option < 0x12 ? s_Facade->Options[option] : 0;
 }
 
+// PANZERS 0x67a7d0
+// SGepard +0x540[cap]. Cap 0 = the shadow technique SGepard::Initialize
+// picked by pixel shader version (1..4); cap 1 is never set by HD.
 int SPzGepard::GetCap(unsigned cap)
 {
     PZ_TRACE("SGepard::GetCap (0x67a7d0)");
-    // HD: SGepard+0x540[cap]. Cap 0 = shadow technique, 2 on a PS 2.0 card
-    // (the value optionsmenu.cpp assumes too).
-    return cap == 0 ? 2 : 0;
+    HD();
+    return cap == 0 ? s_HD.ShadowCap : 0;
 }
 
 // PANZERS 0x67db20
@@ -409,6 +890,8 @@ int SPzGepard::LoadTexture(const char* file, int mipmap, bool alpha)
 void SPzGepard::ReleaseTexture(int texture)
 {
     PZ_TRACE("SGepard::ReleaseTexture (0x67f740)");
+    if (texture >= kRtTextureBase)
+        return;   // offscreen viewport textures go with their viewport
     if (::Gepard && texture >= 0)
         ::Gepard->ReleaseTexture(texture, false);
 }
@@ -417,6 +900,12 @@ void SPzGepard::ReleaseTexture(int texture)
 void SPzGepard::GetTextureSize(int texture, int* width, int* height)
 {
     PZ_TRACE("SPzGepard::GetTextureSize (0x67ca50)");
+    bool depth;
+    if (const SHdRenderTarget* rt = RtFromTexture(texture, &depth)) {
+        *width = rt->Width;
+        *height = rt->Height;
+        return;
+    }
     SGepard* g = SwineGepard();
     if (g && texture >= 0 && texture < g->Textures.size && g->Textures.array[texture].use == 0x7FFFFFFF) {
         *width = (int)g->Textures.array[texture].data.Width;
@@ -432,7 +921,7 @@ void SPzGepard::GetTextureSize(int texture, int* width, int* height)
 int GepardGetTextureAlpha(int texture)
 {
     SGepard* g = SwineGepard();
-    if (!g || texture < 0)
+    if (!g || texture < 0 || texture >= kRtTextureBase)
         return 0;
     return g->GetTextureAlpha(texture);
 }
@@ -447,12 +936,18 @@ void GepardSetTexture(unsigned stage, int texture)
     SGepard* g = SwineGepard();
     if (!dev)
         return;
-    if (!g || texture < 0 || texture >= g->Textures.size || g->Textures.array[texture].use != 0x7FFFFFFF) {
+    unsigned flags;
+    bool depth;
+    if (const SHdRenderTarget* rt = RtFromTexture(texture, &depth)) {
+        dev->SetTexture(stage, depth ? rt->DepthTexture : rt->ColorTexture);
+        flags = rt->Filter[depth ? 1 : 0];
+    } else if (!g || texture < 0 || texture >= g->Textures.size || g->Textures.array[texture].use != 0x7FFFFFFF) {
         dev->SetTexture(stage, nullptr);
         return;
+    } else {
+        dev->SetTexture(stage, g->Textures.array[texture].data.lpTexture);
+        flags = (GepardOption(9) != 0) + 1 | (GepardOption(8) != 0 ? 4u : 0u) | 8u;   // 0x680bf0(idx, 8)
     }
-    dev->SetTexture(stage, g->Textures.array[texture].data.lpTexture);
-    unsigned flags = (GepardOption(9) != 0) + 1 | (GepardOption(8) != 0 ? 4u : 0u) | 8u;   // 0x680bf0(idx, 8)
     switch (flags & 3) {
     case 0:
         dev->SetSamplerState(stage, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
@@ -507,27 +1002,56 @@ void GepardSetWorldIdentity()
 }
 
 // PANZERS 0x680f40
+// HD creates only ids 0x41/0x42 (vs_2_0); ids 1..0x40 stay null.
 void GepardSetVertexShader(int id)
 {
+    IDirect3DVertexShader9* vs = nullptr;
     if (id != 0) {
-        Logger.g->Panic("SGepard::SetVertexShader: invalid index");   // HD never creates ids 1..0x40
-        return;
+        if (id < 1 || id > 0x42 || !HD().VertexShaders[id]) {
+            Logger.g->Panic("SGepard::SetVertexShader: invalid index");
+            return;
+        }
+        vs = HD().VertexShaders[id];
     }
-    HD().Device->SetVertexShader(nullptr);
+    HD().Device->SetVertexShader(vs);
 }
 
 // PANZERS 0x680ac0
 void GepardSetPixelShader(int id)
 {
+    IDirect3DPixelShader9* ps = nullptr;
     if (id != 0) {
-        Logger.g->Panic("SGepard::SetPixelShader: invalid index");
-        return;
+        if (0x21 < (unsigned)(id - 1) || !HD().PixelShaders[id]) {
+            Logger.g->Panic("SGepard::SetPixelShader: invalid index");
+            return;
+        }
+        ps = HD().PixelShaders[id];
     }
-    HD().Device->SetPixelShader(nullptr);
+    HRESULT hr = HD().Device->SetPixelShader(ps);
+    if (FAILED(hr))
+        Logger.g->Panic("%s: %08x", "SGepard::SetPixelShader: SetPixelShader failed", (unsigned)hr);
 }
 
-// PANZERS 0x680510 (colour 0x5aa900: clamped float4 -> ARGB)
-void GepardSetAmbient(const float* c)
+// device +0x1b4 / +0x178 (the HD call sites pass SGepard +0x478 directly)
+void GepardSetPixelShaderConstant(unsigned reg, const float* v, unsigned count)
+{
+    HD().Device->SetPixelShaderConstantF(reg, v, count);
+}
+
+void GepardSetVertexShaderConstant(unsigned reg, const float* v, unsigned count)
+{
+    HD().Device->SetVertexShaderConstantF(reg, v, count);
+}
+
+// PANZERS 0x67a720
+void GepardEnableLights(bool on)
+{
+    for (int i = 0; i < HD().LightCount; ++i)
+        HD().Device->LightEnable(i, on);
+}
+
+// PANZERS 0x5aa900 (clamped float4 -> ARGB)
+unsigned GepardArgb(const float* c)
 {
     auto ch = [](float v) -> unsigned {
         if (1.0f <= v) return 0xff;
@@ -537,7 +1061,13 @@ void GepardSetAmbient(const float* c)
     unsigned a = ch(c[3]), r = ch(c[0]);
     unsigned g = c[3] < 0.0f ? 0 : ch(c[1]);
     unsigned b = c[3] < 0.0f ? 0 : ch(c[2]);
-    HD().Device->SetRenderState(D3DRS_AMBIENT, b | ((a << 8 | r) << 8 | g) << 8);
+    return b | ((a << 8 | r) << 8 | g) << 8;
+}
+
+// PANZERS 0x680510
+void GepardSetAmbient(const float* c)
+{
+    HD().Device->SetRenderState(D3DRS_AMBIENT, GepardArgb(c));
 }
 
 // PANZERS 0x67f150
@@ -681,11 +1211,13 @@ void SPzGepard::SwitchModelPrototypeNodes(int proto, int node1, int node2)
     (void)proto; (void)node1; (void)node2;
 }
 
-// HD SPzGepard vtbl +0x40 -> 0x67a3f0 (1 arg dword)
-void SPzGepard::Slot_40()
+// PANZERS 0x67a3f0
+// Deletes a viewport of the heap; the recompile's heap holds only the
+// offscreen ones (the primary viewport is the facade's).
+void SPzGepard::DestroyViewport(int index)
 {
-    STUB_LOG("SPzGepard::Slot_40 (0x67a3f0)");
-    PZ_TRACE("SPzGepard::Slot_40 (0x67a3f0)");
+    PZ_TRACE("SGepard::DestroyViewport (0x67a3f0)");
+    GepardDestroyRenderTarget(index);
 }
 
 // HD SPzGepard vtbl +0x4c -> 0x681540 (4 arg dwords)

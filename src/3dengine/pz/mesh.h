@@ -173,10 +173,11 @@ struct SMesh {
     virtual ~SMesh();                                                // +0x00 0x6ccfd0
     virtual void Draw(SScene* scene);                                // +0x04 0x6cd890
     virtual void DrawShadow(SScene* scene);                          // +0x08 0x6cdb70
-    virtual void Slot_0C(SScene*, int, int, float, int, float) {}    // +0x0c empty
-    virtual void Slot_10(SScene*, int, int, float) {}                // +0x10 empty
-    virtual void Slot_14(SScene*, int) {}                            // +0x14 empty
-    virtual void Slot_18(SScene*, int, const float*) {}              // +0x18 empty
+    // Shadow-buffer variants of +0x1c..+0x28 (SModel::RenderShadow 0x6d9570).
+    virtual void DrawShadowFramesBlend(SScene*, int, int, float, int, float) {}   // +0x0c empty
+    virtual void DrawShadowFramesLerp(SScene*, int, int, float) {}   // +0x10 empty
+    virtual void DrawShadowFrame(SScene*, int) {}                    // +0x14 empty
+    virtual void DrawShadowSkinned(SScene*, int, const float*) {}    // +0x18 empty
     virtual void DrawFramesBlend(SScene*, int, int, float, int, float) {}   // +0x1c empty
     virtual void DrawFramesLerp(SScene*, int, int, float) {}         // +0x20 empty
     virtual void DrawFrame(SScene*, int) {}                          // +0x24 empty
@@ -191,6 +192,8 @@ struct SMesh {
     SMaterial* CreateMaterials(unsigned count);   // 0x6cd0f0
     float* VertexNormal(int i) { return (float*)(Vertices + Stride * i + OffNormal); } // 0x691200
     void DrawDynamic(SScene* scene);              // 0x6cda70
+    void DrawShadowDynamic(SScene* scene);        // 0x6ce170
+    void DrawShadowMaterials(SScene* scene, bool dynamic);   // 0x6cdb70 / 0x6ce170 material loop
 };
 static_assert(sizeof(SMesh) == 0x58, "HD operator new(0x58)");
 
@@ -207,9 +210,12 @@ struct SAnimesh : SMesh {
     ~SAnimesh() override;
     void Draw(SScene*) override {}
     void DrawShadow(SScene*) override {}
-    void Slot_0C(SScene* scene, int a0, int a1, float t, int b, float w) override;
-    void Slot_10(SScene* scene, int a0, int a1, float t) override;
-    void Slot_14(SScene* scene, int frame) override;
+    void DrawShadowFramesBlend(SScene* scene, int a0, int a1, float t, int b, float w) override;   // 0x6d0400
+    void DrawShadowFramesLerp(SScene* scene, int a0, int a1, float t) override;   // 0x6cfe00
+    void DrawShadowFrame(SScene* scene, int frame) override;                      // 0x6cf9c0
+    bool FillFrame(int frame);                                                    // 0x6cef00 fill
+    bool FillFramesLerp(int a0, int a1, float t);                                 // 0x6cf140 fill
+    bool FillFramesBlend(int a0, int a1, float t, int b, float w);               // 0x6cf500 fill
     void DrawFramesBlend(SScene* scene, int a0, int a1, float t, int b, float w) override;
     void DrawFramesLerp(SScene* scene, int a0, int a1, float t) override;
     void DrawFrame(SScene* scene, int frame) override;
@@ -228,7 +234,8 @@ struct SSkinnedMesh : SMesh {
     ~SSkinnedMesh() override;
     void Draw(SScene*) override {}
     void DrawShadow(SScene*) override {}
-    void Slot_18(SScene* scene, int bones, const float* matrices) override;
+    void DrawShadowSkinned(SScene* scene, int bones, const float* matrices) override;   // 0x6d0e30
+    void FillSkinned(const float* matrices);                                       // 0x6d2200 fill
     void DrawSkinned(SScene* scene, int bones, const float* matrices) override;
     void CreateVertexBuffer(unsigned fvf, int count) override;
     void Lock() override;
