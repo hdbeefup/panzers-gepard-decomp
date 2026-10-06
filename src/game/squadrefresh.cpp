@@ -110,6 +110,14 @@ static double WrapAbs(double d)                                // |a - b| folded
     return d > kHdPi ? kHdTwoPi - d : d;                      // 0x7f4560 / 0x7f4570
 }
 
+// PANZERS 0x5f7c00
+// SWorld: removes doodad `index` (a squad member's marker) if it is live.
+void SWorld::RemoveDoodadIfLive(int index)
+{
+    if (index > -1 && index < Doodads.Size && Doodads.Array[index].Next == kHeapLive)
+        RemoveDoodad(index);                                  // 0x5f73f0
+}
+
 // ---------------------------------------------------------------------------
 // SPanzersSquadUnit
 
@@ -325,7 +333,7 @@ void SPanzersSquadUnit::ClearMemberMarkers()
     _130 = 0;
     for (int i = 0; i < Members.Size; ++i) {
         SUnit* m = MemberAt(this, i);
-        STUB_LOG("SWorld 0x5f7c00 (remove a member marker), called by SPanzersSquadUnit 0x59d2f0");
+        g_World->RemoveDoodadIfLive(m->_134);                 // 0x5f7c00
         m->_134 = -1;
         MemberAt(this, i)->_130 = 0;
     }
@@ -588,7 +596,20 @@ void SPanzersSquadUnit::RefreshMisc()
             if (CurrentTarget)
                 GetDriver(ActiveDriver)->SetTarget(CurrentTarget);   // driver +0x08
         } else if (action == 4) {
-            STUB_LOG("SPanzersSquadUnit::RefreshMisc (0x59e0d0) delayed action 4 (Waster Explosives, 0x5870f0)");
+            // Explosives: a "Waster Explosives" unit at the squad's feet,
+            // owned by the squad (0x5870f0), and the squad steps back 5 m.
+            UnitSlotsDecreaseAmount(this, 4);                 // 0x5c2270
+            float pos[3] = { Pos[0], 0.0f, Pos[2] };
+            pos[1] = g_World->GetTerrainHeight(pos[0], Pos[2]);   // 0x5e7730
+            int w = g_World->CreateUnit(Player, "Waster Explosives", pos, 0.0f, 0, 1.0f, -1, true, "");   // 0x5e3170
+            WasterSetOwner(WorldUnit(w), WorldIndex);         // 0x5870f0
+            float x = Pos[0], z = Pos[2];
+            float bx = x - (float)DSin((double)Dir) * 5.0f;   // 0x78d640, DAT_007f5a6c
+            float bz = z - (float)DCos((double)Dir) * 5.0f;   // 0x78d480
+            int xb, zb;
+            memcpy(&xb, &bx, 4);
+            memcpy(&zb, &bz, 4);
+            EC_Move(xb, zb, 0, false, 0);                     // +0xac
         }
         _18[0] = 0;
         _18[3] = 0;

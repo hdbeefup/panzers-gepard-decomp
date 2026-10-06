@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "squadunit.h"
+#include "unitanim.h"
 #include "gunner.h"
 #include "idriver.h"
 #include "unitextern.h"
@@ -234,13 +235,53 @@ void SPanzersSquadUnit::Init(SUnitDef* def)
 }
 
 // PANZERS 0x59fab0
-// Equipment slots (UNTD Slots[0..1]) mapped to the item and its level by the
-// squad's rank (+0x88): grenade, molotov, mines, explosives, ... stored at
-// +0x138/+0x13c and +0x144/+0x148.
+// Equipment slots (UNTD Slots[0..1], p1 = their address): the item (+0x138 /
+// +0x144) when the prototype allows it (+0xb5..+0xbd) and its amount
+// (+0x13c / +0x148) by the squad's rank (+0x88). Items 1 grenade, 2 molotov,
+// 3 magnetic mine, 4 explosives, 5 ground tank mine, 6 binoculars, 7 boat,
+// 8 mine detector (the last three carry no amount).
 void SPanzersSquadUnit::Hook20(int p1)
 {
-    (void)p1;
-    STUB_LOG("SPanzersSquadUnit::Hook20 (0x59fab0) equipment slots");
+    const int* slots = (const int*)(intptr_t)p1;
+    for (int s = 0; s < 2; ++s) {
+        int& item = s == 0 ? _138 : _144;                     // +0x138 + 0xc * s
+        int& amount = s == 0 ? _13c : _148;                   // +0x13c + 0xc * s
+        int it = slots[s];
+        // Amount by rank 0/1, 2/3, 4 (HD jump tables 0x59fc98 / 0x59fcac).
+        int lo = 0, mid = 0, hi = 0;
+        bool allowed = false;
+        switch (it) {
+        case 0:
+            item = 0;
+            amount = 0;
+            continue;
+        case 1: allowed = P->SlotGrenade;        lo = 3; mid = 4; hi = 5; break;   // +0xb5
+        case 2: allowed = P->SlotMolotov;        lo = 1; mid = 2; hi = 3; break;   // +0xb6
+        case 3: allowed = P->SlotMagneticMine;   lo = 1; mid = 2; hi = 3; break;   // +0xb7
+        case 4: allowed = P->SlotExplosives;     lo = 1; mid = 2; hi = 3; break;   // +0xb8
+        case 5: allowed = P->SlotGroundTankMine; lo = 3; mid = 4; hi = 5; break;   // +0xb9
+        case 6:                                               // +0xbd binoculars
+        case 7:                                               // +0xba boat
+        case 8:                                               // +0xbc mine detector
+            if ((it == 6 && P->SlotBinoculars) || (it == 7 && P->SlotBoat) ||
+                (it == 8 && P->SlotMineDetector)) {
+                item = it;
+                amount = 0;
+            }
+            continue;
+        default:
+            continue;
+        }
+        if (!allowed)
+            continue;
+        item = it;
+        switch (GetRank()) {                                  // +0x88
+        case 0: case 1: amount = lo; break;
+        case 2: case 3: amount = mid; break;
+        case 4: amount = hi; break;
+        default: break;                                       // rank > 4: amount unchanged
+        }
+    }
 }
 
 // PANZERS 0x59fe30
@@ -509,6 +550,46 @@ void SPanzersSquadMemberUnit::InitNew(int player, const float* pos, float dir, i
 void SPanzersSquadMemberUnit::SetOnBlockMap(bool on)
 {
     (void)on;
+}
+
+// PANZERS 0x59af90
+// Once neither the squad nor any member moves (+0xc8 <= 0), every member goes
+// back to its global-state stand pose (0x5cae80(1)) and restarts its relax
+// timer (SWalkerAnimation 0x5cb0a0).
+void SPanzersSquadUnit::Slot_148(int player)
+{
+    (void)player;
+    if (!(Speed <= 0.0f))
+        return;
+    for (int i = 0; i < Members.Size; ++i)
+        if (0.0f < WorldUnit(Members.Array[i].Unit)->Speed)
+            return;
+    for (int i = 0; i < Members.Size; ++i) {
+        static_cast<SUnitAnimation*>(WorldUnit(Members.Array[i].Unit)->Anim)->PlayGlobalStand(true);
+        static_cast<SWalkerAnimation*>(WorldUnit(Members.Array[i].Unit)->Anim)->ResetRelax();
+    }
+}
+
+void SPanzersSquadUnit::OnMemberDied(int unit)
+{
+    RemoveMember(unit);                                       // 0x59d4e0 (the +0x1b4 override)
+}
+
+// PANZERS 0x598280
+// A squad member dies: not while its squad or itself is invulnerable or the
+// local player's units are protected (SGameLogic +0x2da); the squad drops it
+// (+0x1b4), then SUnit::EC_Die.
+void SPanzersSquadMemberUnit::EC_Die()
+{
+    if (Parent > -1 && WorldUnit(Parent)->Invulnerable)
+        return;
+    if (Invulnerable)
+        return;
+    if (*((const unsigned char*)g_GameLogic + 0x2da) && !g_GameLogic->IsPaused() && g_World->LocalPlayer == Player)
+        return;
+    if (g_World->Units.IsLive(Parent))
+        WorldUnit(Parent)->OnMemberDied(WorldIndex);          // +0x1b4
+    SUnit::EC_Die();                                          // 0x5b8b10
 }
 
 } // namespace pz

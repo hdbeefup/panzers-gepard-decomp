@@ -249,7 +249,7 @@ struct SWorld {
     void ShowUnitRange(int unit);                              // 0x5fee00 (1) SWorld::ShowUnitRange (visual; agent V, worldcamera.cpp)
     void GetCameraState(unsigned* out5);                       // 0x5e6a70 (1) CamTarget x/z, yaw, +0x50, CamDist (replay records it)
     // AI and mission start / load extras: agent L, src/world/ai.cpp.
-    void RefreshAI();                                          // 0x5f5c70 (0) (name guessed) AI groups (AIGP), "Call AI (...) support!"; per tick in missions
+    // RefreshAI 0x5f5c70 is SAIGroup::Refresh (aigroup.h, M3-C); RefreshAIGroups() runs them all.
     void StartEffects();                                       // 0x5f5b50 (0) (name guessed) mission start: map effects on (+0x73e4, +0x64c)
     void InitCameraSpline(const char* file);                   // 0x609760 (1) SGameWorld::InitCameraSpline (-csplay file, else ""); HD `this` is the SGameWorld global 0x929a60, not the world: worldcamera.cpp forwards (agent V)
     // Camera moves of the game view (agent V, worldcamera.cpp).
@@ -262,6 +262,28 @@ struct SWorld {
     void LoadMapExtra_607ad0();                                // 0x607ad0 (0)
     void FixBridges();                                         // 0x5e65f0 (0) SWorld::FixBridges
     // --- end M3
+    // --- M3 C (combat + AI, docs/M3_INTERFACES.md row C). Sub-blocks per C sub-agent:
+    //     add declarations only inside your own sub-block.
+    // C0 (integrator): unit speech / event announcer, src/game/combat_speech.cpp.
+    void UnitSpeech(int unit, int event, bool anyPlayer);      // 0x5fff20 (3) (name guessed) the unit's sound event; draws the world LCG on one branch (M3_INTERFACES §7)
+    void InitSpeechCounts();                                   // 0x5edd00 (0) per-nation speech sample counts (+0x66c), speech state reset; end of the ctor
+    // C2 (damage / death / XP): src/game/combat.cpp.
+    void IncreaseUnitXP(int unit, int victim, float amount);   // 0x5ec840 (3) SWorld::IncreaseUnitXP: unit +0x8c(victim, amount, 0), campaign XP
+    // --- C1 (gunner / projectile)
+    // --- end C1
+    // --- C2 (damage / death / waster)
+    void RecordKill(int attacker, int victim);                 // 0x5eca50 (2) campaign kill statistics (combat.cpp)
+    // --- end C2
+    // --- C3 (air support / parachute / support calls)
+    // --- end C3
+    // --- C4 (AI / squads / buildings)
+    // --- end C4
+    // --- C5 (squads / buildings)
+    void UnfixBridges();                                       // 0x600f90 (0) +0xf0 = 0 (panics when not set) (buildingunit.cpp)
+    void RemoveDoodadIfLive(int index);                        // 0x5f7c00 (1) RemoveDoodad 0x5f73f0 when the slot is live (squadrefresh.cpp)
+    void AIGroupUnitAttacked(int unit, int attacker);          // 0x5d68e0 (2) (name guessed) the AI group of `unit` reacts (C4 owns the body; stub in squadunit.cpp)
+    // --- end C5
+    // --- end M3 C
 
     // +0x000 vptr
     unsigned char _004[4];

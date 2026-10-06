@@ -42,6 +42,7 @@ struct SIPDriver;
 // HD ghost frame (SGhostFrame, 0x74): layout in drivertypes.h (agent P).
 //
 struct SGhostFrame;
+struct SUnitClassDesc;     // unit.h (M3-C5)
 
 struct SIDriver {
     virtual ~SIDriver() {}                              // +0x00 HD 0x550120 (1 arg dwords) [menu: periodic<1/s via STurnInPlaceDriver 0x550420] scalar deleting dtor
@@ -64,7 +65,7 @@ struct SIDriver {
     virtual void Ghost_NextStep() = 0;                           // +0x44 HD 0x553c00 (0 arg dwords) [menu: >=20/s] SDriver::Ghost_NextStep
     virtual float GetMaxSpeed() = 0;                             // +0x48 HD 0x553260 (0 arg dwords) [menu: >=20/s] (name guessed) min(unit +0x1b0(-1), GetMovementGroupMoveSpeed 0x56b010)
     virtual float GetTurnSpeed() = 0;                            // +0x4c HD 0x5533d0 (0 arg dwords) [menu: >=20/s] (name guessed) animation +0x1c(unit +0xe0) * +0xd0
-    virtual void Slot_50() = 0;                                  // +0x50 HD 0x5531e0 (2 arg dwords)
+    virtual void GetClassDescriptor(void** obj, const SUnitClassDesc** desc) = 0; // +0x50 HD 0x5531e0 (2 arg dwords) (M3-C5) the save / property class record, as SIUnit +0x1c
 };
 
 struct SIPDriver {

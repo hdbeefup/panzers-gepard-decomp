@@ -118,6 +118,44 @@ struct SGameLogic {
     // --- end O
     // --- M2-I sub-agent UB / SQ / BW: SGameLogic functions the units need (one line each, tagged).
     // --- end units
+    // --- M3 C (combat + AI): SGameLogic functions the combat code needs. One sub-block per
+    //     C sub-agent; add declarations only inside your own.
+    // --- C1 (agent O's rows lifted by C1 for the combat path, projectile.cpp)
+    void DamageArea(float damage, int attacker, int exclude, float x, float y, float z, float radius,
+                    int hitMode, int weaponType);   // 0x576490 (9) doodads crushed in the radius, TakeDamage(damage * (1 - sqrt(d2 / r2))) on the units
+    int  ProjectileHitTest(int shooter, struct SUnit* projectile);   // 0x562c20 (2) doodad mesh or unit hit by the projectile (-1)
+    // --- end C1
+    // --- C2 (combat.cpp)
+    static int UnitStatCategory(struct SUnit* u);               // 0x56d6d0 campaign statistics category (0 = none)
+    bool IsKillCheat();                                   // 0x5b9e40 +0x2d8 and not paused
+    void DispatchAttacked(int unit, int attacker);        // 0x570e40 trigger event 4
+    void DispatchUnitDies(int unit);                      // 0x571090 loss statistics + trigger event 1
+    void DispatchLeaves(int carrier, int unit);           // 0x571570 trigger event 6 (a unit left a vehicle / building)
+    void DispatchStopsTowing(int tower, int towed);       // 0x571750 trigger event 8
+    void PingAttackedUnit(int unit);                      // 0x570f30 minimap blink (board +0xb4 not mapped)
+    bool IsSeenByPlayer(int player, struct SUnit* u);     // 0x562b10 own unit, or VisMap bit 0x20 at its cell
+    void AreaDamage(float damage, int attacker, int p3, float x, float y, float z, float radius, int p8,
+                    int p9);                              // 0x576490 (9) explosion: units and doodads in radius (stub, owner C1?)
+    // --- end C2
+    // --- C3 (the support calls 0x5674c0 / 0x568300 / 0x568740 / 0x567760 / 0x567d40: combat_support.cpp)
+    // free = true: no charge (AI / triggers); false: decrements the player's
+    // counter World+0x19c.. (+0x2c.. of the player record) and does nothing
+    // when it is 0. (x, z) the target; player the caller. The planes enter at
+    // the player's entry point (World+0x194 / +0x198) or, with fromDir && p6,
+    // on the map border along dir (0x56cff0).
+    void SupportArtillery(bool free, float x, float z, int player);   // 0x5674c0 (4) 16 "Projectile cannonade" shells (counter +0x2c)
+    void SupportRecon(bool free, float x, float z, int player, float extraAltitude, bool groundTracking);   // 0x568300 (6) recon plane (counter +0x30); extraAltitude -1.0 = none
+    void SupportTacBomber(bool free, float x, float z, int player);   // 0x568740 (4) tactical bomber diving from 21 m before the target (counter +0x34)
+    void SupportHeavyBomber(bool free, float x, float z, int player, float extraAltitude, bool p6, bool fromDir, float dir);   // 0x567760 (8) SGameLogic::EC_HeavyBomber, 5 bombs (counter +0x38); trigger event 9
+    void SupportParatroopers(bool free, float x, float z, int player, float extraAltitude, bool p6, bool fromDir, float dir);  // 0x567d40 (8) transport plane, 2 squads (counter +0x3c); trigger event 10
+    float* ComputeBorderStart(float* out, float x, float y, float z, float dir);   // 0x56cff0 (5) the map border point (1 .. size-1) on the line through (x, z) against dir
+    void DispatchBomberSent(int unit, int location);       // 0x570ac0 (2) trigger event 9 (TE_BOMBER_SENT)
+    void DispatchParatroopersSent(int unit, int location); // 0x570bc0 (2) trigger event 10 (TE_PARATROOPERS_SENT)
+    void SupportTestHook();                                   // recompile only: PZ_M3C_TESTSUPPORT=1..5 calls one support call (free) at frame PZ_M3C_TESTFRAME (400) for the local player
+    // --- end C3
+    // --- C4
+    // --- end C4
+    // --- end M3 C
     // --- M3 agent F: mission start / end and the save (gamelogic_mission.cpp).
     void PlaceAllUnits();                 // 0x571c70 mission start: the campaign's mission army (0x591e70) for the local player
     void PlaceUnits(int player, struct SArmyArray* army);   // 0x572ec0 at location "start <n>" in a 4 m grid, then the camera

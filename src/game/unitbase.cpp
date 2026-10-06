@@ -7,6 +7,8 @@
 #include <string.h>
 #include <intrin.h>
 #include "unit.h"
+#include "target.h"
+#include "aigroup.h"
 #include "drivermath.h"
 #include "gunner.h"
 #include "idriver.h"
@@ -22,6 +24,7 @@
 #include "logger.h"
 #include "doodad.h"
 #include "stub_log.h"
+#include "m3common.h"
 
 namespace pz {
 
@@ -215,11 +218,15 @@ void SUnit::Uninit()
 {
     if (g_Pixie)
         for (int i = 0; i < StaticEffects.Size; ++i)
-            g_Pixie->Slot_14();                               // pixie +0x34 (stop effect; slot not named)
+            g_Pixie->StopEffect(StaticEffects.Array[i]);         // pixie +0x34 (HD 0x5b7e75)
     StopEffects();                                            // 0x5c3030
     Remove(false);                                            // +0x70
     if (AIGroup != -1) {
-        // HD 0x5f7990 / 0x5be040: leave the AI group (World+0x4f4).
+        if (AIGroup > -1) {
+            AIGroupAt(AIGroup)->RemoveUnit(WorldIndex);           // 0x5f7990
+            if (AIGroupAt(AIGroup)->Units.Size == 0)
+                AIGroupsRemove(g_World, AIGroup);                 // 0x5be040
+        }
         AIGroup = -1;
     }
     if (_7c && g_World->Units.IsLive(Parent))
@@ -284,16 +291,20 @@ void SUnit::SetActiveDriver(int index)
 }
 
 // PANZERS 0x5c0c10
-// The AI group bookkeeping (World+0x4f4, 0x5f7990 / 0x5d9560 / 0x5be040)
-// is not lifted: no menu unit is in an AI group.
+// Leaves the old AI group (World+0x4f4; an emptied group is removed) and joins
+// the new one.
 void SUnit::SetAIGroup(int group)
 {
     if (AIGroup == group)
         return;
-    AIGroup = group;
-    if (group >= 0) {
-        STUB_LOG("SUnit::SetAIGroup (0x5c0c10) AI group membership");
+    if (AIGroup > -1) {
+        AIGroupAt(AIGroup)->RemoveUnit(WorldIndex);               // 0x55ccc0, 0x5f7990
+        if (AIGroupAt(AIGroup)->Units.Size == 0)
+            AIGroupsRemove(g_World, AIGroup);                     // 0x5be040
     }
+    AIGroup = group;
+    if (group > -1)
+        AIGroupAt(group)->AddUnit(WorldIndex);                    // 0x5d9560
 }
 
 // PANZERS 0x5c1170
@@ -397,7 +408,7 @@ void SUnit::StopEffects()
 void SUnit::Init(SUnitDef* def)
 {
     HP = def->HP;
-    XP = def->XP;
+    memcpy(&XP, &def->XP, 4);                                 // +0x64 = UNTD +0x0c, raw dword (0x5ba8fe)
     FirstKill = def->FirstKill;
     FirstBlood = def->FirstBlood;
     FirstShot = def->FirstShot;
@@ -428,7 +439,7 @@ void SUnit::Init(SUnitDef* def)
     else if (d <= -kPiF)
         d += kTwoPiF;
     Dir = PrevDir = PrevDir2 = d;
-    Hook20(def->Slots[0]);                                    // +0x20(&def->Slots)
+    Hook20((int)(intptr_t)def->Slots);                        // +0x20(&def->Slots) (M3-C5: HD passes the address; squads 0x59fab0 read both)
     if (g_World && PlayerField(Player, 8) == 1) {
         _140 = true;
         _14c = true;
@@ -651,9 +662,8 @@ void SUnit::RefreshModel()
 // PANZERS 0x5b76c0
 void SUnit::UpdateVisuals(SIViewport* vp)
 {
-    (void)vp;
     if (Anim)
-        Anim->Slot_0C();                                      // anim +0x0c
+        Anim->Slot_0C(vp);                                    // anim +0x0c (tail jump with the viewport)
 }
 
 // PANZERS 0x5b9d40
@@ -685,7 +695,7 @@ void SUnit::ServerRefresh(int frame)
     }
     if (Wrecked) {                                            // +0x150
         RefreshDriverEffects();                               // 0x5bd910
-        Slot_30();                                            // +0x30 dead unit refresh
+        RefreshDead();                                        // +0x30 dead unit refresh
         return;
     }
     if (Orders.Size != 0 && PrimaryTarget == nullptr) {
@@ -719,7 +729,7 @@ void SUnit::ServerRefresh(int frame)
         if (tgt::I(t, tgt::kType) == 0 && tgt::I(t, tgt::kKind) == 2 && g_World->Units.IsLive(tgt::I(t, tgt::kUnit)) &&
             !WorldUnit(tgt::I(t, tgt::kUnit))->Wrecked &&
             (0.0f < tgt::F(t, 0x10) || 0.0f < tgt::F(t, 0x18))) {
-            STUB_LOG("SUnit::ServerRefresh (0x5bee90) +0xcc EC_AttackMove");
+            EC_AttackMove(tgt::F(t, 0x10), tgt::F(t, 0x18), 0);   // +0xcc: on to the target's last position
         } else {
             ClearTargets();                                   // +0xc4
         }
@@ -730,7 +740,7 @@ void SUnit::ServerRefresh(int frame)
             if (tgt::I(t, tgt::kType) == 0 && tgt::I(t, tgt::kKind) == 2 && g_World->Units.IsLive(tgt::I(t, tgt::kUnit)) &&
                 !WorldUnit(tgt::I(t, tgt::kUnit))->Wrecked &&
                 (0.0f < tgt::F(t, 0x10) || 0.0f < tgt::F(t, 0x18))) {
-                STUB_LOG("SUnit::ServerRefresh (0x5bee90) +0xcc EC_AttackMove");
+                EC_AttackMove(tgt::F(t, 0x10), tgt::F(t, 0x18), 0);   // +0xcc
             } else {
                 ClearTargets();
             }
@@ -740,9 +750,10 @@ void SUnit::ServerRefresh(int frame)
         }
     }
     if (_6d && !IsHiddenInBlockMap()) {                       // 0x5bb5c0
-        // HD: for each of the 12 players, LastSeenFrame[p] = logic frame
-        // when 0x562b10(p, this).
-        STUB_LOG("SUnit::ServerRefresh (0x5bee90) per-player sighting (0x562b10)");
+        // Each player that sees the unit (0x562b10) stamps its frame.
+        for (int p = 0; p < 12; ++p)
+            if (g_GameLogic->IsSeenByPlayer(p, this))                 // 0x562b10
+                LastSeenFrame[p] = g_GameLogic->Frame;                // +0x29c
     }
     RefreshMisc();                                            // +0x38
     RefreshDriverEffects();                                   // 0x5bd910
@@ -980,56 +991,76 @@ static bool UnitsSameSide(int a, int b)
 }
 
 // PANZERS 0x5b7040
-// Whether `unit` may get in: storage capacity, class, side and the hero seat.
-static bool CanStore(SUnit* self, int unit)
+// Whether `unit` may get in: storage capacity, class, side, the building
+// rules (a type-5 building takes anybody up to its capacity; trains never;
+// a building held by one allied unit, or on the static block map, takes no
+// more) and the hero seat of crew-only vehicles (a hero takes the extra
+// seat once).
+bool SUnit::CanStoreUnit(int unit)
 {
-    SPUnit* p = self->Proto;
+    SPUnit* p = Proto;
     if (p->StorageCapacity == 0)
         return false;
     SUnit* u = WorldUnit(unit);
     int uct = u->Proto->ClassType;
     if (uct != 5 && uct != 0)
         return false;
-    if (p->ClassType != 9 && self->Player != u->Player && !self->_110)
+    if (p->ClassType != 9 && Player != u->Player && !_110)
         return false;
     if (uct == 5 && p->StorageType != 2 && p->StorageType != 0)
         return false;
     if ((uct == 0 || uct == 0xb) && p->StorageType != 2 && p->StorageType != 1)
         return false;
     if (p->ClassType == 9) {
-        // M3 agent F (the Training Camp occupied buildings): HD 0x5b7040
-        // building part. Type 5 takes squads up to the capacity; otherwise
-        // not trains, a second squad only of the other side (Members2 at
-        // +0x408), and not when a "Block" point is on the static block map.
-        const SPBuildingUnit* bp = static_cast<const SPBuildingUnit*>(p);
-        if (bp->BuildingType == 5 && self->Stored.Size < p->StorageCapacity)
+        if (static_cast<SPBuildingUnit*>(p)->BuildingType == 5 && Stored.Size < p->StorageCapacity)   // +0x13c
             return true;
-        if (u->Proto->IsTrain)                                    // unit prototype +0xe8
+        if (u->Proto->IsTrain)                                    // +0xe8
             return false;
-        if (self->Stored.Size == 1 &&
-            UnitsSameSide(WorldUnit(self->Stored.Array[0].Unit)->Player, u->Player))   // 0x546490, 0x549ab0
-            return false;
-        if (*((const unsigned char*)self + 0x454))                // SBuildingUnit OnStaticBlock
+        if (Stored.Size == 1) {
+            if (Stored.Size < 1)
+                Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "SUnitStored", 0);
+            int a = WorldUnit(Stored.Array[0].Unit)->Player;
+            int b = u->Player;
+            int team = *(int*)(g_World->Players[a] + 0x0c);       // 0x549ab0
+            bool same = team != 0 ? team == *(int*)(g_World->Players[b] + 0x0c) : a == b;
+            if (same)
+                return false;
+        }
+        if (*((unsigned char*)this + 0x454))                      // SBuildingUnit +0x454 OnStaticBlock
             return false;
     }
-    if (self->IsStored)
+    bool onlyCrew = p->OnlyCrew;                                  // +0xdc
+    if (onlyCrew && u->Proto->ClassType == 5 && u->Proto->UnitType != 0xe && u->Proto->HeroPicture < 0)
+        return false;                                             // crew-only: squads only as crew / heroes
+    if (_7c) {                                                    // riding outside: only trains carry
+        if (p->ClassType != 10)
+            return false;
+        int pi = Parent;
+        if (pi > -1) {
+            SUnit* root = nullptr;
+            do {
+                root = WorldUnit(pi);
+                pi = root->Parent;
+            } while (pi >= 0);
+            if (root->Player != u->Player)
+                return false;
+        }
+    }
+    if (IsStored)                                                 // +0x184
         return false;
     int cap = p->StorageCapacity;
-    if (p->OnlyCrew) {
-        bool hero = u->Proto->HeroPicture >= 0;
-        bool storedHero = false;
-        for (int i = 0; i < self->Stored.Size; ++i)
-            if (WorldUnit(self->Stored.Array[i].Unit)->Proto->HeroPicture >= 0)
-                storedHero = true;
-        if (hero || storedHero)
-            cap++;
+    if (!onlyCrew)
+        return Stored.Size < cap;
+    if (u->Proto->HeroPicture < 0) {
+        for (int i = 0; i < Stored.Size; ++i)
+            if (WorldUnit(Stored.Array[i].Unit)->Proto->HeroPicture >= 0)
+                return Stored.Size < cap + 1;                     // a stored hero has the extra seat
+        return Stored.Size < cap;
     }
-    return self->Stored.Size < cap;
-}
-
-bool SUnit::CanStoreUnit(int unit)
-{
-    return CanStore(this, unit);                                  // 0x5b7040
+    for (int i = 0; i < Stored.Size; ++i)
+        if (WorldUnit(Stored.Array[i].Unit)->Proto->HeroPicture >= 0)
+            return Stored.Size < cap;                             // the hero seat is taken
+    return Stored.Size < cap + 1;
 }
 
 // PANZERS 0x5c30d0
@@ -1040,7 +1071,7 @@ bool SUnit::CanStoreUnit(int unit)
 bool SUnit::StoreUnit(int unit, int mode)
 {
     SUnit* u = WorldUnit(unit);
-    if (!CanStore(this, unit))
+    if (!CanStoreUnit(unit))
         return false;
     if (mode == 0 && u->Proto->HeroPicture >= 0)
         mode = 2;
@@ -1187,21 +1218,6 @@ bool SUnit::StoreUnit(int unit, int mode)
     return true;
 }
 
-// PANZERS 0x5c2df0
-// Releases the unit this one tows (+0x2d8); not reached on the menu.
-void SUnit::Remove(bool p1)
-{
-    (void)p1;
-    if (Towed < 0)
-        return;
-    STUB_LOG("SUnit::Remove (0x5c2df0) release the towed unit");
-    if (g_World->Units.IsLive(Towed)) {
-        SUnit* t = WorldUnit(Towed);
-        t->Parent = -1;
-        t->_7c = false;
-    }
-    Towed = -1;
-}
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -1215,7 +1231,7 @@ bool SUnit::HasWoundedMember()
 // PANZERS 0x5b9e60
 int SUnit::GetRank()
 {
-    float xp = (float)XP;
+    float xp = XP;                                            // movss +0x64
     const SUnitRegistry* r = g_UnitRegistry;
     if (xp < (float)r->XpLevel[0])
         return 0;
@@ -1353,6 +1369,513 @@ void SUnit::M1RefreshModel()
         return;
     if (Proto->_138 == 2)
         Model->AdvanceAnimation(0.05f);
+}
+
+// ---------------------------------------------------------------------------
+// M3-C2: unloading, behaviour, selection speech (slots typed by C2)
+
+// PANZERS 0x5bce20
+void SUnit::SpeakSelected()
+{
+    g_World->UnitSpeech(WorldIndex, 0, false);                    // 0x5fff20 "Selection"
+}
+
+// PANZERS 0x5b8920
+void SUnit::SetFireBehavior(int behavior)
+{
+    if (behavior == 2)
+        StopGunners();                                            // +0xec
+    if (Behavior != behavior) {                                   // +0x250
+        Behavior = behavior;
+        RefreshTargeting();                                       // +0x34
+    }
+}
+
+// PANZERS 0x5c6000
+// Every stored unit gets out (+0x64), the last first; a unit without a
+// driver drops its primary target.
+void SUnit::UnloadAll()
+{
+    int i = Stored.Size;
+    if (i == 0)
+        return;
+    while (--i > -1) {
+        if (i >= Stored.Size)
+            Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "SUnitStored", i);
+        UnloadUnit(Stored.Array[i].Unit);                         // +0x64
+    }
+    if (ActiveDriver < 0)
+        ReleaseTarget(&PrimaryTarget);                            // +0x1f8
+}
+
+// PANZERS 0x5b93f0
+// Unload the stored unit at index (-1: all). A moving vehicle first brakes
+// towards a "stop to unload" target (kind 0xb) at its position; the driver
+// unloads when it stops (+0x48 / OnDriverReachedTarget).
+void SUnit::Unload(int index)
+{
+    if (Stored.Size == 0)
+        return;
+    int unit = index;
+    if (index != -1) {
+        if (index < -1 || index >= Stored.Size)
+            return;
+        unit = Stored.Array[index].Unit;                          // 0x546450
+    }
+    if (ActiveDriver < 0) {
+        UnloadUnit(unit);                                         // +0x64
+        if (ActiveDriver < 0)
+            ReleaseTarget(&PrimaryTarget);
+        return;
+    }
+    ReleaseTarget(&CurrentTarget);
+    PzDriverReset(GetDriver(ActiveDriver), true);                 // 0x55bf50(1)
+    if (DriverField<int>(GetDriver(ActiveDriver), 0xd4) == 1 || Speed <= 0.0f) {
+        UnloadUnit(unit);
+        if (ActiveDriver < 0)
+            ReleaseTarget(&PrimaryTarget);
+        return;
+    }
+    STarget* t = PzTargetNew(0xb);                                // new 0x38, 0x5b27c0(0xb)
+    tgt::I(t, tgt::kP28) = unit;
+    tgt::I(t, tgt::kType) = 2;
+    tgt::F(t, tgt::kPos) = Pos[0];
+    tgt::F(t, tgt::kPos + 4) = Pos[1];
+    tgt::F(t, tgt::kPos + 8) = Pos[2];
+    if (_cc)
+        tgt::B(t, tgt::kFlag2C) = 1;
+    SetTarget(&CurrentTarget, t);
+    GetDriver(ActiveDriver)->SetTargetStopped(CurrentTarget);    // driver +0x0c
+}
+
+
+// ---------------------------------------------------------------------------
+// M3-C2: the attack orders
+
+static int PlayerKind(int player)                                 // World+0x178 + player * 0x48
+{
+    return *(int*)(g_World->Players[player] + 0x08);
+}
+
+// PANZERS 0x5b8440
+// Attack a unit: a primary target of kind 2 (type 0, the unit, +0x20 = 1),
+// then +0xa0. Not for "type 2" players, untargetable units or oneself.
+void SUnit::EC_Attack(int unit, int queue)
+{
+    PZ_M3_TRACE("SUnit::EC_Attack (0x5b8440)");
+    if (PlayerKind(Player) == 2 || !IsTargetable(unit, true) || unit == WorldIndex)   // 0x5bb6b0
+        return;
+    int cls = WorldUnit(unit)->Proto->ClassType;
+    if (cls == 3) {
+        Logger.g->Log(1, "SUnit::EC_Attack: Attacking projectile");   // HD 0x65c810(1)
+        return;
+    }
+    if (cls == 6 || WorldUnit(unit)->Proto->ClassType == 4)
+        Logger.g->Panic("SUnit::EC_Attack: Trying to attack a squad member unit instead of a squad.");
+    STarget* t = PzTargetNew(2);                                  // new 0x38, 0x5b27c0(2)
+    tgt::I(t, tgt::kType) = 0;
+    tgt::I(t, tgt::kUnit) = unit;
+    tgt::I(t, tgt::kP20) = 1;
+    SetTarget(&PrimaryTarget, t);                                 // +0x1f8
+    SetCurrentTarget(PrimaryTarget, queue);                       // +0xa0
+}
+
+// PANZERS 0x5b8660
+// Move to (x, z) attacking on the way: primary target of kind 4 at the
+// ground position, +0xa0, then +0x190 AI_Heartbeat.
+void SUnit::EC_AttackMove(float x, float z, int queue)
+{
+    PZ_M3_TRACE("SUnit::EC_AttackMove (0x5b8660)");
+    if (PlayerKind(Player) == 2 || ActiveDriver < 0)
+        return;
+    if (0.0f > x || 0.0f > z)
+        Logger.g->Panic("SUnit::EC_AttackMove: Negative pos");
+    STarget* t = PzTargetNew(4);                                  // new 0x38, 0x5b27c0(4)
+    float xz[2] = { x, z };
+    t->SetGroundPos(xz);                                          // 0x5c1860
+    SetTarget(&PrimaryTarget, t);
+    SetCurrentTarget(PrimaryTarget, queue);                       // +0xa0
+    AI_Heartbeat();                                               // +0x190
+}
+
+// PANZERS 0x5b8740
+// Attack-move along a map path from a node: kind 4, type 2, path / point,
+// STarget::ConsumePath, +0xa0, +0x190.
+void SUnit::EC_AttackAlongPath(int path, int node, int queue)
+{
+    PZ_M3_TRACE("SUnit::EC_AttackAlongPath (0x5b8740)");
+    if (PlayerKind(Player) == 2 || ActiveDriver < 0)
+        return;
+    STarget* t = PzTargetNew(4);
+    tgt::I(t, tgt::kPath) = path;
+    tgt::I(t, tgt::kType) = 2;
+    tgt::I(t, tgt::kPathPt) = node;
+    t->ConsumePath();                                             // 0x5b7c50
+    SetTarget(&PrimaryTarget, t);
+    SetCurrentTarget(PrimaryTarget, queue);
+    AI_Heartbeat();
+}
+
+// ---------------------------------------------------------------------------
+// M3-C2: the death effects of the prototype (visual only)
+
+// One prototype effect list: an effect per entry, hung on its mesh node,
+// or (no such node) played at the unit position raised by yOffset.
+static void PlayUnitEffects(SUnit* u, const SUnitArray<SPUnitEffect>& fx, float yOffset)
+{
+    for (int i = 0; i < fx.Size; ++i) {
+        const char* mesh = fx.Array[i].MeshName.buf ? fx.Array[i].MeshName.buf : "";
+        int node = u->Model->FindNode(mesh);                      // model +0x40
+        if (node < 0) {
+            float pos[3] = { u->Pos[0], u->Pos[1] + yOffset, u->Pos[2] };
+            float dir[3] = { 0.0f, 1.0f, 0.0f };
+            g_Pixie->PlayEffect(g_Scene, fx.Array[i].Proto, pos, dir, 0);       // pixie +0x24
+        } else {
+            g_Pixie->PlayEffectOnNode(g_Scene, fx.Array[i].Proto, u->Model, node, 0);   // pixie +0x28
+        }
+    }
+}
+
+// PANZERS 0x5c2910
+// The prototype's +0x120 effects (after a death by fire, from 0x5c26e0).
+void SUnit::PlayDestroyEffects()
+{
+    PlayUnitEffects(this, Proto->DestroyEffects, 0.0f);
+}
+
+// PANZERS 0x5c2590
+// The prototype's +0x114 effects, 0.75 above the unit when not on a node.
+void SUnit::PlayDiedByFireEffects()
+{
+    PlayUnitEffects(this, Proto->DiedByFireEffects, 0.75f);       // 0x7f2fcc
+}
+
+// PANZERS 0x5c26e0
+// Death: the +0x120 effects when burnt (+0x152), then the +0x108 die
+// effects (1.25 above the unit without a node); an entry whose mesh is
+// "refer to first mesh" is created at the model position and handed to
+// the model (pixie +0x58), then released.
+void SUnit::PlayDeathEffects()
+{
+    if (_151[1])                                                  // +0x152 died by fire
+        PlayDestroyEffects();
+    const SUnitArray<SPUnitEffect>& fx = Proto->DieEffects;       // +0x108
+    for (int i = 0; i < Proto->DieEffects.Size; ++i) {
+        const char* mesh = fx.Array[i].MeshName.buf ? fx.Array[i].MeshName.buf : "";
+        int node = Model->FindNode(mesh);
+        if (fx.Array[i].MeshName.size != 0 && _stricmp(fx.Array[i].MeshName.buf, "refer to first mesh") == 0) {
+            float pos[3] = { 0.0f, 0.0f, 0.0f };
+            Model->GetPosition(pos);                              // model +0x10
+            float dir[3] = { 0.0f, 1.0f, 0.0f };
+            int h = g_Pixie->CreateEffect(g_Scene, fx.Array[i].Proto, pos, dir);   // pixie +0x2c
+            STUB_LOG("SUnit::PlayDeathEffects (0x5c26e0) pixie +0x58(effect, model) (slot untyped, E)");
+            g_Pixie->ReleaseEffect(h);                            // pixie +0x38
+        } else if (node < 0) {
+            float pos[3] = { Pos[0], Pos[1] + 1.25f, Pos[2] };    // 0x7fd6f4
+            float dir[3] = { 0.0f, 1.0f, 0.0f };
+            g_Pixie->PlayEffect(g_Scene, fx.Array[i].Proto, pos, dir, 0);
+        } else {
+            g_Pixie->PlayEffectOnNode(g_Scene, fx.Array[i].Proto, Model, node, 0);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// M3-C2: small SUnit helpers
+
+// PANZERS 0x5bcdf0
+// Order speech: "Movement" (3) with a driver, else "CantMove" (4).
+void SUnit::SpeakMoveOrder()
+{
+    g_World->UnitSpeech(WorldIndex, ActiveDriver > -1 ? 3 : 4, false);   // 0x5fff20
+}
+
+// PANZERS 0x5c50c0
+// The selection (+0x104 bit 0) and the +0x108 bits go over to `to`.
+void SUnit::HandSelectionTo(SUnit* to)
+{
+    if (_104 & 1) {
+        to->_104 |= 1;
+        _104 &= ~1u;
+    }
+    to->_108 |= _108;
+    _108 = 0;
+}
+
+// PANZERS 0x5b6e10
+bool SUnit::IsRecent26c(int player)
+{
+    return g_GameLogic && g_GameLogic->Frame - 0x28 < _26c[player];   // +0x26c, 40 ticks
+}
+
+// PANZERS 0x5b6e40
+// Seen by the player within the last 40 ticks (+0x29c, ServerRefresh).
+bool SUnit::WasSeenRecently(int player)
+{
+    return g_GameLogic && g_GameLogic->Frame - 0x28 < LastSeenFrame[player];
+}
+
+// PANZERS 0x5be2b0
+// The wreck: the prototype's wreck model (+0x58) replaces the model in the
+// scene (scene +0x60), colour override off, flags 0, invisible units' model
+// +0xbc(3), and the animation re-binds to it (+0x04).
+void SUnit::SetWreckModel()
+{
+    if (Proto->WreckProto < 0)
+        return;
+    Model->SetColor2(false, 0);                                   // model +0xf0(0, 0)
+    g_Scene->ReplaceModel(Model, Proto->WreckProto);              // scene +0x60
+    Model->SetFlags(0);                                           // model +0x94
+    if (Proto->Invisible)                                         // +0x89
+        STUB_LOG("SUnit::SetWreckModel (0x5be2b0) model +0xbc(3) (slot untyped, E)");
+    if (Anim)
+        Anim->InitModel(Model);                                   // +0x04
+}
+
+// PANZERS 0x5c51d0
+// A stored unit gets out (-1: all, +0x68). It is placed at a free spot
+// next to the carrier on the unload side (prototype +0x2c: 0..3 quarter
+// turns, 2 = random from the world LCG), facing away. A squad takes its
+// member rows back from the carrier's seats (+0x178; a later crew moves
+// into a freed seat) and its members are scattered round the spot (two
+// world LCG draws each). Then the unit is free (+0x78 -1, +0x9c(1), AI
+// group, return point, the AI primary target), the "leaves" trigger event
+// (0x571570) fires and the stored row goes. An emptied carrier without a
+// built-in driver goes neutral (+0x110) and leaves its AI group; a towed
+// emptied gun (+0x2e4) becomes a wreck.
+bool SUnit::UnloadUnit(int unit)
+{
+    PZ_M3_TRACE("SUnit::UnloadUnit (0x5c51d0)");
+    if (Stored.Size == 0)
+        return false;
+    if (unit == -1) {
+        UnloadAll();                                              // +0x68
+        return true;
+    }
+    int si = 0;
+    for (; si < Stored.Size; ++si)
+        if (Stored.Array[si].Unit == unit)
+            break;
+    if (si >= Stored.Size)
+        return false;
+    SUnit* u = WorldUnit(unit);
+    float angle;
+    if (Proto->UnloadDirection == 2) {
+        int r = WorldRand();                                      // inline LCG
+        angle = (float)((double)r * 3.0517578125e-05 * kHdTwoPi); // 0x7f4540, 0x7f4570
+    } else {
+        double a = (double)Dir - (double)Proto->UnloadDirection * 1.5707963705062866;   // 0x7f5a38
+        if (a > kHdPi)
+            a = a - kHdTwoPi;
+        else if (kHdMinusPi > a)
+            a = a + kHdTwoPi;
+        angle = (float)a;
+    }
+    float s = (float)(-DSin((double)angle));                      // 0x78d640, negated
+    float c = (float)(-DCos((double)angle));                      // 0x78d480
+    float l2 = s * s + c * c;
+    double inv = 1.0 / sqrt((double)l2);
+    int size = u->UnitSizeBlocks < 4 ? 4 : u->UnitSizeBlocks;     // +0x58
+    unsigned mask = (unsigned)u->MoveFlags | 0x80;
+    float half = UnitSize * 0.5f;
+    float x = Pos[0] + (float)((double)s * inv) * half;
+    float z = Pos[2] + (float)((double)c * inv) * half;
+    float out[2];
+    g_World->FindEmptySpace(out, x, z, angle, size, mask, true);  // 0x5e58d0
+    float ox = out[0] - Pos[0], oz = out[1] - Pos[2];
+    if (ox * ox + oz * oz > 100.0f) {                             // 0x7ee558
+        out[0] = Pos[0];
+        out[1] = Pos[2];
+    }
+
+    if (u->Proto->ClassType != 5) {
+        u->Model->Slot_E0();                                      // model +0xe0
+        float d = HdAtan2f((double)(out[0] - Pos[0]), (double)(out[1] - Pos[2]));
+        u->Place(out[0], out[1], d);                              // +0x50
+    } else {
+        // The squad's member rows in the carrier's seats.
+        int k = 0;
+        while (k < Members.Size) {
+            if (Members.Array[k].Owner != u->WorldIndex) {
+                ++k;
+                continue;
+            }
+            int ni = u->Members.Size;                             // 0x5467c0 SDArray::Add
+            ArrayAdd(&u->Members);
+            u->Members.Array[ni].Unit = Members.Array[k].Unit;
+            u->Members.Array[ni].Owner = Members.Array[k].Owner;
+            SUnit* m = WorldUnit(Members.Array[k].Unit);
+            m->Parent = u->WorldIndex;
+            if (Members.Array[k].Attached)
+                m->Model->Slot_E0();
+            int removeRow = k;
+            if (si < Stored.Size - 1) {
+                for (int j = Members.Size - 1; j > k; --j) {
+                    if (Members.Array[j].Owner == Members.Array[k].Owner)
+                        continue;
+                    // A crew member of a later stored unit takes the freed seat.
+                    SUnit* mj = WorldUnit(Members.Array[j].Unit);
+                    if (Members.Array[j].Attached)
+                        mj->Model->Slot_E0();
+                    SUnit* mk = WorldUnit(Members.Array[k].Unit);
+                    *reinterpret_cast<SString*>(&mj->_25c) = *reinterpret_cast<SString*>(&mk->_25c);   // +0x25c
+                    mj->SetGlobalState(AnimStateIndex(mj->Anim, "vehicle"), 0);   // 0x5c7ed0, 0x5b7390
+                    Members.Array[k].Unit = Members.Array[j].Unit;
+                    Members.Array[k].Owner = Members.Array[j].Owner;
+                    if (Members.Array[k].Attached)
+                        mj->Model->AttachTo(Model, Members.Array[k].Node);   // model +0xdc
+                    ++k;
+                    removeRow = j;
+                    break;
+                }
+            }
+            RemoveStoredMember(removeRow);                        // 0x5be140
+        }
+        u->SetGlobalState(0, 0);
+        float d = HdAtan2f((double)(out[0] - Pos[0]), (double)(out[1] - Pos[2]));
+        u->Place(out[0], out[1], d);
+        for (int i = 0; i < u->Members.Size; ++i) {
+            SUnit* m = WorldUnit(u->Members.Array[i].Unit);
+            int rz = WorldRand();
+            int rx = WorldRand();
+            float mx = (float)((double)rx * 3.0517578125e-05 + (double)(Pos[0] - 0.5f));
+            float mz = (float)((double)rz * 3.0517578125e-05 + (double)(Pos[2] - 0.5f));
+            float md = HdAtan2f((double)(out[0] - mx), (double)(out[1] - mz));
+            m->Model->SetVisible(false, false);                   // model +0x30(0, 0)
+            m->Place(mx, mz, md);
+            m->SetGlobalState(1, 0);
+            m->SetGlobalState(0, 1);
+        }
+    }
+
+    u->Parent = -1;
+    SUnit::EnvSlot9C(u, 1);                                       // +0x9c(1)
+    u->IsStored = false;
+    u->StoreMode = 0;
+    u->SetAIGroup(AIGroup);                                       // 0x5c0c10
+    if (HasReturnPos) {
+        u->HasReturnPos = true;
+        HasReturnPos = false;
+        u->ReturnX = ReturnX;
+        u->ReturnZ = ReturnZ;
+    }
+    _190 = false;
+    u->_18c = -1;
+    if (PrimaryTarget && (PrimaryTarget->Kind == 4 || PrimaryTarget->Kind == 0) &&
+        *(int*)(g_World->Players[Player] + 0x08) == 1)
+        SetTarget(&u->PrimaryTarget, PrimaryTarget);
+    if (g_GameLogic) {
+        u->_264 = g_GameLogic->GetFrame();
+        g_GameLogic->DispatchLeaves(WorldIndex, u->WorldIndex);   // 0x571570
+    }
+    for (int i = 0; i < Stored.Size; ++i) {
+        if (Stored.Array[i].Unit != unit)
+            continue;
+        Stored.Size--;
+        if (Stored.Size - i != 0)
+            memmove(&Stored.Array[i], &Stored.Array[i + 1], (Stored.Size - i) * sizeof(SUnitStored));
+        memset(&Stored.Array[Stored.Size], 0, sizeof(SUnitStored));
+        break;
+    }
+    if (u->Proto->HeroPicture >= 0)
+        HandSelectionTo(u);                                       // 0x5c50c0 inline
+    if (Stored.Size == 0) {
+        if (!Proto->BuiltInDriver) {
+            _110 = true;
+            if (AIGroup != -1) {
+                if (AIGroup > -1) {
+                    AIGroupAt(AIGroup)->RemoveUnit(WorldIndex);   // 0x5f7990
+                    if (AIGroupAt(AIGroup)->Units.Size == 0)
+                        AIGroupsRemove(g_World, AIGroup);         // 0x5be040
+                }
+                AIGroup = -1;
+            }
+            HandSelectionTo(u);
+            _10c = 0;
+        }
+        if (_2e4 > -1) {
+            Wrecked = true;
+            g_GameLogic->RemoveUnitFromMovementGroup(WorldIndex); // 0x579510
+        }
+    }
+    if (Proto->ClassType == 5 && Members.Size == 0)
+        Logger.g->Log(1, "asdfa");                                // HD 0x65cac0 (warning)
+    return true;
+}
+
+void UnitGhostClearAll(SIUnit* unit);                            // 0x5ba5a0 (driverunit.cpp)
+
+// PANZERS 0x5b87f0
+// Get in / on a unit: a primary target of kind 9 (type 0) on it, +0xa0.
+// Needs a driver; not for projectiles, untargetable units or oneself.
+void SUnit::EC_Enter(int unit, int queue)
+{
+    PZ_M3_TRACE("SUnit::EC_Enter (0x5b87f0)");
+    if (!IsTargetable(unit, true) || unit == WorldIndex)          // 0x5bb6b0
+        return;
+    if (WorldUnit(unit)->Proto->ClassType == 3 || ActiveDriver < 0)
+        return;
+    STarget* t = PzTargetNew(9);                                  // new 0x38, 0x5b27c0(9)
+    tgt::I(t, tgt::kType) = 0;
+    tgt::I(t, tgt::kUnit) = unit;
+    SetTarget(&PrimaryTarget, t);
+    SetCurrentTarget(PrimaryTarget, queue);                       // +0xa0
+}
+
+// PANZERS 0x5c6090
+// Unloads the first stored unit of that store mode that gets out (+0x64);
+// returns its index, -1 if none.
+int SUnit::UnloadByMode(int mode)
+{
+    if (Stored.Size == 0)
+        return -1;
+    for (int i = 0; i < Stored.Size; ++i) {
+        if (Stored.Array[i].Mode != mode)
+            continue;
+        int u = Stored.Array[i].Unit;
+        if (UnloadUnit(u))                                        // +0x64
+            return u;
+    }
+    return -1;
+}
+
+// PANZERS 0x5c2df0
+// Releases the unit this one tows (+0x2d8): its crew (store mode 1) gets
+// out, the towed gun goes back to "normal", down on a free spot (not for
+// class 10), and its crew mans it again (+0x140 get in, or straight into it
+// without a game logic / with p1); then trigger event 8 "stops towing".
+void SUnit::Remove(bool p1)
+{
+    if (Towed < 0)
+        return;
+    int crew = UnloadByMode(1);                                   // 0x5c6090
+    if (g_World->Units.IsLive(Towed)) {
+        SUnit* t = WorldUnit(Towed);
+        t->Parent = -1;
+        t->_7c = false;
+        UnitGhostClearAll(t);                                     // 0x5ba5a0
+        t->SetBehavior(AnimStateIndex(t->Anim, "normal"));        // +0x12c, 0x5c7ed0
+        t->SetOnBlockMap(false);                                  // +0x198
+        if (t->Proto->ClassType != 10) {
+            float out[2];
+            g_World->FindEmptySpace(out, t->Pos[0], t->Pos[2], Dir, t->UnitSizeBlocks,
+                                    (unsigned)t->MoveFlags | 0x80, true);   // 0x5e58d0
+            t->Pos[0] = out[0];
+            t->Pos[2] = out[1];
+        }
+        t->SetOnBlockMap(true);
+        if (!g_GameLogic)
+            p1 = true;
+        if (crew > -1) {
+            if (!p1)
+                WorldUnit(crew)->EC_Enter(t->WorldIndex, 1);      // +0x140
+            else
+                WorldUnit(t->WorldIndex)->StoreUnit(crew, 0);     // +0x5c
+        }
+        if (g_GameLogic)
+            g_GameLogic->DispatchStopsTowing(WorldIndex, Towed);  // 0x571750
+    }
+    Towed = -1;
 }
 
 } // namespace pz

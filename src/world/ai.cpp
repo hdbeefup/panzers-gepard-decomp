@@ -15,12 +15,6 @@
 
 namespace pz {
 
-void SWorld::RefreshAI()
-{
-    STUB_LOG("SWorld::RefreshAI (0x5f5c70)");
-    PZ_M3_TRACE("SWorld::RefreshAI (0x5f5c70)");
-}
-
 // PANZERS 0x5f5b50
 // Mission start: every ambient sound (+0x658 heap, 0x28 each, 0x5edeb0:
 // Concert +0x38 3D loop at the position, +0x40 / +0x4c) and every water

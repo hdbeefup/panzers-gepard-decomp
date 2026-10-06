@@ -61,6 +61,24 @@ struct SPanzersSquadUnit : SUnit {
     void ServerRefreshMedic(float dt) override;                  // 0x59ede0
     void SetUnitSize() override;                                 // 0x5a0f30
     void GetCenterPosition(float* out) override;                 // 0x59b4a0
+    // --- M3-C5 (squads in combat)
+    void GetClassDescriptor(void** obj, const SUnitClassDesc** desc) override;   // 0x59bfd0
+    void InitNew(int player, const float* pos, float dir, int p4, float hp) override;   // 0x59ca40
+    void OnDriverReachedTarget() override;                       // 0x59d720
+    void EC_Attack(int unit, int p2) override;                   // 0x599d60
+    void EC_AttackMove(float x, float z, int p3) override;   // 0x59a3f0
+    void EC_ThrowGrenade(int unit, int p2) override;             // 0x599f80
+    void EC_ThrowMolotov(int unit, int p2) override;             // 0x59a280
+    void Slot_148(int player) override;                          // 0x59af90 (M3-C) a squad at rest: members back to their stand pose
+    void OnMemberDied(int unit) override;                        // +0x1b4 0x59d4e0 (RemoveMember)
+    float GetLowestMaxRange() override;                          // 0x59b650
+    void OnAttackedBy(int attacker) override;                    // 0x59ef00
+    int  GetARandomMemberIdx();                                  // 0x59b3d0 (one world RNG draw; the member's world index)
+    // SIUnit +0x8c / +0x1b4 overrides; those slots are untyped (C3 owns them),
+    // so these are the bodies to wire when they are typed.
+    void AddXP(int victim, float xp, int p3) override;           // +0x8c 0x59c2a0 (name guessed)
+    void RemoveMember(int unit);                                 // +0x1b4 0x59d4e0 (name guessed) a member left (died)
+    // --- end M3-C5
     // The one slot SPanzersSquadUnit adds (SIPanzersSquadUnit +0x1cc): declared
     // here so it lands after the 115 SUnit slots in the same vtable. The name
     // is a guess of the interface; the body (0x59dda0) is the medic scan:
@@ -117,6 +135,7 @@ struct SPanzersSquadMemberUnit : SUnit {
     void EC_Move(int xBits, int zBits, int p3, bool p4, int p5) override;   // 0x598570
     void StopGunners() override;                                 // 0x5986e0
     void SetBehavior(int behavior) override;                     // 0x5980b0
+    void EC_Die() override;                                      // 0x598280 (M3-C) the squad drops the member first (+0x1b4)
     void AI_Heartbeat() override;                                // 0x5979d0
     void SetOnBlockMap(bool on) override;                        // 0x5989b0 (members stay off the block map)
     void Slot_19C() override;                                    // 0x5979f0 (returns false)
@@ -126,9 +145,17 @@ struct SPanzersSquadMemberUnit : SUnit {
 
     // The member overrides of SIUnit +0xe4 (0x597fa0) and +0xe8 (0x597e80),
     // called by the squad's SetCurrentTarget 0x59f580. Not virtual here:
-    // those slots are still Slot_E4 / Slot_E8 in iunit.h.
-    void EC_AttackPos(int xBits, int zBits, int p3);             // 0x597fa0
-    void EC_Attack(int unit, int p2);                            // 0x597e80
+    // +0xe4 is typed (EC_AttackPos); +0xe8 is EC_Attack.
+    void EC_AttackPos(int xBits, int zBits, int p3) override;    // 0x597fa0
+    void EC_Attack(int unit, int p2) override;                   // 0x597e80
+    // --- M3-C5 (squads in combat)
+    void GetClassDescriptor(void** obj, const SUnitClassDesc** desc) override;   // 0x5988f0
+    float GetHitPoints() override;                               // 0x5987c0 (SquadHpLevel by rank)
+    int GetRank() override;                                      // 0x598770 the squad's rank (+0x78 parent +0x88)
+    void RefreshDead() override;                                     // 0x598a20 the dead member's countdown, then RemoveUnit
+    void EC_ChangeActiveDriver(int driver) override;             // 0x598070
+    void ParachuteDrop(float y);                                 // 0x598cb0 (name guessed) four world RNG draws
+    // --- end M3-C5
 
     SPPanzersSquadMemberUnit* P;     // +0x340
     int      Board344;               // +0x344 board element (health bar)
@@ -145,6 +172,10 @@ PZ_HD_SIZE(SPanzersSquadMemberUnit, kHdSizeSPanzersSquadMemberUnit);
 //   SquadMemberRelativePos = SquadEnv_MemberRelativePos    0x59bff0
 //   SquadMembersStep       = SquadEnv_MembersStep          0x5a0450
 //   SquadMembersStep2      = SquadEnv_MembersStep2         0x5a0060
+// SWasterUnit 0x5870f0 (agent C3): +0x35c = the owner squad, +0x360 = its
+// rank (waster.cpp).
+void WasterSetOwner(SUnit* waster, int squad);
+
 float SquadEnv_MoveSpeed(SIUnit* squad);
 void  SquadEnv_MemberRelativePos(SIUnit* squad, float* out, int member);
 void  SquadEnv_MembersStep(SIUnit* squad, float dir);

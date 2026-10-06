@@ -17,6 +17,8 @@ struct SSingleUnit : SUnit {
     void Place(float x, float z, float dir) override;            // 0x5b0950
     void SetOnBlockMap(bool on) override;                        // 0x5ae950
     void RefreshMisc() override;                                 // 0x5af890
+    void OnMemberDied(int unit) override;                        // +0x1b4 0x5ae970 a crew member died
+    void AddXP(int victim, float xp, int p3) override;           // +0x8c 0x5ad070 to the stored units
     void Uninit() override;                                      // 0x5abde0 (unitai.cpp)
     void RefreshTargeting() override;                            // 0x5aef40 (unitai.cpp)
     void UpdateVisuals(SIViewport* vp) override;                 // 0x5aaaa0 (unitai.cpp)
@@ -24,6 +26,12 @@ struct SSingleUnit : SUnit {
     float GetMaxRange(int weapon) override;                      // 0x5acbd0 (unitai.cpp)
     float GetMinRange(int weapon) override;                      // 0x5acd30 (unitai.cpp)
     int GetRank() override;                                      // 0x5acb30 (unitai.cpp)
+    // --- M3 C2 (combat / death overrides, singleunit.cpp)
+    float GetLowestMaxRange() override;                          // 0x5aca80
+    void OnAttackedBy(int attacker) override;                    // 0x5b0420
+    void OnDriverReachedTarget() override;                       // 0x5aed30
+    void RefreshDead() override;                                 // 0x5af2c0
+    // --- end M3 C2
 
     void InitCrewAndChildren(int player, float dir, bool fromDef, float cargo);   // the shared part of 0x5ad150 / 0x5ad9f0
     void PlaceAttachedUnit(SUnit* unit, int node);               // 0x5b02e0

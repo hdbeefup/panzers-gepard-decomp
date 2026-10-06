@@ -6,6 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include "punit.h"
+#include "projectile.h"
+#include "flying.h"
+#include "waster.h"
+#include "m3common.h"
 #include "unitprops.h"
 #include "gunner.h"
 #include "idriver.h"
@@ -392,7 +396,7 @@ SIUnit* SPSingleUnit::CreateUnit(int worldIndex)
 // PANZERS 0x5a4a20
 SPProjectileUnit::SPProjectileUnit()
 {
-    memset(_13c, 0, sizeof(_13c));
+    memset((unsigned char*)this + 0x13c, 0, 0x178 - 0x13c);
     ClassType = 3;
 }
 
@@ -404,19 +408,26 @@ void SPProjectileUnit::LoadHeader(SUPropStruct* unit)
         Logger.g->Panic("SPProjectileUnit::Init - bad ClassType");
 }
 
+// PANZERS 0x5a7e70
+// The incidence effects of the projectile (Unit.Common.ClassType sub-struct),
+// then the SPUnit resources.
 void SPProjectileUnit::LoadResources(SUPropStruct* unit)
 {
-    STUB_LOG("SPProjectileUnit::LoadResources (0x5a7e70) incidence effects");
-    PZ_M2_TRACE("SPProjectileUnit::LoadResources (0x5a7e70)");
-    SPUnit::LoadResources(unit);
+    PZ_M3_TRACE("SPProjectileUnit::LoadResources (0x5a7e70)");
+    SUPropStruct* ct = unit->GetStruct("Common")->GetMultiSubStruct("ClassType");
+    LoadEffectArray(ct, "Ground_Incidence_Effects", &GroundIncidence);
+    LoadEffectArray(ct, "Water_Incidence_Effects", &WaterIncidence);
+    LoadEffectArray(ct, "Unit_Incidence_Effects", &UnitIncidence);
+    LoadEffectArray(ct, "Building_Wood_Incidence_Effects", &WoodIncidence);
+    LoadEffectArray(ct, "Building_Stone_Incidence_Effects", &StoneIncidence);
+    SPUnit::LoadResources(unit);                              // 0x5a8780
 }
 
+// PANZERS 0x5a5c70
 SIUnit* SPProjectileUnit::CreateUnit(int worldIndex)
 {
-    STUB_LOG("SPProjectileUnit::CreateUnit (0x5a5c70) SProjectileUnit");
-    PZ_M2_TRACE("SPProjectileUnit::CreateUnit (0x5a5c70)");
-    (void)worldIndex;
-    return nullptr;
+    PZ_M3_TRACE("SPProjectileUnit::CreateUnit (0x5a5c70)");
+    return new SProjectileUnit(this, worldIndex);             // new 0x36c, 0x5a3810
 }
 
 // ---------------------------------------------------------------------------
@@ -530,12 +541,11 @@ void SPWasterUnit::LoadHeader(SUPropStruct* unit)
     RemoteControl = ct->GetBool("RemoteControl");
 }
 
+// PANZERS 0x5a5df0
 SIUnit* SPWasterUnit::CreateUnit(int worldIndex)
 {
-    STUB_LOG("SPWasterUnit::CreateUnit (0x5a5df0) SWasterUnit");
-    PZ_M2_TRACE("SPWasterUnit::CreateUnit (0x5a5df0)");
-    (void)worldIndex;
-    return nullptr;
+    PZ_M3_TRACE("SPWasterUnit::CreateUnit (0x5a5df0)");
+    return new SWasterUnit(this, worldIndex);                 // new 0x364, 0x5d1cd0
 }
 
 // PANZERS 0x5a4980
@@ -555,12 +565,11 @@ void SPFlyingUnit::LoadHeader(SUPropStruct* unit)
     PlaneType = common->GetMultiSubStruct("ClassType")->GetEnum("PlaneType");
 }
 
+// PANZERS 0x5a5af0
 SIUnit* SPFlyingUnit::CreateUnit(int worldIndex)
 {
-    STUB_LOG("SPFlyingUnit::CreateUnit (0x5a5af0) SFlyingUnit");
-    PZ_M2_TRACE("SPFlyingUnit::CreateUnit (0x5a5af0)");
-    (void)worldIndex;
-    return nullptr;
+    PZ_M3_TRACE("SPFlyingUnit::CreateUnit (0x5a5af0)");
+    return new SFlyingUnit(this, worldIndex);                 // new 0x388, 0x55c9d0
 }
 
 // PANZERS 0x5a4b30

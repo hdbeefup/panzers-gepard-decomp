@@ -53,6 +53,21 @@ struct SUnitGhostQueue {
     int   Bottom;        // +0x14
 };
 
+// --- M3-C5: the class record SIUnit +0x1c hands out (HD .data, 0x20 bytes:
+// name, 6, size?, parent record, 0, 0, property table, property count). The
+// recompile keeps the name, the parent and the HD address; the property
+// tables (0x7f9d8c, ...) belong to the save code (agent F).
+struct SUnitClassDesc {
+    const char*           Name;      // +0x00 "SUnit", "Special"
+    const SUnitClassDesc* Parent;    // +0x0c
+    unsigned              HdAddr;    // the HD record
+};
+extern const SUnitClassDesc kUnitClassDesc_8dc540;   // "Special" (SUnit 0x5ba220)
+extern const SUnitClassDesc kUnitClassDesc_8dc0b0;   // "SUnit" (SPanzersSquadUnit 0x59bfd0)
+extern const SUnitClassDesc kUnitClassDesc_8dbff0;   // "SUnit" (SPanzersSquadMemberUnit 0x5988f0)
+extern const SUnitClassDesc kUnitClassDesc_8da7f8;   // "SUnit" (SBuildingUnit 0x548b20)
+// --- end M3-C5
+
 // HD SUnit base (vftable 0x7fcc24).
 struct SUnit : SIUnit {
     SUnit(SPUnit* proto, int worldIndex);                        // 0x5b2820
@@ -63,38 +78,38 @@ struct SUnit : SIUnit {
     void Slot_10() override;
     void Slot_14() override;
     void Slot_18() override;
-    void Slot_1C() override;
+    void GetClassDescriptor(void** obj, const SUnitClassDesc** desc) override;// 0x5ba220
     void Hook20(int p1) override;                                // 0x54cd40
     void SetPosition(float x, float z, int dirBits, int yrelBits) override;  // 0x5c1980
-    void Slot_28() override;
+    void SetWreckModel() override;                               // 0x5be2b0
     void ServerRefresh(int frame) override;                      // 0x5bee90
-    void Slot_30() override;
+    void RefreshDead() override;                                 // 0x5bd900 (empty)
     void RefreshTargeting() override;                            // 0x5bd600
     void RefreshMisc() override;                                 // 0x5bdee0
     void RefreshModel() override;                                // 0x5c6130
     void UpdateVisuals(SIViewport* vp) override;                 // 0x5b76c0
-    void Slot_44() override;
+    void SpeakSelected() override;                               // 0x5bce20
     void OnDriverReachedTarget() override;
     void Unplace() override;                                     // 0x5ba850
     void Place(float x, float z, float dir) override;            // 0x5c5160
-    void Slot_54() override;
-    void Slot_58() override;
+    bool Slot_54() override;                                      // 0x546ab0
+    bool Slot_58(int p1) override;                                // 0x5468d0
     bool StoreUnit(int unit, int mode) override;                 // 0x5c30d0
-    void Slot_60() override;
-    void Slot_64() override;
-    void Slot_68() override;
+    void Slot_60(int p1) override;                                // 0x5468c0
+    bool UnloadUnit(int unit) override;                          // 0x5c51d0
+    void UnloadAll() override;                                   // 0x5c6000
     void Slot_6C() override;
     void Remove(bool p1) override;                               // 0x5c2df0
     void Slot_74() override;
-    void Slot_78() override;
-    void Slot_7C() override;
+    float* GetEntrance(float* out3) override;                    // 0x55ce70
+    float GetEntranceDir() override;                             // 0x55ce60
     bool HasWoundedMember() override;                            // 0x54a240
     void Slot_84() override;
     int GetRank() override;                                      // 0x5b9e60
-    void Slot_8C() override;
-    void Slot_90() override;
-    void TakeDamage(int p1, int p2, int p3, int p4, int p5, int p6, int p7) override;
-    void Slot_98() override;
+    void AddXP(int victim, float xp, int p3) override;           // 0x55cee0 (empty)
+    int ShotsToKill(const float* from, int attacker) override;   // 0x5b6040 (combat.cpp)
+    void TakeDamage(float damage, int weaponType, int attacker, float x, float y, float z, int hitMode) override;   // 0x5c4080
+    void Heal(float amount) override;                            // 0x5c5050
     void Slot_9C() override;
     void SetCurrentTarget(STarget* target, int p2) override;     // 0x5c0d10
     void EC_Default(int p1, int p2) override;
@@ -107,57 +122,57 @@ struct SUnit : SIUnit {
     void Stop() override;                                        // 0x5b91b0
     void ClearTargets() override;                                // 0x5b90b0
     void Slot_C8() override;
-    void EC_AttackMove(int p1, int p2, int p3) override;
-    void Slot_D0() override;
+    void EC_AttackMove(float x, float z, int queue) override;   // 0x5b8660
+    void EC_AttackAlongPath(int path, int node, int queue) override;   // 0x5b8740
     void EC_AssaultBuilding(int p1, int p2) override;
     void Slot_D8() override;
     void Slot_DC() override;
-    void Slot_E0() override;
-    void Slot_E4() override;
-    void EC_Attack(int p1, int p2) override;
+    void Slot_E0(int p1, int p2) override;                        // 0x547b90
+    void EC_AttackPos(int xBits, int zBits, int p3) override;    // 0x5b8570
+    void EC_Attack(int unit, int queue) override;                // 0x5b8440
     void StopGunners() override;                                 // 0x5b9110
-    void Slot_F0() override;
-    void Slot_F4() override;
-    void Slot_F8() override;
-    void Slot_FC() override;
-    void Slot_100() override;
-    void Slot_104() override;
-    void Slot_108() override;
-    void Slot_10C() override;
-    void Slot_110() override;
-    void Slot_114() override;
-    void Slot_118() override;
-    void Slot_11C() override;
-    void Slot_120() override;
+    void EC_ThrowGrenade(int unit, int p2) override;              // 0x5478c0
+    void EC_ThrowMolotov(int unit, int p2) override;              // 0x5478e0
+    void EC_ThrowMagneticMine(int unit, int p2) override;         // 0x5478d0
+    void Slot_FC(int p1, int p2, int p3) override;                // 0x547b30
+    void Slot_100(int p1, int p2, int p3) override;               // 0x548180
+    void Slot_104() override;                                     // 0x547e80
+    void Slot_108() override;                                     // 0x5478f0
+    void Slot_10C(int p1, int p2, int p3) override;               // 0x547ba0
+    void Slot_110(int p1, int p2) override;                       // 0x547b80
+    void Slot_114(int p1, int p2) override;                       // 0x547b40
+    void Slot_118(int p1) override;                               // 0x547b50
+    void Slot_11C() override;                                     // 0x547b60
+    void Slot_120(int p1) override;                               // 0x547b70
     void EC_Die() override;
     void Slot_128() override;
     void SetBehavior(int behavior) override;                     // 0x5b8960
-    void Slot_130() override;
-    void Slot_134() override;
-    void Slot_138() override;
-    void Slot_13C() override;
-    void Slot_140() override;
-    void Slot_144() override;
-    void Slot_148() override;
-    void Slot_14C() override;
-    void Slot_150() override;
-    void Slot_154() override;
-    void Slot_158() override;
-    void Slot_15C() override;
-    void Slot_160() override;
-    void Slot_164() override;
+    void SetHealthPercent(float percent) override;                // 0x54cd50
+    void Slot_134(int p1) override;                              // 0x55cdf0
+    void EC_ChangeActiveDriver(int driver) override;              // 0x547900
+    void SetFireBehavior(int behavior) override;                 // 0x5b8920
+    void EC_Enter(int unit, int queue) override;                 // 0x5b87f0
+    void Unload(int index) override;                             // 0x5b93f0
+    void Slot_148(int player) override;                               // 0x547e70
+    void Slot_14C(int player) override;                               // 0x5481a0
+    void Slot_150(int p1) override;                               // 0x548190
+    void Slot_154() override;                                     // 0x5481b0
+    void Slot_158(int p1) override;                              // 0x55ce50
+    void Slot_15C(int p1) override;                               // 0x547e60
+    void Slot_160(int p1) override;                               // 0x5478b0
+    void Slot_164(int p1) override;                              // 0x55ce40
     void Slot_168() override;
     void StoreInterpolationState() override;                     // 0x5b5ad0
-    void Slot_170() override;
-    void Slot_174() override;
-    void Slot_178() override;
+    float GetHealth() override;                                  // 0x5b9e30
+    float GetHitPoints() override;                               // 0x5b9ec0
+    float GetLowestMaxRange() override;                          // 0x5b9d90
     float GetMaxRange(int weapon) override;                      // 0x5b9f60
     float GetMinRange(int weapon) override;                      // 0x5b9f90
     float GetSightRange() override;                              // 0x5ba240
     float GetExtra188() override;                                // 0x548230
-    void Slot_18C() override;
+    float Slot_18C() override;                                    // 0x548380
     void AI_Heartbeat() override;                                // 0x5b37d0
-    void Slot_194() override;
+    void OnAttackedBy(int attacker) override;                    // 0x55e330 (empty)
     void SetOnBlockMap(bool on) override;                        // 0x5bc660
     void Slot_19C() override;                                    // 0x5b74c0
     void MarkBlockMap(bool on, int p2, int p3, int p4, short p5) override;  // 0x5bc6d0
@@ -165,9 +180,9 @@ struct SUnit : SIUnit {
     int TestBlockMap(int p1, int p2, int p3, int p4, short p5) override;    // 0x5b7500
     void RestoreBehavior() override;                             // 0x546ac0
     float GetMoveSpeed(int p1) override;                         // 0x5b9ed0
-    void Slot_1B4() override;
-    void Slot_1B8() override;
-    void Slot_1BC() override;
+    void OnMemberDied(int unit) override;                        // 0x55cf70 (empty)
+    void SetSpecialAnimation(const char* name) override;          // 0x5c1da0
+    bool IsCapturable() override;                                // 0x55cf60
     void ServerRefreshMedic(float dt) override;                  // 0x5bfa50
     void SetUnitSize() override;                                 // 0x5c21d0
     void GetCenterPosition(float* out) override;                 // 0x5b9d40
@@ -177,7 +192,6 @@ struct SUnit : SIUnit {
     // SaveGame 0x5966a0 -> per unit). Load runs only for Load Game.
     void Save(struct SStream* s);                                // 0x5be320 (1) SUnit::Save
     void Load(struct SStream* s);                                // 0x5bbd30 (1) SUnit::Load
-    bool CanStoreUnit(int unit);                                 // 0x5b7040 (agent F: SBuildingUnit::StoreUnit 0x54d380 calls it)
 
     // --- M2-I sub-agent UB (SUnit AI, targeting, orders, effects): add declarations here only.
     // Element types of the unit arrays decoded by UB (unitai.cpp).
@@ -216,7 +230,7 @@ struct SUnit : SIUnit {
     bool IsHiddenInBlockMap();                                   // 0x5bb5c0 (the unit stands in a static block)
     bool IsAIDefault();                                          // 0x5bb470 AI player, no AI group, behaviour 1
     bool HasSlotWeapon(int weapon);                              // 0x5ba820 (+0x138 / +0x144)
-    int  FindTarget(int mode, SGunner* gunner, float minRange, float maxRange, bool p5);   // 0x5b4720 (-1 = none)
+    int  FindTarget(int mode, SGunner* gunner, float minRange, float maxRange, bool canMove);   // 0x5b4720 (-1 = none)
     void AutoRepairSupply(float supplyLevel);                    // 0x5bd610 (repairers / supporters)
     int  GetBuildingAction(int unit);                            // 0x5ba2b0 (-1 = not a building)
     bool NeedsSupply(float level);                               // 0x5bc700
@@ -248,6 +262,36 @@ struct SUnit : SIUnit {
     static void   EnvOnDriverReachedTarget(SIUnit* unit);        // +0x48 (SUnit 0x5bcb60)
     static void   EnvSlot9C(SIUnit* unit, int p1);               // +0x9c (SUnit 0x5c1d40: +0x112 = p1)
     // --- end UB
+    // --- M3 C sub-agents (docs/M3_INTERFACES.md row C): add SUnit declarations only inside your own block.
+    // --- C1 (gunner / projectile)
+    void DisableStaticEffects();                                 // 0x5ba860 pixie +0x60(effect, 0) for each +0x314, EffectTimer = 30 (gunner.cpp)
+    void LockDriver();                                           // 0x5b8260 Stop, active driver -> -1, movement group out, +0x34 = 1 (gunner.cpp; magnetic mine)
+    // --- end C1
+    // --- C2 (damage / death / XP / unit slots)
+    void DamageMembers(bool last, float damage, int weaponType, int attacker, float x, float y,
+                       float z, int hitMode);                    // 0x5c3dd0 crew / gun crew damage (combat.cpp)
+    bool CanStoreUnit(int unit);                                 // 0x5b7040 may `unit` get in (unitbase.cpp)
+    int  UnloadByMode(int mode);                                 // 0x5c6090 first stored unit of that mode out (+0x64), its index or -1
+    void PlayDeathEffects();                                     // 0x5c26e0 prototype +0x108 (+0x120 when burnt) (unitbase.cpp)
+    void PlayDiedByFireEffects();                                // 0x5c2590 prototype +0x114
+    void PlayDestroyEffects();                                   // 0x5c2910 prototype +0x120
+    void SpeakMoveOrder();                                       // 0x5bcdf0 speech 3 / 4
+    void HandSelectionTo(SUnit* to);                             // 0x5c50c0 +0x104 bit 0 and +0x108 go to `to`
+    bool IsRecent26c(int player);                                // 0x5b6e10 +0x26c[player] within 40 ticks
+    bool WasSeenRecently(int player);                            // 0x5b6e40 +0x29c[player] within 40 ticks
+    // --- end C2
+    // --- C3 (air support / waster)
+    // --- end C3
+    // --- C4 (AI / squads / buildings / unitai)
+    int  FindVehicleToEnter();                                   // 0x5b5090 (-1 = none) AI squads: an empty armed vehicle in sight
+    void AttackUnit(int unit, int gunner, bool canMove);         // 0x5b53d0 gunner or unit attack order, then the squad item
+    void EnterVehicle(int unit);                                 // 0x5b5810 STarget kind 9, +0x18c / vehicle +0x190
+    // --- end C4
+    // --- C5 (squads / buildings / drivers)
+    void RemoveStoredMember(int i);                              // 0x5be140 SUnit::RemoveStoredMember (seat cleanup, +0x178 Remove)
+    void LeaveDriverSeat();                                      // 0x5c1d50 (name guessed) stop, park the active driver, leave the movement group
+    void TransferSelection(SUnit* to);                           // 0x5c50c0 (name guessed) selected bit +0x104 and +0x108 move to `to`
+    // --- end C5
     // --- M2-I sub-agent SQ (helpers squads need on SUnit): add declarations here only.
     // --- end SQ
     // --- M2-I sub-agent BW (helpers buildings / SWorld need on SUnit): add declarations here only.
@@ -294,7 +338,7 @@ struct SUnit : SIUnit {
     int              UnitSizeBlocks; // +0x058 UnitSize * 4 (block map cells)
     int              UnitSizeBlocks2;// +0x05c
     int              _60;            // +0x060 -10000
-    int              XP;             // +0x064
+    float            XP;             // +0x064 (a float in HD: GetRank 0x5b9e60 compares it with movss; Init copies the UNTD dword raw)
     bool             FirstKill;      // +0x068
     bool             FirstBlood;     // +0x069
     bool             FirstShot;      // +0x06a

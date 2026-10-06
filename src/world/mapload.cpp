@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "world.h"
+#include "aigroup.h"
 #include "worldapi.h"
 #include "pzunitregistry.h"
 #include "trigger.h"
@@ -1056,7 +1057,7 @@ void SWorld::LoadEntities(SStream* s)
             break;
         }
         case 0x50474941:     // AIGP (0x56e2c0, then 0x55ccc0/0x601060 per group)
-            KeepRawChunk(s, tag, "AI groups");
+            AIGroupsLoad(this, s);                                // aigroup.cpp (M3-C)
             break;
         case 0x53424d41:     // AMBS (0x5f02a0)
             KeepRawChunk(s, tag, "ambient sounds");

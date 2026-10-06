@@ -486,11 +486,23 @@ void SPProjectileAnimation::LoadProps(SIPUnit* punit, const SAnimProps& props)
     (void)props;
 }
 
-SIUnitAnimation* SPProjectileAnimation::CreateAnimation(SIUnit* unit)
+// The SProjectileAnimation itself is in projectile_anim.cpp (M3-C C1); the
+// animview tool, which does not compile it, gets the null default.
+} // namespace pz
+extern "C" pz::SIUnitAnimation* PzNewProjectileAnimation(pz::SPProjectileAnimation* proto, pz::SIUnit* unit);
+extern "C" pz::SIUnitAnimation* PzNewProjectileAnimation_Default(pz::SPProjectileAnimation* proto, pz::SIUnit* unit)
 {
-    STUB_LOG("SPProjectileAnimation::CreateAnimation (0x5c78e0)");
+    (void)proto;
     (void)unit;
     return nullptr;
+}
+__pragma(comment(linker, "/alternatename:_PzNewProjectileAnimation=_PzNewProjectileAnimation_Default"))
+namespace pz {
+
+// PANZERS 0x5c78e0
+SIUnitAnimation* SPProjectileAnimation::CreateAnimation(SIUnit* unit)
+{
+    return PzNewProjectileAnimation(this, unit);              // new 0x2c, 0x5c67d0, vftable 0x7fd994
 }
 
 // PANZERS 0x5c8be0
@@ -500,12 +512,7 @@ void SPWasterAnimation::LoadProps(SIPUnit* punit, const SAnimProps& props)
     (void)props;
 }
 
-SIUnitAnimation* SPWasterAnimation::CreateAnimation(SIUnit* unit)
-{
-    STUB_LOG("SPWasterAnimation::CreateAnimation (0x5c7b20)");
-    (void)unit;
-    return nullptr;
-}
+// SPWasterAnimation::CreateAnimation 0x5c7b20: waster.cpp (M3-C C3).
 
 // PANZERS 0x5c6540
 SPFlyingAnimation::SPFlyingAnimation()
@@ -541,12 +548,7 @@ void SPFlyingAnimation::LoadProps(SIPUnit* punit, const SAnimProps& p)
     RodSpringScale = p.GetFloat("RodSpringScale");
 }
 
-SIUnitAnimation* SPFlyingAnimation::CreateAnimation(SIUnit* unit)
-{
-    STUB_LOG("SPFlyingAnimation::CreateAnimation (0x5c77c0)");
-    (void)unit;
-    return nullptr;
-}
+// SPFlyingAnimation::CreateAnimation 0x5c77c0: flying.cpp (M3-C C3).
 
 SIUnitAnimation* SPTrainAnimation::CreateAnimation(SIUnit* unit)
 {
@@ -631,20 +633,24 @@ void SUnitAnimation::UpdateModel()
 }
 
 // PANZERS 0x5c76c0
-void SUnitAnimation::Slot_0C()
+void SUnitAnimation::Slot_0C(void* p1)
 {
+    (void)p1;
 }
 
-void SUnitAnimation::Slot_10()
+float* SUnitAnimation::GetFirePosition(float* out, int gunner, float dirOffset, float kick)
 {
-    STUB_LOG("SUnitAnimation::Slot_10 (pure in HD SUnitAnimation)");
-    PZ_M2_TRACE("SUnitAnimation::Slot_10 (pure in HD SUnitAnimation)");
+    STUB_LOG("SUnitAnimation::GetFirePosition (pure in HD SUnitAnimation)");
+    PZ_M2_TRACE("SUnitAnimation::GetFirePosition (pure in HD SUnitAnimation)");
+    (void)gunner; (void)dirOffset; (void)kick;
+    out[0] = out[1] = out[2] = 0.0f;
+    return out;
 }
 
-void SUnitAnimation::Slot_14()
+// PANZERS 0x5cb420
+void SUnitAnimation::AddBodyKick(float x, float y, float z)
 {
-    STUB_LOG("SUnitAnimation::Slot_14 (0x5cb420)");
-    PZ_M2_TRACE("SUnitAnimation::Slot_14 (0x5cb420)");
+    (void)x; (void)y; (void)z;
 }
 
 // PANZERS 0x5c7e90
@@ -667,40 +673,156 @@ int SUnitAnimation::GetDriverNode()
     return -1;
 }
 
-void SUnitAnimation::Slot_24()
+// PANZERS 0x5c8410
+int SUnitAnimation::GetHookNode()
 {
-    STUB_LOG("SUnitAnimation::Slot_24 (0x5c8410)");
-    PZ_M2_TRACE("SUnitAnimation::Slot_24 (0x5c8410)");
+    return -1;
 }
 
-void SUnitAnimation::Slot_28()
+// PANZERS 0x5c8350
+int SUnitAnimation::GetHoleFNode()
 {
-    STUB_LOG("SUnitAnimation::Slot_28 (0x5c8350)");
-    PZ_M2_TRACE("SUnitAnimation::Slot_28 (0x5c8350)");
+    return -1;
 }
 
-void SUnitAnimation::Slot_2C()
+// PANZERS 0x5c83b0
+int SUnitAnimation::GetHoleRNode()
 {
-    STUB_LOG("SUnitAnimation::Slot_2C (0x5c83b0)");
-    PZ_M2_TRACE("SUnitAnimation::Slot_2C (0x5c83b0)");
+    return -1;
 }
 
-void SUnitAnimation::Slot_30()
+// PANZERS 0x5c8430
+float* SUnitAnimation::GetHookPos(float* out2)
 {
-    STUB_LOG("SUnitAnimation::Slot_30 (0x5c8430)");
-    PZ_M2_TRACE("SUnitAnimation::Slot_30 (0x5c8430)");
+    out2[0] = out2[1] = 0.0f;
+    return out2;
 }
 
-void SUnitAnimation::Slot_34()
+// PANZERS 0x5c8370
+float* SUnitAnimation::GetHoleFPos(float* out2)
 {
-    STUB_LOG("SUnitAnimation::Slot_34 (0x5c8370)");
-    PZ_M2_TRACE("SUnitAnimation::Slot_34 (0x5c8370)");
+    out2[0] = out2[1] = 0.0f;
+    return out2;
 }
 
-void SUnitAnimation::Slot_38()
+// PANZERS 0x5c83d0
+float* SUnitAnimation::GetHoleRPos(float* out2)
 {
-    STUB_LOG("SUnitAnimation::Slot_38 (0x5c83d0)");
-    PZ_M2_TRACE("SUnitAnimation::Slot_38 (0x5c83d0)");
+    out2[0] = out2[1] = 0.0f;
+    return out2;
+}
+
+// ---------------------------------------------------------------------------
+// Fire positions and body kick (M3-C): the gunner asks the animation for the
+// muzzle position when it fires (SGunner::ServerRefresh 0x584d00).
+
+// PANZERS 0x5cb270
+// The next muzzle node of the gun (the counter +0x30 cycles through the gun's
+// muzzles), and the body spring pushed back along the shot direction.
+float* SVehicleAnimation::GetFirePosition(float* out, int gunner, float dirOffset, float kick)
+{
+    double a = (double)UnitField<float>(Unit, 0xb0) + (double)dirOffset;   // unit +0xb0 dir
+    if (a > 3.141592653589793)                                  // DAT_007f4560
+        a -= 6.283185307179586;                                 // DAT_007f4570
+    else if (-3.141592653589793 > a)                            // DAT_007f5aa0
+        a += 6.283185307179586;
+    out[0] = out[1] = out[2] = 0.0f;
+    float af = (float)a;                                        // cvtpd2ps
+    Model()->GetNodePosition(Guns[gunner].M[_30], out);         // model +0x54
+    ++_30;
+    if (_30 > Guns[gunner].MCount - 1)
+        _30 = 0;
+    SpringVel[0] = SpringVel[0] - HdSin((double)af) * (double)kick;
+    SpringVel[1] = SpringVel[1] - HdCos((double)af) * (double)kick;
+    return out;
+}
+
+// PANZERS 0x5cb430
+void SVehicleAnimation::AddBodyKick(float x, float y, float z)
+{
+    (void)y;
+    SpringVel[0] = SpringVel[0] - (double)x;
+    SpringVel[1] = SpringVel[1] - (double)z;
+}
+
+// PANZERS 0x5c8420
+int SVehicleAnimation::GetHookNode()
+{
+    return HookNode;
+}
+
+// PANZERS 0x5c8360
+int SVehicleAnimation::GetHoleFNode()
+{
+    return HoleFNode;
+}
+
+// PANZERS 0x5c83c0
+int SVehicleAnimation::GetHoleRNode()
+{
+    return HoleRNode;
+}
+
+// PANZERS 0x5c8450
+float* SVehicleAnimation::GetHookPos(float* out2)
+{
+    out2[0] = HookPos[0];
+    out2[1] = HookPos[1];
+    return out2;
+}
+
+// PANZERS 0x5c8390
+float* SVehicleAnimation::GetHoleFPos(float* out2)
+{
+    out2[0] = HoleFPos[0];
+    out2[1] = HoleFPos[1];
+    return out2;
+}
+
+// PANZERS 0x5c83f0
+float* SVehicleAnimation::GetHoleRPos(float* out2)
+{
+    out2[0] = HoleRPos[0];
+    out2[1] = HoleRPos[1];
+    return out2;
+}
+
+// PANZERS 0x5cb370
+// Soldiers fire from the first muzzle of gun 0, or of gun 1 for any gunner > 0.
+float* SWalkerAnimation::GetFirePosition(float* out, int gunner, float dirOffset, float kick)
+{
+    (void)dirOffset; (void)kick;
+    out[0] = out[1] = out[2] = 0.0f;
+    Model()->GetNodePosition(Guns[gunner > 0 ? 1 : 0].M[0], out);   // model +0x54
+    return out;
+}
+
+// PANZERS 0x5cb240
+float* SSquadAnimation::GetFirePosition(float* out, int gunner, float dirOffset, float kick)
+{
+    (void)gunner; (void)dirOffset; (void)kick;
+    out[0] = UnitField<float>(Unit, 0x8c);
+    out[1] = UnitField<float>(Unit, 0x90);
+    out[2] = UnitField<float>(Unit, 0x94);
+    return out;
+}
+
+// HD 0x5c76a0: 0x5cadc0(p1, unit model) places the squad's extra model (+0x28)
+// at the unit model's position with p1's orientation (visual only).
+void SSquadAnimation::Slot_0C(void* p1)
+{
+    if (Extra) {
+        STUB_LOG("SSquadAnimation::Slot_0C (0x5c76a0) extra model placement 0x5cadc0");
+    }
+    (void)p1;
+}
+
+// PANZERS 0x5cb100
+float* SBuildingAnimation::GetFirePosition(float* out, int gunner, float dirOffset, float kick)
+{
+    (void)gunner; (void)dirOffset; (void)kick;
+    out[0] = out[1] = out[2] = 0.0f;
+    return out;
 }
 
 // PANZERS 0x5c8250

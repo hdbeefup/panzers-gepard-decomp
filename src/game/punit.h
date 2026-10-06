@@ -202,7 +202,11 @@ struct SPProjectileUnit : SPUnit {
     void LoadResources(SUPropStruct* unit) override;             // 0x5a7e70
     SIUnit* CreateUnit(int worldIndex) override;                 // 0x5a5c70
 
-    unsigned char _13c[0x178 - 0x13c];      // incidence effect arrays (0x5a7e70)
+    SUnitArray<SPUnitEffect> GroundIncidence;   // +0x13c "Ground_Incidence_Effects" (0x5a7e70)
+    SUnitArray<SPUnitEffect> WaterIncidence;    // +0x148 "Water_Incidence_Effects"
+    SUnitArray<SPUnitEffect> UnitIncidence;     // +0x154 "Unit_Incidence_Effects"
+    SUnitArray<SPUnitEffect> StoneIncidence;    // +0x160 "Building_Stone_Incidence_Effects" (BuildingMaterial != 1)
+    SUnitArray<SPUnitEffect> WoodIncidence;     // +0x16c "Building_Wood_Incidence_Effects" (BuildingMaterial 1)
 };
 
 struct SPPanzersSquadUnit : SPUnit {

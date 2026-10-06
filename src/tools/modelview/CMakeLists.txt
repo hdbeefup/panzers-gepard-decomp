@@ -36,6 +36,7 @@ endif()
 set(ANIMVIEW_GAME_DIR ${PANZERS_SRC_DIR}/game)
 add_executable(animview WIN32
     animview.cpp
+    animview_flying.cpp
     ${ANIMVIEW_GAME_DIR}/unitanim.cpp
     ${ANIMVIEW_GAME_DIR}/unitanim_vehicle.cpp
     ${ANIMVIEW_GAME_DIR}/unitanim_model.cpp

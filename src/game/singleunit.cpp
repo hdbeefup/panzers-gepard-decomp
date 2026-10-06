@@ -8,6 +8,8 @@
 #include "gunner.h"
 #include "idriver.h"
 #include "pz/imodel.h"
+#include "pz/ipixie.h"
+#include "pz/iscene.h"
 #include "unitanim.h"
 #include "unitextern.h"
 #include "world.h"
@@ -16,8 +18,18 @@
 #include "logger.h"
 #include "doodad.h"
 #include "stub_log.h"
+#include "m3common.h"
+#include "gamelogic.h"
+#include "target.h"
 
 namespace pz {
+
+static SUnitMember& MemberAt(SUnit* u, int i)                     // SDArray<SUnitMember>::operator[] 0x5991e0
+{
+    if (i < 0 || i >= u->Members.Size)
+        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "SUnitMember", i);
+    return u->Members.Array[i];
+}
 
 // PANZERS 0x5aa7b0
 SSingleUnit::SSingleUnit(SPSingleUnit* proto, int worldIndex)
@@ -129,7 +141,7 @@ void SSingleUnit::SetOnBlockMap(bool on)
 void SSingleUnit::PlaceAttachedUnit(SUnit* u, int node)
 {
     if (u->Wrecked) {                                         // +0x150
-        u->Slot_30();
+        u->RefreshDead();
         return;
     }
     if (node < 0) {
@@ -167,12 +179,68 @@ void SSingleUnit::RefreshMisc()
     for (int i = 0; i < Gunners.Size; ++i)
         Gunners.Array[i]->ServerRefresh();                    // gunner +0x14
     if (P->ClassType == 0xb && Members.Size > 2) {
-        // HD: the gun crew (seats 2..) follows the gun: a moved gun stamps
-        // +0x264 with the frame; 10 ticks later the crew either stops
-        // (+0xec) or takes new ground positions from the gun's crew nodes
-        // (model +0x54, unit +0xac EC_Move), then runs their +0x2c refresh.
-        (void)dir0;
-        STUB_LOG("SSingleUnit::RefreshMisc (0x5af890) gun crew (class 0xb)");
+        // The gun crew (rows 2..) follows the gun: a moved / turned gun
+        // stamps +0x264; for 10 ticks after that the crew walks to the gun's
+        // crew nodes (model +0x54, +0xc0 Stop, +0xac EC_Move facing the gun's
+        // direction) and drops its gunner target; later it fights: behaviour
+        // 2 (hold fire) stops their gunners, otherwise the gun's target
+        // search (FindTarget 0x5b4720 with the first crew member's gunner and
+        // range) hands each crew gunner and driver a unit target (kind 2).
+        // Then every crew member runs its ServerRefresh (+0x2c).
+        if (Pos[0] != PrevPos[0] || Pos[1] != PrevPos[1] || Pos[2] != PrevPos[2] || Dir != dir0)
+            _264 = g_GameLogic->GetFrame();                       // 0x56d1a0
+        if (g_GameLogic->GetFrame() <= _264 + 10) {
+            for (int i = 2; i < Members.Size; ++i) {
+                if (Members.Array[i].Attached)
+                    Logger.g->Panic("SSingleUnit::RefreshMisc: attached gun crew member");   // 0x7fb5c8
+                float np[3] = { 0.0f, 0.0f, 0.0f };
+                Model->GetNodePosition(Members.Array[i].Node, np);   // model +0x54
+                SUnit* m = WorldUnit(Members.Array[i].Unit);
+                m->Stop();                                        // +0xc0
+                int xb, zb, db;
+                memcpy(&xb, &np[0], 4);
+                memcpy(&zb, &np[2], 4);
+                memcpy(&db, &Dir, 4);
+                m->EC_Move(xb, zb, 0, true, db);                  // +0xac
+                if (m->Gunners.Size <= 0)
+                    Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "class SGunner *", 0);
+                SGunner* g = m->Gunners.Array[0];
+                if (g->Target) {
+                    g->Target->Release();                         // 0x5bdef0
+                    g->Target = nullptr;
+                }
+            }
+        } else if (Behavior == 2) {
+            for (int i = 2; i < Members.Size; ++i)
+                WorldUnit(Members.Array[i].Unit)->StopGunners();  // +0xec
+        } else {
+            SUnit* m0 = WorldUnit(Members.Array[0].Unit);
+            float range = m0->GetMaxRange(0);                     // +0x17c(0), fstp dword
+            if (m0->Gunners.Size <= 0)
+                Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "class SGunner *", 0);
+            SGunner* g0 = WorldUnit(Members.Array[0].Unit)->Gunners.Array[0];
+            int wt = WorldUnit(Members.Array[0].Unit)->Gunners.Array[0]->GetWeaponType();   // 0x584240
+            int t = FindTarget(wt, g0, 0.0f, range, true);        // 0x5b4720
+            if (t >= 0) {
+                for (int i = 2; i < Members.Size; ++i) {
+                    SUnit* m = WorldUnit(Members.Array[i].Unit);
+                    if (m->Gunners.Size <= 0)
+                        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "class SGunner *", 0);
+                    STarget* cur = m->Gunners.Array[0]->Target;
+                    if (cur && WorldUnit(MemberAt(this, i).Unit)->Gunners.Array[0]->Target->Unit == t)
+                        continue;
+                    STarget* nt = PzTargetNew(2);                 // new 0x38, 0x5b27c0(2)
+                    tgt::I(nt, tgt::kType) = 0;                   // 0x5c21b0
+                    tgt::I(nt, tgt::kUnit) = t;
+                    m->Gunners.Array[0]->SetTarget(nt);           // gunner +0x18
+                    if (m->Drivers.Size <= 0)
+                        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "class SDriver *", 0);
+                    m->Drivers.Array[0]->SetTarget(nt);           // driver +0x08
+                }
+            }
+        }
+        for (int i = 2; i < Members.Size; ++i)
+            WorldUnit(Members.Array[i].Unit)->ServerRefresh(LastRefreshFrame);   // +0x2c(+0x84)
     }
     if (_118 > 0.0f) {
         float ground = g_World->GetTerrainHeight(Pos[0], Pos[2]);           // 0x5e7730
@@ -181,8 +249,8 @@ void SSingleUnit::RefreshMisc()
             _118 -= g_UnitRegistry->ThermoDecrease;
         } else {
             _118 -= g_UnitRegistry->ThermoDecrease * 4.0f;    // DAT_007f4588
-            // HD: pixie +0x24(scene, logic +0x1c tank dust, pos, (0, 1, 0), 0): steam.
-            STUB_LOG("SSingleUnit::RefreshMisc (0x5af890) water steam effect");
+            float up[3] = { 0.0f, 1.0f, 0.0f };
+            g_Pixie->PlayEffect(g_Scene, g_GameLogic->TankDustFx, Pos, up, 0);   // pixie +0x24: steam
         }
     }
     for (int i = 0; i < Members.Size; ++i) {
@@ -201,6 +269,287 @@ void SSingleUnit::RefreshMisc()
         PlaceAttachedUnit(WorldUnit(BuiltInDriverUnit), Anim->GetDriverNode());   // anim +0x20
     RefreshRepairTarget(10.0f);                               // 0x5c01e0
     RefreshSupplyTarget(10.0f);                               // 0x5bf280
+}
+
+// ---------------------------------------------------------------------------
+// M3-C2: SSingleUnit combat / death overrides
+
+// SGunner 0x583b60 (agent C1; declared in squadcombat.cpp until C1 lifts it).
+bool GunnerCanAttackUnit(SGunner* g, SUnit* target, bool p3);
+
+static int SuPlayerKind(int player)                               // World+0x178 + player * 0x48
+{
+    return *(int*)(g_World->Players[player] + 0x08);
+}
+
+static bool SuSameSide(int a, int b)                              // 0x549ab0
+{
+    int team = *(int*)(g_World->Players[a] + 0x0c);
+    if (team != 0)
+        return team == *(int*)(g_World->Players[b] + 0x0c);
+    return a == b;
+}
+
+// An x87 "fadd qword" under the in-game control word 0x007F (24-bit
+// precision): the sum rounded once to 24 bits.
+static float X87AddPC24f(double a, double b)
+{
+    unsigned short cw;
+    unsigned short ncw = 0x007f;
+    float r;
+    __asm {
+        fnstcw cw
+        fldcw ncw
+        fld a
+        fadd b
+        fstp r
+        fldcw cw
+    }
+    return r;
+}
+
+// PANZERS 0x5aca80
+// The lowest max range: gunner MainGunner's, or against a squad target the
+// shortest of all gunners.
+float SSingleUnit::GetLowestMaxRange()
+{
+    float r = GetMaxRange(MainGunner);                            // +0x17c(+0x44)
+    STarget* t = CurrentTarget;
+    if (t && tgt::I(t, tgt::kType) == 0) {
+        int u = tgt::I(t, tgt::kUnit);
+        if (g_World->Units.IsLive(u)) {
+            SUnit* tu = WorldUnit(u);
+            if (Gunners.Size > 1 && tu->Proto->ClassType == 5) {
+                for (int i = 0; i < Gunners.Size; ++i)
+                    if (GetMaxRange(i) < r)
+                        r = GetMaxRange(i);
+            }
+        }
+    }
+    return r;
+}
+
+// PANZERS 0x5b0420
+// Shot at by `attacker`: an idle armed unit (no targets, behaviour 0) that
+// can hit the enemy attacks it (out of range: +0xe8 EC_Attack; in range:
+// +0xcc EC_AttackMove to it); idle AI units nearby that can hit it join in
+// (+0xcc); an AI unit of an AI group tells the group (0x5d68e0).
+void SSingleUnit::OnAttackedBy(int attacker)
+{
+    PZ_M3_TRACE("SSingleUnit::OnAttackedBy (0x5b0420)");
+    if (MainGunner > -1 && !PrimaryTarget && !CurrentTarget) {
+        if (attacker <= -1)
+            return;
+        SUnit* a = WorldUnit(attacker);
+        if (a->Proto->ClassType != 8 && Behavior == 0 && WorldUnit(attacker)->Player != Player) {
+            a = WorldUnit(attacker);
+            if (Gunners.Size > 0 && GunnerCanAttackUnit(GetGunner(0), a, true)) {   // 0x55cc40, 0x583b60
+                float dz = a->Pos[2] - Pos[2];
+                float dx = a->Pos[0] - Pos[0];
+                float r1 = X87AddPC24f((double)GetMaxRange(0), 0.1);   // 0x7f83e0
+                float d2 = dx * dx + dz * dz;
+                float r2 = X87AddPC24f((double)GetMaxRange(0), 0.1);
+                float r = r2 * r1;                                // x87 fmul, PC24
+                if ((double)d2 > (double)r)
+                    EC_Attack(attacker, 0);                       // +0xe8
+                else
+                    EC_AttackMove(a->Pos[0], a->Pos[2], 0);       // +0xcc
+            }
+        }
+    }
+    if (attacker > -1 && AIGroup == -1) {
+        SUnit* a = WorldUnit(attacker);
+        if (a->Proto->ClassType != 8) {
+            SUnit* au = WorldUnit(attacker);
+            for (int i = 0; i < SightUnits.Size; ++i) {
+                if (!IsTargetable(SightUnits.Array[i].Unit, false))   // 0x5bb6b0
+                    continue;
+                SUnit* o = WorldUnit(SightUnits.Array[i].Unit);
+                if (!SuSameSide(o->Player, Player))
+                    continue;
+                if (SuPlayerKind(o->Player) != 1 || o->PrimaryTarget || o->CurrentTarget)
+                    continue;
+                if (o->Behavior != 0 && !o->IsAIDefault())        // 0x5bb470
+                    continue;
+                if (o->AIGroup != -1 || o->Gunners.Size <= 0)
+                    continue;
+                if (!GunnerCanAttackUnit(o->GetGunner(0), au, true) || o->IsHiddenInBlockMap())   // 0x5bb5c0
+                    continue;
+                // HD adds dx unsquared (kept).
+                float d = (o->Pos[0] - Pos[0]) + (o->Pos[2] - Pos[2]) * (o->Pos[2] - Pos[2]);
+                if (d > 100.0f)                                   // 0x7ee558
+                    continue;
+                o->EC_AttackMove(au->Pos[0], au->Pos[2], 0);      // +0xcc
+            }
+        }
+    }
+    if (AIGroup > -1 && attacker > -1) {
+        SUnit* a = WorldUnit(attacker);
+        if (a->Proto->ClassType != 8 && SuPlayerKind(Player) == 1 &&
+            !SuSameSide(Player, WorldUnit(attacker)->Player))
+            g_World->AIGroupUnitAttacked(WorldIndex, attacker);   // 0x5d68e0
+    }
+}
+
+// PANZERS 0x5aed30
+// The driver reached the current target: kind 9 get in (target +0x5c
+// StoreUnit; an AI carrier takes over our primary target), kind 0xb unload
+// (+0x64), kind 0xc tow (target +0x58, then +0x6c); then the SUnit part.
+void SSingleUnit::OnDriverReachedTarget()
+{
+    STarget* ct = CurrentTarget;
+    if (!ct)
+        Logger.g->Panic("SSingleUnit::OnDriverReachedTarget - No Currenttarget, unit:%s, idx:%d",
+                        SStr(P->Name), WorldIndex);
+    int kind = tgt::I(ct, tgt::kKind);
+    if (kind == 9) {
+        int c = tgt::I(ct, tgt::kUnit);
+        if (WorldUnit(c)->StoreUnit(WorldIndex, 0)) {             // +0x5c
+            if (PrimaryTarget && CurrentTarget != PrimaryTarget && SuPlayerKind(Player) == 1) {
+                SUnit* car = WorldUnit(tgt::I(CurrentTarget, tgt::kUnit));
+                SetTarget(&car->PrimaryTarget, PrimaryTarget);    // 0x5bdef0 / 0x5b5a30
+                WorldUnit(tgt::I(CurrentTarget, tgt::kUnit))->SetCurrentTarget(PrimaryTarget, 0);   // +0xa0
+            }
+            if (PrimaryTarget) {
+                SetTarget(&PrimaryTarget, nullptr);
+                SUnit::OnDriverReachedTarget();                   // 0x5bcb60
+                return;
+            }
+        }
+    } else if (kind == 0xb) {
+        UnloadUnit(tgt::I(ct, tgt::kP28));                        // +0x64
+        if (ActiveDriver < 0) {
+            if (PrimaryTarget)
+                SetTarget(&PrimaryTarget, nullptr);
+            return;
+        }
+    } else if (kind == 0xc) {
+        // HD: if (target unit +0x58(this)) this +0x6c(target unit): tow it.
+        STUB_LOG("SSingleUnit::OnDriverReachedTarget (0x5aed30) tow: unit +0x58 (C5) / +0x6c (0x5c2390)");
+    }
+    SUnit::OnDriverReachedTarget();                               // 0x5bcb60
+}
+
+// PANZERS 0x5af2c0
+// The per-tick refresh of a wreck (+0x30). +0x15c counts down after the
+// death: at 99 the wreck model, at 4 the burning effects, at 0 the unit
+// leaves the world. With the counter at 0 (the first wreck tick): the
+// built-in driver and the child units go, the crew takes 10..14 damage
+// (world LCG) and an explosion (0x576490, 10 at radius 5) hits around,
+// the targets, passengers and the driver seat are released and squads that
+// lost their vehicle get XP.
+void SSingleUnit::RefreshDead()
+{
+    _104 = 0;
+    _108 = 0;
+    ScriptID = "";                                                // +0x194 freed (0x76654a)
+    if (_15c != 0) {
+        if (--_15c == 0) {
+            Frozen = true;                                        // +0x153
+            if (_2e4 > -1 && g_World->Units.IsLive(_2e4))
+                WorldUnit(_2e4)->_304 = false;
+            g_World->RemoveUnit(WorldIndex);                      // 0x5f8060
+            return;
+        }
+        if (_15c == 99)
+            SetWreckModel();                                      // +0x28
+        if (_15c == 4)
+            PlayDiedByFireEffects();                              // 0x5c2590
+        return;
+    }
+    *((unsigned char*)this + 0x155) = 1;                          // +0x155
+    if (P->BuiltInDriver && P->BuiltInDriverUnitName.size != 0) {
+        SUnit* d = WorldUnit(BuiltInDriverUnit);
+        d->Model->Slot_E0();                                      // model +0xe0
+        d->Unplace();                                             // +0x4c
+        g_World->RemoveUnit(BuiltInDriverUnit);
+        BuiltInDriverUnit = -1;
+    }
+    for (int i = 0; i < ChildUnits.Size; ++i) {
+        SUnit* c = WorldUnit(ChildUnits.Array[i]);
+        c->Model->Slot_E0();
+        *((unsigned char*)c + 0x155) = 1;
+    }
+    if (_2e4 == -1) {
+        for (int k = 0; k < Members.Size; ++k) {
+            SUnit* m = WorldUnit(Members.Array[k].Unit);
+            int r = WorldRand();                                  // inline LCG
+            int dmg = 10 - (int)((double)r * -3.0517578125e-05 * 5.0);   // 0x7f4598, 0x7f5a40
+            m->TakeDamage((float)dmg, 0, -1, 0.0f, 0.0f, 0.0f, 1);   // +0x94
+        }
+        g_GameLogic->AreaDamage(10.0f, -1, -1, Pos[0], Pos[1], Pos[2], 5.0f, 0, 2);   // 0x576490
+    }
+    if (CurrentTarget)
+        ClearTargets();                                           // +0xc4
+    UnloadAll();                                                  // +0x68
+    Remove(false);                                                // +0x70
+    if (_7c)
+        WorldUnit(Parent)->Remove(false);
+    LeaveDriverSeat();                                            // 0x5c1d50
+    if (_2e4 != -1)
+        return;
+    for (int i = 0; i < Stored.Size; ++i) {
+        SUnit* s = WorldUnit(Stored.Array[i].Unit);
+        if (s->Proto->ClassType != 5 || s->Proto->UnitType != 0xe)
+            continue;
+        // The crew's XP for the lost vehicle: 100 the first time (+0x6b), then 50.
+        if (!s->FirstVehicleLost) {
+            s->AddXP(-1, 100.0f, 0);                              // +0x8c (0x42c80000)
+            s->FirstVehicleLost = true;
+        } else {
+            s->AddXP(-1, 50.0f, 0);                               // 0x42480000
+        }
+    }
+}
+
+// PANZERS 0x5ae970
+// A crew member died (+0x1b4, from the member's EC_Die): it leaves its seat
+// (the attached model comes off, it is placed at the seat node with the
+// vehicle's direction, sub-state "", the "kneel" state) and its seat row
+// goes (0x5be140). When the last one is gone the vehicle drops its order
+// (without a driver), unloads (+0x68), the crew's squad dies (+0x124) and
+// whoever targeted the vehicle lets go (0x5ef760).
+void SSingleUnit::OnMemberDied(int unit)
+{
+    PZ_M3_TRACE("SSingleUnit::OnMemberDied (0x5ae970)");
+    for (int i = 0; i < Members.Size; ++i) {
+        if (Members.Array[i].Unit != unit)
+            continue;
+        SUnit* m = WorldUnit(Members.Array[i].Unit);
+        m->Parent = -1;                                           // +0x78
+        if (Members.Array[i].Attached)                            // row +0x14
+            m->Model->Slot_E0();                                  // model +0xe0 (detach)
+        float pos[3] = { 0.0f, 0.0f, 0.0f };
+        Model->GetNodePosition(Members.Array[i].Node, pos);       // model +0x54, row +0x10
+        m->Place(pos[0], pos[2], Dir);                            // +0x50
+        *(SString*)&m->_25c = "";                                 // +0x25c sub-state
+        m->_f0 = false;
+        int st = static_cast<SUnitAnimation*>(m->Anim)->Proto->FindState("kneel");   // 0x5c7ed0
+        m->SetBehavior(st);                                       // +0x12c
+        int owner = Members.Array[i].Owner;                       // row +0x04
+        RemoveStoredMember(i);                                    // 0x5be140
+        if (Members.Size != 0)
+            return;
+        if (ActiveDriver < 0 && PrimaryTarget) {
+            PzTargetRelease(PrimaryTarget);                       // 0x5bdef0
+            PrimaryTarget = nullptr;
+        }
+        UnloadAll();                                              // +0x68
+        WorldUnit(owner)->EC_Die();                               // +0x124
+        g_World->UnitStored(WorldIndex, -1);                      // 0x5ef760
+        return;
+    }
+}
+
+// PANZERS 0x5ad070
+// XP goes to every stored unit (the crew squad); a vehicle of an observer
+// (kind 4) player first moves to the local player.
+void SSingleUnit::AddXP(int victim, float xp, int p3)
+{
+    if (*(const int*)(g_World->Players[Player] + 8) == 4)        // World+0x178 + player * 0x48
+        Player = g_World->LocalPlayer;                            // World+0x16c
+    for (int i = 0; i < Stored.Size; ++i)
+        WorldUnit(Stored.Array[i].Unit)->AddXP(victim, xp, p3);   // +0x8c
 }
 
 } // namespace pz

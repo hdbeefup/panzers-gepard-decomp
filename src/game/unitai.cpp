@@ -8,6 +8,7 @@
 // the menu never reaches end in STUB_LOG with the HD control flow around them.
 
 #include <float.h>
+#include <stdint.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +23,8 @@
 #include "drivermath.h"
 #include "gamelogic.h"
 #include "world.h"
+#include "aigroup.h"
+#include "target.h"
 #include "worldapi.h"
 #include "pz/imodel.h"
 #include "pz/ipixie.h"
@@ -326,21 +329,18 @@ void SUnit::FillNearUnits(float sightRange, float nearRange)
 // Targeting
 
 // PANZERS 0x5b4720
-// Picks the best enemy in the sight list for a gunner: mode 0 nearest within
-// [minRange, maxRange], 1 nearest with the +0x90 line test, 2 the cheapest
-// (+0x90 both ways * reload). All menu units are on one side, so every
-// candidate stops at the alliance test; the gunner tests 0x583b60 / 0x5847e0
-// and the scoring are not lifted.
-int SUnit::FindTarget(int mode, SGunner* gunner, float minRange, float maxRange, bool p5)
+// Picks the target for a gunner among the units in sight (+0x1b4): mode 0 the
+// nearest in [minRange, maxRange], 1 the nearest unless a candidate kills this
+// unit in fewer shots (+0x90 ShotsToKill, 99) than the current pick, 2 the
+// lowest (shots it takes * shots it gives * its reload time). canMove lets the
+// main gunner of a mobile unit take targets out of its line of fire.
+int SUnit::FindTarget(int mode, SGunner* gunner, float minRange, float maxRange, bool canMove)
 {
-    (void)mode;
-    (void)gunner;
-    (void)minRange;
-    (void)p5;
-    float maxSq = maxRange * maxRange;
-    (void)maxSq;
+    float bestScore = FLT_MAX;                                // DAT_007fa570
+    SUnit* best = nullptr;
+    float bestD = maxRange * maxRange;
     for (int i = 0; i < SightUnits.Size; ++i) {
-        if (!IsTargetable(SightUnits.Array[i].Unit, false))
+        if (!IsTargetable(SightUnits.Array[i].Unit, false))   // 0x5bb6b0
             continue;
         SUnit* u = WorldUnit(SightUnits.Array[i].Unit);
         if (u == this || u->Wrecked || u->Unplaced || u->_110 || u->_2cc[Player] || u->Invulnerable)
@@ -354,10 +354,250 @@ int SUnit::FindTarget(int mode, SGunner* gunner, float minRange, float maxRange,
             continue;
         if (!g_GameLogic->CanSeeGroundUnit(Player, u))        // 0x562760
             continue;
-        STUB_LOG("SUnit::FindTarget (0x5b4720) gunner tests 0x583b60 / 0x5847e0 and target scoring");
-        PZ_M2_TRACE("SUnit::FindTarget (0x5b4720) enemy candidate");
+        if (!gunner->CanTargetUnit(u, canMove))               // 0x583b60
+            continue;
+        bool los = gunner->HasLineOfFire(u->WorldIndex);      // 0x5847e0
+        if (!los && !canMove)
+            continue;
+        bool mobile = ActiveDriver > -1 && (!PrimaryTarget || TKind(PrimaryTarget) == 4);
+        if (!los && ((Behavior != 0 && !IsAIDefault()) || !mobile))
+            continue;
+        float dx = u->Pos[0] - Pos[0];
+        float dy = u->Pos[1] - Pos[1];
+        float dz = u->Pos[2] - Pos[2];
+        float d = dx * dx + dy * dy + dz * dz;
+        if (mode == 0) {
+            if (bestD <= d)
+                continue;
+            if (d <= minRange * minRange && u->Proto->ClassType != 8)
+                continue;
+            bestD = d;
+            best = u;
+        } else if (mode == 1) {
+            if (!best) {
+                bestD = d;
+                best = u;
+                continue;
+            }
+            float from1[3] = { u->Pos[0], u->Pos[1], u->Pos[2] };
+            float byBest = (float)ShotsToKill(from1, best->WorldIndex);   // +0x90
+            float from2[3] = { u->Pos[0], u->Pos[1], u->Pos[2] };
+            int byThis = ShotsToKill(from2, u->WorldIndex);
+            if (byBest <= 99.0f || 99.0f < (float)byThis) {   // DAT_007fd708
+                if (d < bestD && (minRange * minRange < d || u->Proto->ClassType == 8)) {
+                    bestD = d;
+                    best = u;
+                }
+            } else {
+                bestD = d;
+                best = u;
+            }
+        } else if (mode == 2) {
+            float ez = u->Pos[2] - Pos[2];
+            float ex = u->Pos[0] - Pos[0];
+            float d2 = ex * ex + ez * ez;
+            if (!(d2 < maxRange * maxRange && (minRange * minRange < d2 || u->Proto->ClassType == 8)))
+                continue;
+            float from1[3] = { u->Pos[0], u->Pos[1], u->Pos[2] };
+            float taken = (float)ShotsToKill(from1, u->WorldIndex);   // +0x90
+            float given;
+            if (taken == 0.0f) {
+                given = 0.0f;
+            } else {
+                float from2[3] = { Pos[0], Pos[1], Pos[2] };
+                given = (float)u->ShotsToKill(from2, WorldIndex);
+            }
+            float reload = 10000.0f;                          // DAT_007fd710
+            if (u->MainGunner != -1) {
+                if (u->Proto->ClassType == 9)
+                    (void)WorldUnit(StoredUnit(u, 0));        // HD reads it (heap check only)
+                reload = (float)u->GetGunner(0)->GetPGunner()->ReloadTime;   // SPGunner +0x50
+            }
+            if (u->Proto->ClassType == 5 && u->Members.Size > 0) {
+                SUnit* m = WorldUnit(MemberUnit(u, 0));
+                if (m->MainGunner != -1) {
+                    (void)WorldUnit(MemberUnit(u, 0));
+                    reload = (float)m->GetGunner(0)->GetPGunner()->ReloadTime;
+                }
+            }
+            float score = given * taken * reload;
+            if (score < bestScore || (score == bestScore && d2 < bestD)) {
+                bestD = d;
+                bestScore = score;
+                best = u;
+            }
+        }
     }
-    return -1;
+    return best ? best->WorldIndex : -1;
+}
+
+// PANZERS 0x5b5090
+// An AI squad without a path order looks for an empty armed vehicle (class 0
+// / 0xb) of its own side, near the map origin test of HD (0.75 * sight^2
+// against the squad's distance from (0, 0)), that it can enter: the remembered
+// one (+0x18c) if it still stands, else the nearest in sight.
+int SUnit::FindVehicleToEnter()
+{
+    if (PlayerType(Player) != 1 || Proto->ClassType != 5)
+        return -1;
+    if (PrimaryTarget && tgt::I(PrimaryTarget, tgt::kPath) >= 0 && PrimaryTarget->HasPathAhead()) {   // 0x5bb630
+        SHeap<SPath>& paths = g_World->Paths;                 // 0x560960
+        int path = tgt::I(PrimaryTarget, tgt::kPath);
+        if (!paths.IsLive(path))
+            Logger.g->Panic("SHeap<%s>::operator[]: invalid index (%d)", "SPath", path);
+        if (paths.Array[path].Data.Closed)
+            return -1;
+    }
+    if (_18c != -1 && g_World->Units.IsLive(_18c) && !WorldUnit(_18c)->Wrecked)
+        return _18c;
+    float s1 = GetSightRange();                               // +0x184
+    float s2 = GetSightRange();
+    if (!((float)(s2 * 0.75f * (float)(s1 * 0.75f)) <= Pos[0] * Pos[0] + Pos[2] * Pos[2]))   // DAT_007f2fcc
+        return -1;
+    SUnit* best = nullptr;
+    float a = GetSightRange();
+    float bestD = (float)(GetSightRange() * a);
+    for (int i = 0; i < SightUnits.Size; ++i) {
+        if (!IsTargetable(SightUnits.Array[i].Unit, false))
+            continue;
+        SUnit* v = WorldUnit(SightUnits.Array[i].Unit);
+        if (v == this || v->Wrecked || v->Unplaced || v->CurrentTarget)
+            continue;
+        if (!v->_110 && v->Player != Player)
+            continue;
+        int ct = v->Proto->ClassType;
+        if (ct != 0 && ct != 0xb)
+            continue;
+        int pt = PlayerType(v->Player);
+        if (pt == 3 || pt == 4)
+            continue;
+        if (!v->CanStoreUnit(WorldIndex))                     // 0x5b7040
+            continue;
+        if (v->_190 || v->Gunners.Size <= 0)
+            continue;
+        if (!IsTargetable(v->WorldIndex, false))
+            continue;
+        if (!g_GameLogic->CanSeeGroundUnit(Player, v))        // 0x562760
+            continue;
+        float d = (v->Pos[0] - Pos[0]) * (v->Pos[0] - Pos[0]) + (v->Pos[2] - Pos[2]) * (v->Pos[2] - Pos[2]);
+        if (d < bestD) {
+            bestD = d;
+            best = v;
+        }
+    }
+    return best ? best->WorldIndex : -1;
+}
+
+// PANZERS 0x5b53d0
+// Attacks `unit` with gunner `gunnerIdx`: a single gunner of a vehicle / gun
+// gets its own target (STarget kind 3, unit order); the main gunner of a
+// mobile unit makes the unit attack (kind 2 for AI defenders and passive
+// units: they remember where they stood, +0x2f4..+0x2fc), then a squad throws
+// its item (+0xf4 molotov, +0xf0 grenade).
+void SUnit::AttackUnit(int unit, int gunnerIdx, bool canMove)
+{
+    if (gunnerIdx != MainGunner || !canMove) {
+        int ct = Proto->ClassType;
+        if (ct != 0 && ct != 0xb)
+            return;
+        if (gunnerIdx < 0 || gunnerIdx >= Gunners.Size)
+            Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "class SGunner *", gunnerIdx);
+        STarget* gt = Gunners.Array[gunnerIdx]->Target;       // +0x14
+        if (gt && TType(gt) == 0 && GetGunner(gunnerIdx)->Target->Unit == unit)
+            return;
+        STarget* t = STarget::Create(3);                      // new 0x38, 0x5b27c0(3)
+        t->Type = 0;
+        t->Unit = unit;
+        t->Mode = 1;
+        Gunners.Array[gunnerIdx]->SetTarget(t);               // gunner +0x18
+        return;
+    }
+    STarget* cur = CurrentTarget;
+    if (cur) {
+        if (TType(cur) == 0 && cur->Unit == unit) {
+            if (Behavior == 0) {
+                if (TKind(cur) == 2)
+                    return;
+            } else if (TKind(cur) == 3) {
+                return;
+            }
+        }
+        if (TType(cur) == 0 && cur->Unit == unit)
+            return;
+    }
+    STarget* t;
+    if (PlayerType(Player) == 1 && AIGroup == -1 && Behavior == 1 && WorldUnit(unit)->Proto->ClassType != 8) {
+        t = STarget::Create(2);
+        if (!HasReturnPos) {
+            ReturnX = Pos[0];
+            ReturnZ = Pos[2];
+            HasReturnPos = true;
+        }
+    } else if ((Behavior == 0 || (PlayerType(Player) == 1 && PrimaryTarget && TKind(PrimaryTarget) == 4)) &&
+               WorldUnit(unit)->Proto->ClassType != 8) {
+        t = STarget::Create(2);
+    } else {
+        t = STarget::Create(3);
+    }
+    t->Type = 0;
+    t->Unit = unit;
+    t->Mode = 1;
+    SetCurrentTarget(t, 0);                                   // +0xa0
+    if (PlayerType(Player) == 1 && AIGroup == -1 && Behavior == 1) {
+        bool keep = false;
+        if (PrimaryTarget) {
+            if (tgt::I(PrimaryTarget, tgt::kPath) != -1)
+                keep = true;                                  // HD keeps a path order
+            else
+                DropTarget(&PrimaryTarget);
+        }
+        if (!keep) {
+            if (CurrentTarget)
+                CurrentTarget->AddRef();
+            PrimaryTarget = CurrentTarget;
+        }
+    }
+    bool item2 = (_138 == 2 && _140) || (_144 == 2 && _14c);
+    bool item1 = (_138 == 1 && _140) || (_144 == 1 && _14c);
+    if (!item2 && !item1)
+        return;
+    float lr = GetLowestMaxRange();                           // +0x178
+    bool farAway = false;
+    if (GlobalState != 0) {                                   // +0xe0
+        float dz = Pos[2] - CurrentTarget->Pos[2];
+        float dx = Pos[0] - CurrentTarget->Pos[0];
+        if ((float)((int)lr * (int)lr) < dx * dx + dz * dz)   // cvttss2si
+            farAway = true;
+    }
+    if (item2)
+        EC_ThrowMolotov(unit, farAway);                           // +0xf4
+    else
+        EC_ThrowGrenade(unit, farAway);                           // +0xf0
+}
+
+// PANZERS 0x5b5810
+// Orders this squad into vehicle `unit` (STarget kind 9), or, when the vehicle
+// takes it at once (+0x58), lets the vehicle pick it up (+0xd8) and stops.
+// The vehicle is marked taken (+0x190) and remembered (+0x18c).
+void SUnit::EnterVehicle(int unit)
+{
+    if (CurrentTarget && CurrentTarget->Unit == unit)
+        return;
+    if (!g_World->Units.IsLive(unit))
+        Logger.g->Panic("SHeapTRB::operator[]: invalid index (%d)", unit);
+    // +0x58 gets the vehicle's unit pointer; it answers false for every
+    // class but SSingleUnit (0x5aaa30), and only squads come here.
+    if (!Slot_58((int)(intptr_t)WorldUnit(unit))) {
+        STarget* t = STarget::Create(9);
+        t->Type = 0;
+        t->Unit = unit;
+        SetCurrentTarget(t, 0);                               // +0xa0
+    } else {
+        STUB_LOG("SUnit::EnterVehicle (0x5b5810) vehicle +0xd8(unit) pick-up, then +0xc4");
+        ClearTargets();                                       // +0xc4
+    }
+    WorldUnit(unit)->_190 = true;
+    _18c = unit;
 }
 
 // PANZERS 0x5bc840
@@ -521,10 +761,10 @@ void SUnit::AI_Heartbeat()
         int mode = PlayerType(Player) == 1 ? 2 : 1;
         SGunner* g = WorldUnit(MemberUnit(this, 0))->GetGunner(0);
         if (FindTarget(mode, g, minR, maxR, true) >= 0) {
-            if (Towed >= 0)
-                STUB_LOG("SUnit::AI_Heartbeat (0x5b37d0) +0x154 (towed gun)");
+            if (Towed < 0)
+                Unload(-1);                                   // +0x144(-1): the crew gets out
             else
-                STUB_LOG("SUnit::AI_Heartbeat (0x5b37d0) +0x144(-1) (unload the crew)");
+                Slot_154();                                   // +0x154 (towed gun)
         }
     }
     for (int i = 0; i < Gunners.Size; ++i) {
@@ -548,7 +788,45 @@ void SUnit::AI_Heartbeat()
         bool main = i == MainGunner && canMove;
         int found = FindTarget(mode, GetGunner(i), minR, maxR, main);
         if (found >= 0) {
-            STUB_LOG("SUnit::AI_Heartbeat (0x5b37d0) target found (0x5b5090 / 0x5b53d0 / 0x5b5810)");
+            SUnit* t = WorldUnit(found);
+            if (PlayerType(Player) == 1) {
+                if (Proto->ClassType == 5) {
+                    // An AI squad may rather man an empty armed vehicle that
+                    // survives the target longer (0x5b5090 / 0x5b5810).
+                    int v = FindVehicleToEnter();
+                    if (v >= 0 && WorldUnit(v)->Gunners.Size > 0 && _18c != v) {
+                        float p1[3] = { Pos[0], Pos[1], Pos[2] };
+                        float p2[3] = { Pos[0], Pos[1], Pos[2] };
+                        int withVehicle = t->ShotsToKill(p1, WorldUnit(v)->WorldIndex);   // +0x90
+                        int withSelf = t->ShotsToKill(p2, WorldIndex);
+                        if (withVehicle < withSelf) {
+                            AttackUnit(found, i, canMove);    // 0x5b53d0
+                            EnterVehicle(v);                  // 0x5b5810
+                            return;
+                        }
+                    }
+                } else if (Proto->ClassType == 0xb && Members.Size > 0) {
+                    // A gun crew may rather use the gun's own carrier weapon.
+                    SUnit* stored = WorldUnit(StoredUnit(this, 0));
+                    SUnit* m1 = WorldUnit(MemberUnit(this, 0));
+                    SUnit* m2 = WorldUnit(MemberUnit(this, 0));
+                    float d = (t->Pos[0] - Pos[0]) * (t->Pos[0] - Pos[0]) + (t->Pos[1] - Pos[1]) * (t->Pos[1] - Pos[1]) +
+                              (t->Pos[2] - Pos[2]) * (t->Pos[2] - Pos[2]);
+                    float r = m1->GetMaxRange(0);             // +0x17c(0)
+                    r = m2->GetMaxRange(0) * r;
+                    if (d < r) {
+                        float p1[3] = { Pos[0], Pos[1], Pos[2] };
+                        float p2[3] = { Pos[0], Pos[1], Pos[2] };
+                        int withStored = t->ShotsToKill(p1, stored->WorldIndex);
+                        int withSelf = t->ShotsToKill(p2, WorldIndex);
+                        if (withStored < withSelf) {
+                            Unload(-1);                       // +0x144(-1)
+                            return;
+                        }
+                    }
+                }
+            }
+            AttackUnit(found, i, canMove);                    // 0x5b53d0
             continue;
         }
         if (i != MainGunner)
@@ -557,13 +835,76 @@ void SUnit::AI_Heartbeat()
             (((_138 == 2 || _138 == 3 || _138 == 1) && _140) ||
              ((_144 == 2 || _144 == 3 || _144 == 1) && _14c))) {
             SGunner* g = WorldUnit(MemberUnit(this, 0))->GetGunner(1);
-            if (FindTarget(0, g, 0.0f, maxR, canMove) >= 0) {
-                STUB_LOG("SUnit::AI_Heartbeat (0x5b37d0) special weapon +0xf0 / +0xf4 / +0xf8");
+            int e = FindTarget(0, g, 0.0f, maxR, canMove);
+            if (e >= 0) {
+                // Item 2 (+0xf4), then 3 (+0xf8), then 1 (+0xf0); "far" when
+                // the target is beyond the lowest weapon range (int squared).
+                int s1 = _138, s2 = _144;
+                int kind;
+                if ((s1 == 2 && _140) || (s2 == 2 && _14c))
+                    kind = 2;
+                else if ((s1 == 3 && _140) || (s2 == 3 && _14c))
+                    kind = 3;
+                else if ((s1 == 1 && _140) || (s2 == 1 && _14c))
+                    kind = 1;
+                else
+                    return;
+                float lr = GetLowestMaxRange();               // +0x178
+                bool farAway = false;
+                if (GlobalState != 0) {                       // +0xe0
+                    SUnit* tu = WorldUnit(e);
+                    float dz = Pos[2] - tu->Pos[2];
+                    float dz2 = dz * dz;
+                    float dx = Pos[0] - tu->Pos[0];
+                    if ((float)((int)lr * (int)lr) < dx * dx + dz2)   // cvttss2si
+                        farAway = true;
+                }
+                if (kind == 2)
+                    EC_ThrowMolotov(e, farAway);                  // +0xf4
+                else if (kind == 3)
+                    EC_ThrowMagneticMine(e, farAway);             // +0xf8
+                else
+                    EC_ThrowGrenade(e, farAway);                  // +0xf0
                 return;
             }
         }
-        if (!CurrentTarget && Proto->ClassType == 5 && PlayerType(Player) == 1 && AIGroup > -1) {
-            STUB_LOG("SUnit::AI_Heartbeat (0x5b37d0) AI group assault (0x55ccc0, +0xd4)");
+        if (!CurrentTarget && Proto->ClassType == 5 && PlayerType(Player) == 1 && AIGroup > -1 &&
+            AIGroupAt(AIGroup)->Tactic == 2) {
+            // An assaulting AI squad takes the nearest enemy building it sees.
+            SUnit* best = nullptr;
+            float s = GetSightRange();                        // +0x184
+            float bestD = GetSightRange() * s;
+            for (int k = 0; k < SightUnits.Size; ++k) {
+                if (!IsTargetable(SightUnits.Array[k].Unit, false))
+                    continue;
+                SUnit* b = WorldUnit(SightUnits.Array[k].Unit);
+                if (b == this || b->Wrecked || b->Unplaced || b->CurrentTarget || b->_110)
+                    continue;
+                if (SameSide(Player, b->Player))
+                    continue;
+                if (b->Proto->ClassType != 9)
+                    continue;
+                if (*(const int*)(*(const unsigned char* const*)((const unsigned char*)b + 0x340) + 0x13c) == 1)   // SPBuildingUnit +0x13c
+                    continue;
+                int pt = PlayerType(b->Player);
+                if (pt == 3 || pt == 4)
+                    continue;
+                if (!b->CanStoreUnit(WorldIndex))             // 0x5b7040
+                    continue;
+                if (!IsTargetable(b->WorldIndex, false))
+                    continue;
+                if (!g_GameLogic->CanSeeGroundUnit(Player, b))    // 0x562760
+                    continue;
+                float d = (b->Pos[0] - Pos[0]) * (b->Pos[0] - Pos[0]) + (b->Pos[2] - Pos[2]) * (b->Pos[2] - Pos[2]);
+                if (d < bestD) {
+                    bestD = d;
+                    best = b;
+                }
+            }
+            if (best) {
+                EC_AssaultBuilding(best->WorldIndex, 1);      // +0xd4
+                return;
+            }
         }
         if (PrimaryTarget && !CurrentTarget && ActiveDriver > -1) {
             if (TKind(PrimaryTarget) == 4)
@@ -747,7 +1088,7 @@ void SUnit::OnDriverStucked()
 {
     if (!CurrentTarget)
         Logger.g->Panic("SUnit::OnDriverStucked - No Currenttarget, unit:%s, idx:%d", SStr(Proto->Name), WorldIndex);
-    STUB_LOG("SUnit::OnDriverStucked (0x5bcd20) world event 0x5fff20(unit, 4, 0)");
+    g_World->UnitSpeech(WorldIndex, 4, false);                // 0x5fff20 "CantMove"
     STarget* ct = CurrentTarget;
     if ((ct == PrimaryTarget || TType(ct) == 2 || TType(ct) == 3) && PrimaryTarget)
         DropTarget(&PrimaryTarget);

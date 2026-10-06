@@ -45,11 +45,12 @@ add_library(pzgame STATIC
     squadunit.h
     squadunit.cpp
     squadrefresh.cpp
+    squadcombat.cpp
     buildingunit.h
     buildingunit.cpp
-    buildingunit_store.cpp
     gunner.h
     gunner.cpp
+    gunnermath.cpp
     # P: drivers + path finding
     driver.h
     driver.cpp
@@ -73,6 +74,18 @@ add_library(pzgame STATIC
     unitanim_model.cpp
     unitanim_props.cpp
     unitanim_world.cpp
+    # M3 C: combat + AI (docs/M3_INTERFACES.md row C). C0 integrator, C1 gunner /
+    # projectile, C2 damage / death, C3 air support / waster, C4 AI / squads / buildings.
+    combat_speech.cpp
+    combat.cpp
+    combat_support.cpp
+    projectile.cpp
+    projectile_driver.cpp
+    projectile_anim.cpp
+    waster.cpp
+    flying.cpp
+    flyingdriver.cpp
+    parachute.cpp
 )
 target_include_directories(pzgame PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(pzgame PRIVATE ${PANZERS_SRC_DIR}/stubs)

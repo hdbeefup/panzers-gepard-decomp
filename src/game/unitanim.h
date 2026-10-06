@@ -277,19 +277,19 @@ struct SPBuildingAnimation : SPUnitAnimation {         // 0x10, vftable 0x7fd7cc
 // SBoatAnimation, SFlyingAnimation, SProjectileAnimation, SWasterAnimation)
 // are not lifted: CreateAnimation logs and returns nullptr.
 struct SPProjectileAnimation : SPUnitAnimation {       // 0x10, vftable 0x7fd76c
-    SIUnitAnimation* CreateAnimation(SIUnit* unit) override; // 0x5c78e0 (not lifted)
+    SIUnitAnimation* CreateAnimation(SIUnit* unit) override; // 0x5c78e0 (projectile.cpp)
     void LoadProps(SIPUnit* punit, const SAnimProps& props) override;          // 0x5c85a0 (empty)
 };
 
 struct SPWasterAnimation : SPUnitAnimation {           // 0x10, vftable 0x7fd784
-    SIUnitAnimation* CreateAnimation(SIUnit* unit) override; // 0x5c7b20 (not lifted)
+    SIUnitAnimation* CreateAnimation(SIUnit* unit) override; // 0x5c7b20 (waster.cpp, M3-C C3)
     void LoadProps(SIPUnit* punit, const SAnimProps& props) override;          // 0x5c8be0 (empty)
 };
 
 struct SPFlyingAnimation : SPUnitAnimation {           // 0x34, vftable 0x7fd79c
     SPFlyingAnimation();                                     // 0x5c6540
     ~SPFlyingAnimation() override;                           // 0x5c71e0
-    SIUnitAnimation* CreateAnimation(SIUnit* unit) override; // 0x5c77c0 (not lifted)
+    SIUnitAnimation* CreateAnimation(SIUnit* unit) override; // 0x5c77c0 (flying.cpp, M3-C C3)
     void LoadProps(SIPUnit* punit, const SAnimProps& props) override;          // 0x5c8480
 
     SPRunningGear* RunningGear;     // +0x10 (same block as SPVehicleAnimation +0x10..+0x30)
@@ -339,18 +339,18 @@ struct SUnitAnimation : SIUnitAnimation {
     ~SUnitAnimation() override;                              // 0x5c74c0
     void InitModel(SIModel* model) override;
     void UpdateModel() override;
-    void Slot_0C() override;
-    void Slot_10() override;
-    void Slot_14() override;
+    void Slot_0C(void* p1) override;                         // 0x5c76c0
+    float* GetFirePosition(float* out, int gunner, float dirOffset, float kick) override;   // pure in HD
+    void AddBodyKick(float x, float y, float z) override;    // 0x5cb420
     float GetStateMoveSpeed(int state) override;             // 0x5c7e90
     float GetStateTurnSpeed(int state) override;             // 0x5c7f50
     int GetDriverNode() override;                            // 0x5c7c60
-    void Slot_24() override;
-    void Slot_28() override;
-    void Slot_2C() override;
-    void Slot_30() override;
-    void Slot_34() override;
-    void Slot_38() override;
+    int GetHookNode() override;                              // 0x5c8410
+    int GetHoleFNode() override;                             // 0x5c8350
+    int GetHoleRNode() override;                             // 0x5c83b0
+    float* GetHookPos(float* out2) override;                 // 0x5c8430
+    float* GetHoleFPos(float* out2) override;                // 0x5c8370
+    float* GetHoleRPos(float* out2) override;                // 0x5c83d0
     int GetShadowTexture() override;                         // 0x5c8250
     SIPUnitAnimation* GetPrototype() override;               // 0x5c8240
 
@@ -376,6 +376,14 @@ struct SVehicleAnimation : SUnitAnimation {             // 0xc0, vftable 0x7fd82
     void InitModel(SIModel* model) override;                 // 0x5c93a0
     void UpdateModel() override;                             // 0x5cd020
     int GetDriverNode() override;                            // 0x5c7c70
+    float* GetFirePosition(float* out, int gunner, float dirOffset, float kick) override;   // 0x5cb270
+    void AddBodyKick(float x, float y, float z) override;    // 0x5cb430
+    int GetHookNode() override;                              // 0x5c8420
+    int GetHoleFNode() override;                             // 0x5c8360
+    int GetHoleRNode() override;                             // 0x5c83c0
+    float* GetHookPos(float* out2) override;                 // 0x5c8450
+    float* GetHoleFPos(float* out2) override;                // 0x5c8390
+    float* GetHoleRPos(float* out2) override;                // 0x5c83f0
 
     SPVehicleAnimation* VProto;     // +0x24
     SRunningGear* Gear;             // +0x28
@@ -411,6 +419,7 @@ struct SWalkerAnimation : SUnitAnimation {              // 0x34, vftable 0x7fd94
     float GetStateMoveSpeed(int state) override;             // 0x5c7ea0
     float GetStateTurnSpeed(int state) override;             // 0x5c7f60
     int GetShadowTexture() override;                         // 0x5c8260
+    float* GetFirePosition(float* out, int gunner, float dirOffset, float kick) override;   // 0x5cb370
     void AdvanceByDistance();                                // 0x5cafc0
     void ResetRelax();                                       // 0x5cb0a0
     float TimeFactor() const { return Oar ? 1.0f : SpeedFactor; }
@@ -426,6 +435,8 @@ struct SSquadAnimation : SUnitAnimation {               // 0x2c, vftable 0x7fda6
     ~SSquadAnimation() override;                             // 0x5c73f0
     void InitModel(SIModel* model) override;                 // 0x5c9340 (empty)
     void UpdateModel() override;                             // 0x5cc8c0
+    void Slot_0C(void* p1) override;                         // 0x5c76a0
+    float* GetFirePosition(float* out, int gunner, float dirOffset, float kick) override;   // 0x5cb240
 
     SPSquadAnimation* SProto;       // +0x24
     SIModel*      Extra;            // +0x28 (released in the dtor)
@@ -436,6 +447,7 @@ struct SBuildingAnimation : SUnitAnimation {            // 0x30, vftable 0x7fdab
     ~SBuildingAnimation() override;                          // 0x5c7100
     void InitModel(SIModel* model) override;                 // 0x5c8c20
     void UpdateModel() override;                             // 0x5cb650
+    float* GetFirePosition(float* out, int gunner, float dirOffset, float kick) override;   // 0x5cb100
 
     SPBuildingAnimation* BProto;    // +0x24
     int           RoofNode;         // +0x28 "teto"

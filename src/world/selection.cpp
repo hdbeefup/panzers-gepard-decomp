@@ -148,7 +148,7 @@ void NormalizeRay(float* ray)
 
 void UnitVoiceSelected(SUnit* u)
 {
-    u->Slot_44();                                                 // +0x44 (0x5bce20): the "selected" voice (agent C)
+    u->SpeakSelected();                                           // +0x44 (0x5bce20): the "selected" voice
 }
 
 } // namespace

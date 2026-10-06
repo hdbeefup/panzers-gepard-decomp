@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "gamelogic.h"
+#include "aigroup.h"
 #include "trigger.h"
 #include "triggersunits.h"
 #include "worldapi.h"
@@ -404,6 +405,7 @@ void SGameLogic::RefreshM2()
         if (Frame % 20 == 0)
             DispatchEverySecond();                                // 0x570cc0
         RunTriggers();                                            // 0x579ab0
+        SupportTestHook();                                        // recompile only (M3-C C3, PZ_M3C_TESTSUPPORT), off by default
         Tick_568af0();
         static const int kPlayerCycle[12] = { 0, 4, 8, 2, 6, 10, 1, 5, 9, 3, 7, 11 };   // HD table 0x7f6220
         int pl = kPlayerCycle[Frame % 12];
@@ -422,6 +424,8 @@ void SGameLogic::RefreshM2()
             }
             if (w)
                 w->RefreshFlyingFox();                            // 0x5f6bf0 (no flying fox in the menu)
+            if (Frame % 20 == 0)                                  // M3-C: 0x577958..0x5779b4
+                RefreshAIGroups();                                // SAIGroup::Refresh 0x5f5c70 per live group
             PZ_FOR_EACH_UNIT(i)
                 UV::Iface(i)->RefreshModel();                     // +0x3c
         } else if (w) {

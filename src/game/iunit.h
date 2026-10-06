@@ -47,6 +47,7 @@ struct SUnitDef;
 struct STarget;
 struct SIDriver;
 struct SIUnitAnimation;
+struct SUnitClassDesc;     // +0x1c (unit.h, M3-C5)
 
 struct SIUnit {
     virtual ~SIUnit() {}                                // +0x00 HD 0x5b3730 (1 arg dwords) [menu: periodic<1/s via SSingleUnit 0x5aaa00] scalar deleting dtor
@@ -56,38 +57,38 @@ struct SIUnit {
     virtual void Slot_10() = 0;                                  // +0x10 HD 0x5bc2d0 (2 arg dwords) symbol: SUnit::MakeDescription
     virtual void Slot_14() = 0;                                  // +0x14 HD 0x5bb1c0 (0 arg dwords)
     virtual void Slot_18() = 0;                                  // +0x18 HD 0x5baf30 (0 arg dwords)
-    virtual void Slot_1C() = 0;                                  // +0x1c HD 0x5ba220 (2 arg dwords)
+    virtual void GetClassDescriptor(void** obj, const SUnitClassDesc** desc) = 0;// +0x1c HD 0x5ba220 (2 arg dwords) (M3-C5: (name guessed) the save / property class descriptor: *obj = this, *desc = the class record (SUnit 0x8dc540 "Special", squads 0x8dc0b0, members 0x8dbff0, buildings 0x8da7f8))
     virtual void Hook20(int p1) = 0;                             // +0x20 HD 0x54cd40 (1 arg dwords) [menu: periodic<1/s] (name guessed) empty in every menu class; 30 calls
     virtual void SetPosition(float x, float z, int dirBits, int yrelBits) = 0; // +0x24 HD 0x5c1980 (4 arg dwords) [menu: periodic<1/s] teleport: RunTriggers case 0x26 calls unit +0x24 (block map off, pos +0x8c/+0x94, dir +0xb0, +0x88, +0x3c, +0x16c, block map on)
-    virtual void Slot_28() = 0;                                  // +0x28 HD 0x5be2b0 (0 arg dwords)
+    virtual void SetWreckModel() = 0;                            // +0x28 HD 0x5be2b0 (0 arg dwords) (name guessed, M3-C2) prototype +0x58 wreck model into the scene, animation +0x04
     virtual void ServerRefresh(int frame) = 0;                   // +0x2c HD 0x5bee90 (1 arg dwords) [menu: >=20/s] SUnit::ServerRefresh; per tick from SGameLogic::Refresh (returns at once if +0x84 == frame)
-    virtual void Slot_30() = 0;                                  // +0x30 HD 0x5bd900 (0 arg dwords)
+    virtual void RefreshDead() = 0;                              // +0x30 HD 0x5bd900 (0 arg dwords) (name guessed, M3-C2) per tick while wrecked (+0x150); empty in SUnit, SSingleUnit 0x5af2c0
     virtual void RefreshTargeting() = 0;                         // +0x34 HD 0x5bd600 (0 arg dwords) [menu: >=1/s via SSingleUnit 0x5aef40] (name guessed) ~1/s per unit; weapon range (+0x17c) / sight (+0x184) checks
     virtual void RefreshMisc() = 0;                              // +0x38 HD 0x5bdee0 (0 arg dwords) [menu: >=20/s via SSingleUnit 0x5af890] SSingleUnit::RefreshMisc (0x5af890)
     virtual void RefreshModel() = 0;                             // +0x3c HD 0x5c6130 (0 arg dwords) [menu: >=20/s] per tick from Refresh: animation +0x08 UpdateModel, stored units
     virtual void UpdateVisuals(SIViewport* vp) = 0;              // +0x40 HD 0x5b76c0 (1 arg dwords) [menu: >=20/s via SSingleUnit 0x5aaaa0] (name guessed) per frame from UpdateUnitVisuals 0x5638f0: viewport +0x3c projection, CanSeeGroundUnit
-    virtual void Slot_44() = 0;                                  // +0x44 HD 0x5bce20 (0 arg dwords)
+    virtual void SpeakSelected() = 0;                            // +0x44 HD 0x5bce20 (0 arg dwords) (name guessed, M3-C2) UnitSpeech(this, 0 "Selection", false)
     virtual void OnDriverReachedTarget() = 0;                    // +0x48 HD 0x5bcb60 (0 arg dwords) symbol: SUnit::OnDriverReachedTarget
     virtual void Unplace() = 0;                                  // +0x4c HD 0x5ba850 (0 arg dwords) [menu: periodic<1/s] (name guessed) +0x168 (short) = 1; +0x50 clears it
     virtual void Place(float x, float z, float dir) = 0;         // +0x50 HD 0x5c5160 (3 arg dwords) [menu: periodic<1/s] (name guessed) +0x168 = 0, pos +0x8c/+0x94, dir +0xb0, then +0x3c and +0x16c; CREATE
-    virtual void Slot_54() = 0;                                  // +0x54 HD 0x546ab0 (0 arg dwords)
-    virtual void Slot_58() = 0;                                  // +0x58 HD 0x5468d0 (1 arg dwords)
+    virtual bool Slot_54() = 0;                                   // +0x54 HD 0x546ab0 (0 arg dwords) (M3-C5: returns false in SUnit)
+    virtual bool Slot_58(int p1) = 0;                             // +0x58 HD 0x5468d0 (1 arg dwords) (M3-C5: returns false in SUnit)
     virtual bool StoreUnit(int unit, int mode) = 0;              // +0x5c HD 0x5c30d0 (2 arg dwords) [menu: periodic<1/s] SUnit::StoreUnit (crew into the jeep); false when the unit does not fit
-    virtual void Slot_60() = 0;                                  // +0x60 HD 0x5468c0 (1 arg dwords)
-    virtual void Slot_64() = 0;                                  // +0x64 HD 0x5c51d0 (1 arg dwords)
-    virtual void Slot_68() = 0;                                  // +0x68 HD 0x5c6000 (0 arg dwords)
+    virtual void Slot_60(int p1) = 0;                             // +0x60 HD 0x5468c0 (1 arg dwords) (M3-C5: empty in SUnit)
+    virtual bool UnloadUnit(int unit) = 0;                       // +0x64 HD 0x5c51d0 (1 arg dwords) (name guessed, M3-C2) a stored unit (or -1: all, +0x68) gets out next to the vehicle / building; crew seats of the group handed on
+    virtual void UnloadAll() = 0;                                // +0x68 HD 0x5c6000 (0 arg dwords) (name guessed, M3-C2) +0x64 for every stored unit, last first
     virtual void Slot_6C() = 0;                                  // +0x6c HD 0x5c2390 (1 arg dwords)
     virtual void Remove(bool p1) = 0;                            // +0x70 HD 0x5c2df0 (1 arg dwords) [menu: periodic<1/s] (name guessed) once per removed unit
     virtual void Slot_74() = 0;                                  // +0x74 HD 0x5b5c10 (9 arg dwords) symbol: SUnit::GhostFrames_AddTop
-    virtual void Slot_78() = 0;                                  // +0x78 HD 0x55ce70 (1 arg dwords)
-    virtual void Slot_7C() = 0;                                  // +0x7c HD 0x55ce60 (0 arg dwords)
+    virtual float* GetEntrance(float* out3) = 0;                 // +0x78 HD 0x55ce70 (1 arg dwords) (name guessed, M3-C3) the point a unit walks to to enter: +0x8c (x, y, z); buildings 0x548200 the door; returns out3
+    virtual float GetEntranceDir() = 0;                          // +0x7c HD 0x55ce60 (0 arg dwords) (name guessed, M3-C3) +0xb0; buildings 0x5481f0
     virtual bool HasWoundedMember() = 0;                         // +0x80 HD 0x54a240 (0 arg dwords) [menu: >=1/s via SPanzersSquadUnit 0x59d670] (name guessed) squads: any member with +0x114 below the threshold
     virtual void Slot_84() = 0;                                  // +0x84 HD 0x5c0fa0 (1 arg dwords)
     virtual int GetRank() = 0;                                   // +0x88 HD 0x5b9e60 (0 arg dwords) [menu: >=20/s] (name guessed) XP (+0x64) against the SUnitRegistry thresholds +0x44..
-    virtual void Slot_8C() = 0;                                  // +0x8c HD 0x55cee0 (3 arg dwords)
-    virtual void Slot_90() = 0;                                  // +0x90 HD 0x5b6040 (2 arg dwords)
-    virtual void TakeDamage(int p1, int p2, int p3, int p4, int p5, int p6, int p7) = 0;               // +0x94 HD 0x5c4080 (7 arg dwords) symbol: SUnit::TakeDamage
-    virtual void Slot_98() = 0;                                  // +0x98 HD 0x5c5050 (1 arg dwords)
+    virtual void AddXP(int victim, float xp, int p3) = 0;        // +0x8c HD 0x55cee0 (3 arg dwords) (name guessed, M3-C) empty in SUnit; SSingleUnit 0x5ad070 / buildings 0x548d30 pass it on, squads 0x59c2a0 share it; IncreaseUnitXP 0x5ec840, RefreshDead 0x5af2c0 (-1, 50 / 100, 0)
+    virtual int ShotsToKill(const float* from, int attacker) = 0; // +0x90 HD 0x5b6040 (2 arg dwords) (name guessed, M3-C2) shots of the attacker (world index) this unit survives, armour side facing from (x, y, z); 100 = attacker unarmed
+    virtual void TakeDamage(float damage, int weaponType, int attacker, float x, float y, float z, int hitMode) = 0; // +0x94 HD 0x5c4080 (7 arg dwords) symbol: SUnit::TakeDamage; weaponType = SPGunner +0x24 (0 bullet, 1 AT, 2 HE, 3 fire), attacker = world index (-1), (x, y, z) = where the hit came from, hitMode 0 directional armour, 1 top armour, 2 no armour
+    virtual void Heal(float amount) = 0;                         // +0x98 HD 0x5c5050 (1 arg dwords) (name guessed, M3-C2) HP += amount / hit points * 4 (max 1)
     virtual void Slot_9C() = 0;                                  // +0x9c HD 0x5c1d40 (1 arg dwords)
     virtual void SetCurrentTarget(STarget* target, int p2) = 0;  // +0xa0 HD 0x5c0d10 (2 arg dwords) [menu: periodic<1/s] SPanzersSquadUnit::SetCurrentTarget (0x59f580); takes a reference into +0x1f4
     virtual void EC_Default(int p1, int p2) = 0;                 // +0xa4 HD 0x5b8ab0 (2 arg dwords) symbol: SSingleUnit::EC_Default
@@ -100,57 +101,57 @@ struct SIUnit {
     virtual void Stop() = 0;                                     // +0xc0 HD 0x5b91b0 (0 arg dwords) [menu: periodic<1/s] (name guessed) drops +0x1f4, active driver 0x55bf50(1), STarget at own position
     virtual void ClearTargets() = 0;                             // +0xc4 HD 0x5b90b0 (? arg dwords) [menu: periodic<1/s] (name guessed) releases the STargets at +0x1f4/+0x1f8
     virtual void Slot_C8() = 0;                                  // +0xc8 HD 0x5b9170 (? arg dwords)
-    virtual void EC_AttackMove(int p1, int p2, int p3) = 0;               // +0xcc HD 0x5b8660 (3 arg dwords) symbol: SUnit::EC_AttackMove
-    virtual void Slot_D0() = 0;                                  // +0xd0 HD 0x5b8740 (3 arg dwords)
+    virtual void EC_AttackMove(float x, float z, int queue) = 0; // +0xcc HD 0x5b8660 (3 arg dwords) symbol: SUnit::EC_AttackMove; primary target kind 4 at (x, z), +0xa0, +0x190
+    virtual void EC_AttackAlongPath(int path, int node, int queue) = 0; // +0xd0 HD 0x5b8740 (3 arg dwords) (name guessed, M3-C) STarget kind 4 type 2 on the path from node (0x5b7c50), +0xa0, +0x190; AI groups 0x5d9750
     virtual void EC_AssaultBuilding(int p1, int p2) = 0;               // +0xd4 HD 0x5b82b0 (2 arg dwords) symbol: SUnit::EC_AssaultBuilding
     virtual void Slot_D8() = 0;                                  // +0xd8 HD 0x5b8fa0 (1 arg dwords)
     virtual void Slot_DC() = 0;                                  // +0xdc HD 0x5b8c90 (1 arg dwords)
-    virtual void Slot_E0() = 0;                                  // +0xe0 HD 0x547b90 (2 arg dwords)
-    virtual void Slot_E4() = 0;                                  // +0xe4 HD 0x5b8570 (3 arg dwords)
-    virtual void EC_Attack(int p1, int p2) = 0;                  // +0xe8 HD 0x5b8440 (2 arg dwords) symbol: SUnit::EC_Attack
+    virtual void Slot_E0(int p1, int p2) = 0;                     // +0xe0 HD 0x547b90 (2 arg dwords) (M3-C5: empty in SUnit)
+    virtual void EC_AttackPos(int xBits, int zBits, int p3) = 0; // +0xe4 HD 0x5b8570 (3 arg dwords) (name guessed, M3-C3) attack the ground at (x, z) (float bits): new STarget type 2 at the terrain height, Mode 1, into +0x1f8, then +0xa0(target, p3); members 0x597fa0, wasters 0x5d21a0
+    virtual void EC_Attack(int unit, int queue) = 0;                  // +0xe8 HD 0x5b8440 (2 arg dwords) symbol: SUnit::EC_Attack
     virtual void StopGunners() = 0;                              // +0xec HD 0x5b9110 (0 arg dwords) [menu: periodic<1/s] (name guessed) every gunner (+0x48, count +0x4c) slot +0x28
-    virtual void Slot_F0() = 0;                                  // +0xf0 HD 0x5478c0 (2 arg dwords)
-    virtual void Slot_F4() = 0;                                  // +0xf4 HD 0x5478e0 (2 arg dwords)
-    virtual void Slot_F8() = 0;                                  // +0xf8 HD 0x5478d0 (2 arg dwords)
-    virtual void Slot_FC() = 0;                                  // +0xfc HD 0x547b30 (3 arg dwords)
-    virtual void Slot_100() = 0;                                 // +0x100 HD 0x548180 (3 arg dwords)
-    virtual void Slot_104() = 0;                                 // +0x104 HD 0x547e80 (0 arg dwords)
-    virtual void Slot_108() = 0;                                 // +0x108 HD 0x5478f0 (0 arg dwords)
-    virtual void Slot_10C() = 0;                                 // +0x10c HD 0x547ba0 (3 arg dwords)
-    virtual void Slot_110() = 0;                                 // +0x110 HD 0x547b80 (2 arg dwords)
-    virtual void Slot_114() = 0;                                 // +0x114 HD 0x547b40 (2 arg dwords)
-    virtual void Slot_118() = 0;                                 // +0x118 HD 0x547b50 (1 arg dwords)
-    virtual void Slot_11C() = 0;                                 // +0x11c HD 0x547b60 (0 arg dwords)
-    virtual void Slot_120() = 0;                                 // +0x120 HD 0x547b70 (1 arg dwords)
+    virtual void EC_ThrowGrenade(int unit, int p2) = 0;           // +0xf0 HD 0x5478c0 (2 arg dwords) (M3-C5: (name guessed) equipment item 1 (prototype +0xb5 SlotGrenade, member gunner 1); empty in SUnit, squads 0x599f80)
+    virtual void EC_ThrowMolotov(int unit, int p2) = 0;           // +0xf4 HD 0x5478e0 (2 arg dwords) (M3-C5: (name guessed) equipment item 2 (prototype +0xb6 SlotMolotov, member gunner 2); empty in SUnit, squads 0x59a280)
+    virtual void EC_ThrowMagneticMine(int unit, int p2) = 0;      // +0xf8 HD 0x5478d0 (2 arg dwords) (M3-C5: (name guessed) equipment item 3 (prototype +0xb7, member gunner 3); empty in SUnit, squads 0x59a0f0)
+    virtual void Slot_FC(int p1, int p2, int p3) = 0;             // +0xfc HD 0x547b30 (3 arg dwords) (M3-C5: empty in SUnit)
+    virtual void Slot_100(int p1, int p2, int p3) = 0;            // +0x100 HD 0x548180 (3 arg dwords) (M3-C5: empty in SUnit)
+    virtual void Slot_104() = 0;                                  // +0x104 HD 0x547e80 (0 arg dwords) (M3-C5: empty in SUnit; squad members 0x598670 (delayed action 1))
+    virtual void Slot_108() = 0;                                  // +0x108 HD 0x5478f0 (0 arg dwords) (M3-C5: empty in SUnit)
+    virtual void Slot_10C(int p1, int p2, int p3) = 0;            // +0x10c HD 0x547ba0 (3 arg dwords) (M3-C5: empty in SUnit)
+    virtual void Slot_110(int p1, int p2) = 0;                    // +0x110 HD 0x547b80 (2 arg dwords) (M3-C5: empty in SUnit)
+    virtual void Slot_114(int p1, int p2) = 0;                    // +0x114 HD 0x547b40 (2 arg dwords) (M3-C5: empty in SUnit)
+    virtual void Slot_118(int p1) = 0;                            // +0x118 HD 0x547b50 (1 arg dwords) (M3-C5: empty in SUnit)
+    virtual void Slot_11C() = 0;                                  // +0x11c HD 0x547b60 (0 arg dwords) (M3-C5: empty in SUnit)
+    virtual void Slot_120(int p1) = 0;                            // +0x120 HD 0x547b70 (1 arg dwords) (M3-C5: empty in SUnit)
     virtual void EC_Die() = 0;                                   // +0x124 HD 0x5b8b10 (0 arg dwords) symbol: SUnit::EC_Die
     virtual void Slot_128() = 0;                                 // +0x128 HD 0x5b88d0 (0 arg dwords)
     virtual void SetBehavior(int behavior) = 0;                  // +0x12c HD 0x5b8960 (1 arg dwords) [menu: periodic<1/s] (name guessed) +0xe8 = behavior
-    virtual void Slot_130() = 0;                                 // +0x130 HD 0x54cd50 (1 arg dwords)
-    virtual void Slot_134() = 0;                                 // +0x134 HD 0x55cdf0 (1 arg dwords)
-    virtual void Slot_138() = 0;                                 // +0x138 HD 0x547900 (1 arg dwords)
-    virtual void Slot_13C() = 0;                                 // +0x13c HD 0x5b8920 (1 arg dwords)
-    virtual void Slot_140() = 0;                                 // +0x140 HD 0x5b87f0 (2 arg dwords)
-    virtual void Slot_144() = 0;                                 // +0x144 HD 0x5b93f0 (1 arg dwords)
-    virtual void Slot_148() = 0;                                 // +0x148 HD 0x547e70 (1 arg dwords)
-    virtual void Slot_14C() = 0;                                 // +0x14c HD 0x5481a0 (1 arg dwords)
-    virtual void Slot_150() = 0;                                 // +0x150 HD 0x548190 (1 arg dwords)
-    virtual void Slot_154() = 0;                                 // +0x154 HD 0x5481b0 (0 arg dwords)
-    virtual void Slot_158() = 0;                                 // +0x158 HD 0x55ce50 (1 arg dwords)
-    virtual void Slot_15C() = 0;                                 // +0x15c HD 0x547e60 (1 arg dwords)
-    virtual void Slot_160() = 0;                                 // +0x160 HD 0x5478b0 (1 arg dwords)
-    virtual void Slot_164() = 0;                                 // +0x164 HD 0x55ce40 (1 arg dwords)
+    virtual void SetHealthPercent(float percent) = 0;             // +0x130 HD 0x54cd50 (1 arg dwords) (M3-C5: (name guessed) +0x114 = percent / 100)
+    virtual void Slot_134(int p1) = 0;                           // +0x134 HD 0x55cdf0 (1 arg dwords) (M3-C3) empty in SUnit; SSingleUnit 0x5ac180, buildings 0x547a70, members 0x598250
+    virtual void EC_ChangeActiveDriver(int driver) = 0;           // +0x138 HD 0x547900 (1 arg dwords) (M3-C5: symbol (squad members 0x598070): empty in SUnit)
+    virtual void SetFireBehavior(int behavior) = 0;              // +0x13c HD 0x5b8920 (1 arg dwords) (name guessed, M3-C2) +0x250; 2 stops the gunners; then +0x34
+    virtual void EC_Enter(int unit, int queue) = 0;              // +0x140 HD 0x5b87f0 (2 arg dwords) (name guessed, M3-C2) primary target kind 9 on the unit (get in / man a towed gun)
+    virtual void Unload(int index) = 0;                          // +0x144 HD 0x5b93f0 (1 arg dwords) (name guessed, M3-C2) stored unit index (-1 all): stop first (stop target), else +0x64
+    virtual void Slot_148(int player) = 0;                        // +0x148 HD 0x547e70 (1 arg dwords) (M3-C5: empty in SUnit; squads 0x59af90; ProcessPacket passes the player, agent O)
+    virtual void Slot_14C(int player) = 0;                        // +0x14c HD 0x5481a0 (1 arg dwords) (M3-C5: empty in SUnit; ProcessPacket passes the player, agent O)
+    virtual void Slot_150(int p1) = 0;                            // +0x150 HD 0x548190 (1 arg dwords) (M3-C5: empty in SUnit)
+    virtual void Slot_154() = 0;                                  // +0x154 HD 0x5481b0 (0 arg dwords) (M3-C5: empty in SUnit)
+    virtual void Slot_158(int p1) = 0;                           // +0x158 HD 0x55ce50 (1 arg dwords) (M3-C3) empty in SUnit; buildings 0x547f60
+    virtual void Slot_15C(int p1) = 0;                            // +0x15c HD 0x547e60 (1 arg dwords) (M3-C5: empty in SUnit)
+    virtual void Slot_160(int p1) = 0;                            // +0x160 HD 0x5478b0 (1 arg dwords) (M3-C5: empty in SUnit)
+    virtual void Slot_164(int p1) = 0;                           // +0x164 HD 0x55ce40 (1 arg dwords) (M3-C3) empty in SUnit; buildings 0x547bb0
     virtual void Slot_168() = 0;                                 // +0x168 HD 0x5b9360 (1 arg dwords)
     virtual void StoreInterpolationState() = 0;                  // +0x16c HD 0x5b5ad0 (0 arg dwords) [menu: >=20/s] pos +0x8c -> +0x98 -> +0xa4, dir +0xb0 -> +0xb4 -> +0xb8; models +0x08/+0x0c/+0x10 +0x3c; per tick
-    virtual void Slot_170() = 0;                                 // +0x170 HD 0x5b9e30 (0 arg dwords)
-    virtual void Slot_174() = 0;                                 // +0x174 HD 0x5b9ec0 (0 arg dwords)
-    virtual void Slot_178() = 0;                                 // +0x178 HD 0x5b9d90 (0 arg dwords)
+    virtual float GetHealth() = 0;                               // +0x170 HD 0x5b9e30 (0 arg dwords) +0x114 (M3-C)
+    virtual float GetHitPoints() = 0;                            // +0x174 HD 0x5b9ec0 (0 arg dwords) prototype +0x98; TakeDamage divides the damage by it (M3-C)
+    virtual float GetLowestMaxRange() = 0;                       // +0x178 HD 0x5b9d90 (0 arg dwords) +0x17c(0); squads 0x59b650 SPanzersSquadUnit::GetLowestMaxRange (M3-C)
     virtual float GetMaxRange(int weapon) = 0;                   // +0x17c HD 0x5b9f60 (1 arg dwords) [menu: >=1/s via SSingleUnit 0x5acbd0] (name guessed) gunner +0x2c ... +0x38
     virtual float GetMinRange(int weapon) = 0;                   // +0x180 HD 0x5b9f90 (1 arg dwords) [menu: >=1/s via SSingleUnit 0x5acd30] (name guessed) gunner +0x2c ... +0x34
     virtual float GetSightRange() = 0;                           // +0x184 HD 0x5ba240 (0 arg dwords) [menu: >=20/s] (name guessed) PUnit +0x84, registry +0x10c for type 6
     virtual float GetExtra188() = 0;                             // +0x188 HD 0x548230 (0 arg dwords) [menu: >=1/s] (name guessed) 0.0 except squads (0x59bb80)
-    virtual void Slot_18C() = 0;                                 // +0x18c HD 0x548380 (0 arg dwords)
+    virtual float Slot_18C() = 0;                                 // +0x18c HD 0x548380 (0 arg dwords) (M3-C5: returns 0.0 in SUnit)
     virtual void AI_Heartbeat() = 0;                             // +0x190 HD 0x5b37d0 (0 arg dwords) [menu: >=1/s] SPanzersSquadMemberUnit::AI_Heartbeat (0x5979d0)
-    virtual void Slot_194() = 0;                                 // +0x194 HD 0x55e330 (1 arg dwords)
+    virtual void OnAttackedBy(int attacker) = 0;                 // +0x194 HD 0x55e330 (1 arg dwords) (name guessed, M3-C) empty in SUnit; SSingleUnit 0x5b0420 / squads 0x59ef00 react to the attacker (TakeDamage calls it on the unit or its carrier)
     virtual void SetOnBlockMap(bool on) = 0;                     // +0x198 HD 0x5bc660 (1 arg dwords) [menu: >=20/s] (name guessed) +0x2ea = on, 0x5f4430(x, z, size, on)
     virtual void Slot_19C() = 0;                                 // +0x19c HD 0x5b74c0 (0 arg dwords)
     virtual void MarkBlockMap(bool on, int p2, int p3, int p4, short p5) = 0; // +0x1a0 HD 0x5bc6d0 (5 arg dwords) [menu: >=1/s] (name guessed) 0x5f4720
@@ -158,9 +159,9 @@ struct SIUnit {
     virtual int TestBlockMap(int p1, int p2, int p3, int p4, short p5) = 0; // +0x1a8 HD 0x5b7500 (5 arg dwords) [menu: >=20/s] (name guessed) 0x5d9e00
     virtual void RestoreBehavior() = 0;                          // +0x1ac HD 0x546ac0 (0 arg dwords) [menu: sporadic via SPanzersSquadUnit 0x599430] (name guessed) squads: +0x12c(+0xec) when +0xec != +0xe0
     virtual float GetMoveSpeed(int p1) = 0;                      // +0x1b0 HD 0x5b9ed0 (1 arg dwords) [menu: >=20/s] (name guessed) driver +0x48 calls it with -1
-    virtual void Slot_1B4() = 0;                                 // +0x1b4 HD 0x55cf70 (1 arg dwords)
-    virtual void Slot_1B8() = 0;                                 // +0x1b8 HD 0x5c1da0 (2 arg dwords)
-    virtual void Slot_1BC() = 0;                                 // +0x1bc HD 0x55cf60 (0 arg dwords)
+    virtual void OnMemberDied(int unit) = 0;                     // +0x1b4 HD 0x55cf70 (1 arg dwords) (name guessed, M3-C) empty; squads 0x59d4e0 RemoveMember, vehicles 0x5ae970 (crew), buildings 0x549b70 (occupants); squad members' EC_Die 0x598280 calls it on the squad
+    virtual void SetSpecialAnimation(const char* name) = 0;       // +0x1b8 HD 0x5c1da0 (2 arg dwords) (M3-C5: (name guessed) HD takes an SString by value (ptr, len): +0x160/+0x164 = a copy; squad members play it (lay_mine1, kneel_mine1))
+    virtual bool IsCapturable() = 0;                             // +0x1bc HD 0x55cf60 (0 arg dwords) (name guessed, M3-C3) false; buildings 0x549af0: BuildingType (+0x13c) == 3 capturable; UpdateUnitVisuals 0x5638f0, 0x562c20, 0x576490
     virtual void ServerRefreshMedic(float dt) = 0;               // +0x1c0 HD 0x5bfa50 (1 arg dwords) [menu: >=20/s] SUnit::ServerRefreshMedic
     virtual void SetUnitSize() = 0;                              // +0x1c4 HD 0x5c21d0 (0 arg dwords) [menu: periodic<1/s via SPanzersSquadUnit 0x5a0f30] SPanzersSquadUnit::SetUnitSize (0x5a0f30)
     virtual void GetCenterPosition(float* out) = 0;              // +0x1c8 HD 0x5b9d40 (1 arg dwords) [menu: >=1000/s via SPanzersSquadUnit 0x59b4a0] (name guessed) squads: mean member position; others +0x8c

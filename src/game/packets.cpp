@@ -222,45 +222,38 @@ void SpeechAttack(SUnit* u, int target)
 
 // --- ProcessPacket cases whose effect belongs to another agent.
 
-// PANZERS 0x5674c0 / 0x568300 / 0x568740 / 0x567760 / 0x567d40: the support
-// calls (agent C). They create units and draw the world RNG.
+// The support calls 0x5674c0 / 0x568300 / 0x568740 / 0x567760 / 0x567d40
+// (SGameLogic, combat_support.cpp, agent C) with the arguments ProcessPacket
+// passes in HD: free = 0, extra altitude -1.0, p6 = 1.
 void Support_5674c0(float x, float z, int player)
 {
-    STUB_LOG("SGameLogic support 0x5674c0 (packet 0x1c, agent C)");
-    (void)x; (void)z; (void)player;
+    g_GameLogic->SupportArtillery(false, x, z, player);            // 0x5674c0(0, x, z, player)
 }
 void Support_568300(float x, float z, int player)
 {
-    STUB_LOG("SGameLogic support 0x568300 (packet 0x1d, agent C)");
-    (void)x; (void)z; (void)player;
+    g_GameLogic->SupportRecon(false, x, z, player, -1.0f, true);   // 0x568300(0, x, z, player, -1.0, 1)
 }
 void Support_568740(float x, float z, int player)
 {
-    STUB_LOG("SGameLogic support 0x568740 (packet 0x1e, agent C)");
-    (void)x; (void)z; (void)player;
+    g_GameLogic->SupportTacBomber(false, x, z, player);            // 0x568740(0, x, z, player)
 }
 void Support_567760(float x, float z, int player, bool flag, float dir)
 {
-    STUB_LOG("SGameLogic support 0x567760 (packet 0x1f, agent C)");
-    (void)x; (void)z; (void)player; (void)flag; (void)dir;
+    g_GameLogic->SupportHeavyBomber(false, x, z, player, -1.0f, true, flag, dir);   // 0x567760(0, x, z, player, -1.0, 1, f, dir)
 }
 void Support_567d40(float x, float z, int player, bool flag, float dir)
 {
-    STUB_LOG("SGameLogic support 0x567d40 (packet 0x20, agent C)");
-    (void)x; (void)z; (void)player; (void)flag; (void)dir;
+    g_GameLogic->SupportParatroopers(false, x, z, player, -1.0f, true, flag, dir);  // 0x567d40(0, x, z, player, -1.0, 1, f, dir)
 }
 
-// Unit slots +0x148 / +0x14c (agent C; iunit.h declares them without the
-// player argument HD passes).
+// Unit slots +0x148 / +0x14c take the player (HD pushes it).
 void UnitSelectedBy(SUnit* u, int player)
 {
-    (void)player;
-    u->Slot_148();
+    u->Slot_148(player);
 }
 void UnitDeselectedBy(SUnit* u, int player)
 {
-    (void)player;
-    u->Slot_14C();
+    u->Slot_14C(player);
 }
 
 // Op 0x23: army records (0x51f860) placed by SGameLogic::PlaceUnits 0x572ec0 (agent F).

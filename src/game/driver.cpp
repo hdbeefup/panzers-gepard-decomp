@@ -7,11 +7,14 @@
 #include <string.h>
 #include <stdlib.h>
 #include "driver.h"
+#include "projectile_driver.h"
+#include "flyingdriver.h"
 #include "driverunit.h"
 #include "drivermath.h"
 #include "manoeuvre.h"
 #include "target.h"
 #include "iunit.h"
+#include "unit.h"
 #include "iunitanim.h"
 #include "world.h"
 #include "worldapi.h"
@@ -279,17 +282,23 @@ void SDriver::SetTargetStopped(STarget* t)
     StartStoppedGhost(true);
 }
 
-void SDriver::Slot_50()
+// The driver class records (HD .data 0x8dacf0 / 0x8daae0, as unit.h's
+// SUnitClassDesc; the property tables stay with the save code).
+static const SUnitClassDesc kDriverClassDesc_8dacf0 = { "DesiredMoveSpeed", nullptr, 0x8dacf0 };
+static const SUnitClassDesc kDriverClassDesc_8daae0 = { "SDriver", &kDriverClassDesc_8dacf0, 0x8daae0 };
+
+// PANZERS 0x5531e0
+void SDriver::GetClassDescriptor(void** obj, const SUnitClassDesc** desc)
 {
-    // HD 0x5531e0 returns the class reflection descriptor (debug only).
-    STUB_LOG("SDriver::Slot_50 (0x5531e0)");
-    PZ_M2_TRACE("SDriver::Slot_50 (0x5531e0)");
+    *obj = this;
+    *desc = &kDriverClassDesc_8dacf0;
 }
 
-void SPanzersSquadMemberDriver::Slot_50()
+// PANZERS 0x553220
+void SPanzersSquadMemberDriver::GetClassDescriptor(void** obj, const SUnitClassDesc** desc)
 {
-    STUB_LOG("SPanzersSquadMemberDriver::Slot_50 (0x553220)");
-    PZ_M2_TRACE("SPanzersSquadMemberDriver::Slot_50 (0x553220)");
+    *obj = this;
+    *desc = &kDriverClassDesc_8daae0;
 }
 
 // PANZERS 0x553260
@@ -1232,8 +1241,11 @@ SIPDriver* CreatePDriver(int driverType)
     case 5: return new SPWalkerDriver();
     case 10: return new SPPanzersSquadDriver();
     case 11: return new SPPanzersSquadMemberDriver();
-    case 3: case 6: case 7: case 8: case 9: case 12: case 13: {
-        // SPFlying/Projectile/Squad/SquadMember/ChildUnit/Parachute/Train:
+    case 6: return new SPProjectileDriver();             // new 0x4c (M3-C C1, projectile.cpp)
+    case 3: return new SPFlyingDriver();                        // M3-C C3 (flying.cpp)
+    case 12: return new SPPanzersParachuteDriver();             // M3-C C3 (parachute.cpp)
+    case 7: case 8: case 9: case 13: {
+        // SPSquad/SquadMember/ChildUnit/Train:
         // not used by the menu.
         SPDriver* p = new SPDriver();
         p->Type = driverType;

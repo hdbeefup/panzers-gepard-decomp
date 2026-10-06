@@ -48,7 +48,7 @@ struct SDriver : SIDriver {
     void Ghost_NextStep() override;
     float GetMaxSpeed() override;
     float GetTurnSpeed() override;
-    void Slot_50() override;
+    void GetClassDescriptor(void** obj, const SUnitClassDesc** desc) override;   // 0x5531e0
 
     // Non-virtual SDriver functions (HD addresses in driver*.cpp).
     bool  CheckTargetMoved();                           // 0x5507d0
@@ -177,7 +177,7 @@ struct SPanzersSquadMemberDriver : SDriver {             // vftable 0x7f4d50, fa
     void Refresh() override;                            // 0x55a640
     bool MoveTowardNextWayPoint(SGhostFrame* frame) override;   // 0x558a60
     float GetMaxSpeed() override;                       // 0x553360
-    void Slot_50() override;                            // 0x553220
+    void GetClassDescriptor(void** obj, const SUnitClassDesc** desc) override;   // 0x553220
 
     SPDriver* PDriver3;           // +0x0e8
     float     Wobble;             // +0x0ec

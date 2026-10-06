@@ -27,6 +27,8 @@ add_library(pzworld STATIC
     selection.h
     selection.cpp
     ai.cpp
+    aigroup.h
+    aigroup.cpp
     # M3: game-view camera and range overlay (agent V)
     worldcamera.cpp
 )

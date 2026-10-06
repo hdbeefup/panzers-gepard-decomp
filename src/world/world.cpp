@@ -183,8 +183,7 @@ SWorld::SWorld(int p1)
     LoadIconSet = -1;
     LoadIconFrame = -1;
     LoadIconParent = 0;
-    // HD 0x5edd00: per-nation speech file counts (speech/%s/%s/%s_%02d.mp3
-    // existence scan). Speech is not part of M1.
+    InitSpeechCounts();                // 0x5edd00 (combat_speech.cpp)
     if (Logger.g)
         Logger.g->Log(HdLogLevel(), "World created");
 }
