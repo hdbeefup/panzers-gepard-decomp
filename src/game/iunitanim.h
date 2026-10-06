@@ -6,8 +6,9 @@
 // The unit keeps its animation at SUnit +0x14 and calls +0x08 UpdateModel
 // from its +0x3c RefreshModel every tick. Menu classes: SVehicleAnimation,
 // SWalkerAnimation, SSquadAnimation, SBuildingAnimation (dtor or update hits).
-// Animation fields: +0x08 SIModel*, +0x24 state table (walker), +0x94
-// running gear (vehicles). HD sizes 0x2c..0xc8 (kHdSize* in m2common.h).
+// Animation fields: +0x04 SIUnit*, +0x08 SPUnitAnimation* (base prototype),
+// +0x0c type, +0x24 class prototype, +0x28 SRunningGear* (vehicles). HD sizes
+// 0x2c..0xc0 (kHdSize* in m2common.h). Implementation: src/game/unitanim.h.
 //
 // SHARED HEADER (owner P0; slot names belong to agent A).
 // Slot comments: "+0xNN HD 0xADDR (N arg dwords)" from the HD vftable and the
@@ -25,36 +26,39 @@
 
 #include "m2common.h"
 
+struct SPropertyStruct;   // core/propertystruct.h (global namespace)
+
 namespace pz {
 
 struct SIUnit;
+struct SIPUnit;
 struct SIModel;
-struct SProperties;
+struct SIPUnitAnimation;
 
 struct SIUnitAnimation {
     virtual ~SIUnitAnimation() {}                       // +0x00 HD 0x5c74c0 (1 arg dwords) [menu: periodic<1/s via SVehicleAnimation 0x5c7510] scalar deleting dtor
-    virtual void InitModel(int p1) = 0;                          // +0x04 _purecall (? arg dwords) [menu: periodic<1/s via SVehicleAnimation 0x5c93a0] SVehicleAnimation::InitModel (0x5c93a0)
+    virtual void InitModel(SIModel* model) = 0;                  // +0x04 _purecall (1 arg dword) [menu: periodic<1/s via SVehicleAnimation 0x5c93a0] SVehicleAnimation::InitModel (0x5c93a0)
     virtual void UpdateModel() = 0;                              // +0x08 _purecall (? arg dwords) [menu: >=20/s via SVehicleAnimation 0x5cd020] SWalkerAnimation::UpdateModel (0x5ce2a0); per tick from unit +0x3c
     virtual void Slot_0C() = 0;                                  // +0x0c HD 0x5c76c0 (1 arg dwords)
     virtual void Slot_10() = 0;                                  // +0x10 _purecall (? arg dwords)
     virtual void Slot_14() = 0;                                  // +0x14 HD 0x5cb420 (3 arg dwords)
     virtual float GetStateMoveSpeed(int state) = 0;              // +0x18 HD 0x5c7e90 (1 arg dwords) [menu: >=20/s via SWalkerAnimation 0x5c7ea0] (name guessed) walker: state table +0x24 -> +0x10 [state].+0x1c
     virtual float GetStateTurnSpeed(int state) = 0;              // +0x1c HD 0x5c7f50 (1 arg dwords) [menu: >=20/s] (name guessed) walker [state].+0x20; driver +0x4c
-    virtual void* GetRunningGear() = 0;                          // +0x20 HD 0x5c7c60 (0 arg dwords) [menu: >=1/s via SVehicleAnimation 0x5c7c70] (name guessed) +0x94 for vehicles, trains, boats, flying fox
+    virtual int GetDriverNode() = 0;                             // +0x20 HD 0x5c7c60 (0 arg dwords) [menu: >=1/s via SVehicleAnimation 0x5c7c70] (name guessed) -1; vehicles: +0x94 = model node "built0_driver"
     virtual void Slot_24() = 0;                                  // +0x24 HD 0x5c8410 (0 arg dwords)
     virtual void Slot_28() = 0;                                  // +0x28 HD 0x5c8350 (0 arg dwords)
     virtual void Slot_2C() = 0;                                  // +0x2c HD 0x5c83b0 (0 arg dwords)
     virtual void Slot_30() = 0;                                  // +0x30 HD 0x5c8430 (1 arg dwords)
     virtual void Slot_34() = 0;                                  // +0x34 HD 0x5c8370 (1 arg dwords)
     virtual void Slot_38() = 0;                                  // +0x38 HD 0x5c83d0 (1 arg dwords)
-    virtual int GetAttachNode() = 0;                             // +0x3c HD 0x5c8250 (0 arg dwords) [menu: periodic<1/s] (name guessed) -1 except walkers; unit +0x50 passes it to model +0xcc
-    virtual SIModel* GetModel() = 0;                             // +0x40 HD 0x5c8240 (0 arg dwords) [menu: periodic<1/s] returns +0x08
+    virtual int GetShadowTexture() = 0;                          // +0x3c HD 0x5c8250 (0 arg dwords) [menu: periodic<1/s] (name guessed) -1; walkers (0x5c8260): SPWalkerAnimation +0x1c ShadowTexture; unit +0x50 passes it to model +0xcc
+    virtual SIPUnitAnimation* GetPrototype() = 0;                // +0x40 HD 0x5c8240 (0 arg dwords) [menu: periodic<1/s] returns +0x08 (the SPUnitAnimation)
 };
 
 struct SIPUnitAnimation {
     virtual ~SIPUnitAnimation() {}                      // +0x00 HD 0x5c7290 (1 arg dwords) scalar deleting dtor
-    virtual void Load(SProperties* props) = 0;                   // +0x04 _purecall (? arg dwords) [menu: startup via SPVehicleAnimation 0x5c85c0] (name guessed) startup
-    virtual void LoadResources(int p1, int p2) = 0;              // +0x08 HD 0x5ca680 (2 arg dwords) [menu: sporadic] (name guessed) 
+    virtual void Load(SIPUnit* punit, ::SPropertyStruct* props) = 0; // +0x04 _purecall (2 arg dwords) [menu: startup via SPVehicleAnimation 0x5c85c0] (name guessed) from SPUnit 0x5a6ce0 with the "Animation" multi sub-struct
+    virtual void LoadResources(SIPUnit* punit, ::SPropertyStruct* props) = 0; // +0x08 HD 0x5ca680 (2 arg dwords) [menu: sporadic] (name guessed) model sequences (punit +0x50), effects, textures
     virtual void Slot_0C() = 0;                                  // +0x0c HD 0x5cb470 (0 arg dwords)
     virtual SIUnitAnimation* CreateAnimation(SIUnit* unit) = 0;  // +0x10 _purecall (? arg dwords) [menu: periodic<1/s via SPVehicleAnimation 0x5c7a30] factory (0x5c7a30 vehicle, 0x5c7ab0 walker, 0x5c7930 squad, 0x5c7770 building)
 };

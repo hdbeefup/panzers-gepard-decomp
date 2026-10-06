@@ -25,6 +25,11 @@ add_library(pzgame STATIC
     # A: unit animation
     unitanim.h
     unitanim.cpp
+    unitanim_vehicle.cpp
+    unitanim_model.h
+    unitanim_model.cpp
+    unitanim_props.cpp
+    unitanim_world.cpp
 )
 target_include_directories(pzgame PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(pzgame PRIVATE ${PANZERS_SRC_DIR}/stubs)

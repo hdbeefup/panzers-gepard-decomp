@@ -580,10 +580,12 @@ void SMaterial::SetTexAnim(int slot, int pass, unsigned stage)
     }
     if (g_MeshDraw.TexAnimType == 2) {
         // 0x6ccb20 type 2: Gepard GetTextureSize, then a 2D rotation by
-        // TexAnim[2] about (0.5, 0.5) scaled by the texture aspect, built
-        // with 0x7c5fb0 and translated by (u, v). Lifted from the
-        // decompilation; the 0x7c5fb0 helper is approximated by the
-        // equivalent rotation-about-centre matrix (not byte-checked).
+        // TexAnim[2], scaled by the texture aspect, about the point
+        // (u, v) = TexAnim[0..1]: T(-u,-v) * R * T(u,v), with HD's sign.
+        // (An earlier version rotated about (0.5, 0.5) and then translated,
+        // which made roadwheel and sprocket textures spin wrongly; found
+        // by M2-A against the running gear.) The 0x7c5fb0 helper is
+        // written out as the equivalent matrix (not byte-checked).
         int w = 1, h = 1;
         PzGepard()->GetTextureSize(Textures[slot], &w, &h);
         double a = (double)g_MeshDraw.TexAnim[2];
@@ -594,10 +596,11 @@ void SMaterial::SetTexAnim(int slot, int pass, unsigned stage)
             sx = (float)(((double)w / (double)h) * s);
             sy = (float)(((double)h / (double)w) * s);
         }
-        m[0] = c;   m[1] = -sx;
-        m[4] = sy;  m[5] = c;
-        m[8] = 0.5f - (c * 0.5f + sy * 0.5f) + g_MeshDraw.TexAnim[0];
-        m[9] = 0.5f - (-sx * 0.5f + c * 0.5f) + g_MeshDraw.TexAnim[1];
+        float u0 = g_MeshDraw.TexAnim[0], v0 = g_MeshDraw.TexAnim[1];
+        m[0] = c;   m[1] = sx;
+        m[4] = -sy; m[5] = c;
+        m[8] = u0 - (u0 * m[0] + v0 * m[4]);
+        m[9] = v0 - (u0 * m[1] + v0 * m[5]);
         Passes[pass].SetTexMatrix(stage, D3DTTFF_COUNT2, m);
     }
 }
