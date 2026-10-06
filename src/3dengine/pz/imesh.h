@@ -1,4 +1,4 @@
-// src/3dengine/pz/imesh.h
+﻿// src/3dengine/pz/imesh.h
 // SIMesh: the slot layout shared by every HD mesh class, 14 slots:
 //   SMesh 0x8830b4, SAnimesh 0x883344, SSkinnedMesh 0x8833f0 (agent A, the
 //   meshes inside an SModel) and SParcel 0x8904a4, SParcel2 0x890558,

@@ -19,6 +19,15 @@ add_library(pz3d STATIC
     pzscene.cpp
     pzmodel.h
     pzmodel.cpp
+    # agent A: .4d prototypes, CANM animations, tracks, meshes
+    pmodel.h
+    pmodel.cpp
+    panim.h
+    panim.cpp
+    tracks.h
+    tracks.cpp
+    mesh.h
+    mesh.cpp
     pzterrain.h
     pzterrain.cpp
     parcel.h

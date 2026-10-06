@@ -2,19 +2,54 @@
 // pz::SModel: HD SModel (0x150 bytes, ctor 0x6d4ae0), created by SScene
 // CreateModel*. Two vptrs: SIModel at +0x00, SIAttachable at +0x04 (MSVC
 // puts them in declaration order of the bases, as HD does).
-// OWNER: agent A. Skeleton from P0.
+// OWNER: agent A.
 
 #ifndef PZ_PZMODEL_H
 #define PZ_PZMODEL_H
 
 #include "imodel.h"
+#include "pmodel.h"
 
 namespace pz {
 
 struct SScene;
+struct SViewport;
+
+// Per-node instance state (HD 0xd4 bytes, ctor 0x6d4e40, set up by
+// SModel::Initialize 0x6d82b0).
+struct SModelNode {
+    float World[12];      // +0x00 3x4 world matrix (current pose)
+    float PrevWorld[12];  // +0x30 (pose of the previous tick, "p4" pass)
+    float Pos[3];         // +0x60 user local transform (Slot_48 / Slot_4C)
+    float Scale;          // +0x6c
+    float Quat[4];        // +0x70
+    float PrevPos[3];     // +0x80 copied by StoreInterpolationState
+    float PrevScale;      // +0x8c
+    float PrevQuat[4];    // +0x90
+    bool  Visible;        // +0xa0 own flag (SetNodeVisible)
+    bool  EffVisible;     // +0xa1 own && parent's
+    unsigned char _a2[2];
+    int   TexAnimType;    // +0xa4 0 none, 1 scroll, 2 rotate
+    float TexAnim[6];     // +0xa8 (u, prevU, v, prevV, angle, prevAngle)
+    int   Light;          // +0xc0 scene light index or -1
+    int   Effect;         // +0xc4 pixie effect instance or -1
+    SIAttachable** Attached; // +0xc8
+    int   AttachedCount;  // +0xcc
+    int   AttachedMax;    // +0xd0
+};
+static_assert(sizeof(SModelNode) == 0xd4, "HD node instance stride 0xd4");
+
+// Animation playback state (HD +0xfc..+0x10c, advanced by 0x6dae20).
+struct SAnimState {
+    int   Seq;        // +0xfc
+    float Time;       // +0x100
+    int   PrevSeq;    // +0x104 sequence blended out, -1 none
+    float PrevTime;   // +0x108
+    float Blend;      // +0x10c 0..1 weight of Seq
+};
 
 struct SModel : SIModel, SIAttachable {
-    SModel(SScene* scene, SPModel* proto, SPModel* proto2, int flag, int index);   // 0x6d4ae0
+    SModel(SScene* scene, SPModel* proto, SPModel* proto2, bool flag, int index);   // 0x6d4ae0
     ~SModel() override;                                                           // via SIAttachable +0x00
 
     void AddRef() override;
@@ -44,9 +79,9 @@ struct SModel : SIModel, SIAttachable {
     void SetNodeVisible(int node, bool visible) override;
     void Slot_64() override;
     void Slot_68() override;
-    void Slot_6C() override;
-    void Slot_70() override;
-    void Slot_74() override;
+    void PlaySequence(const char* name, bool blend) override;
+    void AdvanceAnimation(float seconds) override;
+    void AdvanceAnimationByDistance(float distance) override;
     void Slot_78() override;
     void Slot_7C() override;
     void Slot_80() override;
@@ -80,24 +115,96 @@ struct SModel : SIModel, SIAttachable {
     void Slot_F0() override;
     void Slot_F4() override;
     void Slot_F8() override;
-    void Slot_FC() override;
+    void GetWorldBounds(float* minX, float* maxX, float* minY, float* maxY, float* minZ, float* maxZ) override;
     void Slot_100() override;
     void Slot_104() override;
 
     // SIAttachable (+0x04 vtable 0x883910)
-    int Update(int p1, int p2) override;
+    int Update(int frame, int attachMatrix) override;
     void Attach_08() override;
     void Attach_0C() override;
 
+    // Non-virtual HD members.
+    void Initialize(SPModel* proto, SPModel* proto2);            // 0x6d82b0
+    void Render(SViewport* vp);                                  // 0x6d8830
+    void ComputeNodes(int frame, const float* attach, bool prev); // 0x6dc7b0
+    void UpdateFade();                                           // 0x6dc4f0
+    SAnimState Advance(const SAnimState& s, float dt) const;     // 0x6dae20
+    bool IsVisible() const { return Visible; }                   // +0x34 0x6d86d0
+
     // --- HD layout (offsets asserted below) ---
-    unsigned char _08[0x10 - 0x08];
-    int           RefCount;          // +0x10 (ctor sets 1)
-    SScene*       Scene;             // +0x14
-    unsigned char _18[0x150 - 0x18];
+    void*          AttachParent;      // +0x08 SAttachable
+    int            AttachNode;        // +0x0c SAttachable (-1)
+    int            RefCount;          // +0x10 (ctor sets 1)
+    SScene*        Scene;             // +0x14
+    void*          Device;            // +0x18 SGepard +0x478
+    SPModel*       Proto;             // +0x1c
+    SPModel*       Proto2;            // +0x20 low-poly prototype (beyond 40 units)
+    SModelNode*    Nodes;             // +0x24
+    float          World[12];         // +0x28
+    float          PrevWorld[12];     // +0x58
+    float          Pos[3];            // +0x88
+    float          Scl;               // +0x94
+    float          Quat[4];           // +0x98
+    float          PrevPos[3];        // +0xa8
+    float          PrevScl;           // +0xb4
+    float          PrevQuat[4];       // +0xb8
+    bool           Dirty;             // +0xc8
+    bool           PrevDirty;         // +0xc9
+    unsigned char  _ca[2];
+    int            Param;             // +0xcc proto +0x18
+    int            MainHeap;          // +0xd0 created with flag 0 (doodads; sorted into terrain cells)
+    bool           Visible;           // +0xd4 (+0x30 SetVisible)
+    unsigned char  _d5[3];
+    int            Index;             // +0xd8 scene heap index
+    unsigned       Flags;             // +0xdc 1 interpolate pose, 2 interpolate nodes, 4 animate, 0x20 sway, 0x40 deferred alpha, 0x80 fog of war
+    int            Frame;             // +0xe0 scene frame of the last Update
+    int            ExtraFrame;        // +0xe4 (Slot_58)
+    bool           Drawn;             // +0xe8 Render: once per frame
+    bool           DrawnDeferred;     // +0xe9
+    bool           FlagBit8;          // +0xea
+    unsigned char  _eb;
+    int            ShadowDecal;       // +0xec terrain decal (Slot_CC texture), -1
+    int            ShadowDecal2;      // +0xf0 -1
+    bool           Flag;              // +0xf4 CreateModel flag
+    unsigned char  _f5[3];
+    int            Highlight;         // +0xf8 (Slot_C0): 1..3 fog tint, bit 2 half alpha
+    SAnimState     Anim;              // +0xfc
+    float          AnimDelta;         // +0x110 accumulated by AdvanceAnimation (flag 4)
+    float          SwayPhase;         // +0x114
+    float          SwayX;             // +0x118
+    float          SwayZ;             // +0x11c
+    bool           ColorOverride;     // +0x120 (Slot_EC)
+    unsigned char  _121[3];
+    int            Color;             // +0x124
+    bool           Color2Override;    // +0x128 (Slot_F0)
+    unsigned char  _129[3];
+    int            Color2;            // +0x12c
+    int            FadeState;         // +0x130 1 in, -1 out, 0 done
+    float          FadeAlpha;         // +0x134
+    float          FadeStart;         // +0x138
+    int            NodeFadeState;     // +0x13c
+    float          NodeFadeAlpha;     // +0x140
+    float          NodeFadeStart;     // +0x144
+    int            NodeFadeNode;      // +0x148
+    int            NodeFadeNode2;     // +0x14c
 };
 PZ_HD_SIZE(SModel, kHdSizeSModel);
 static_assert(offsetof(SModel, RefCount) == 0x10, "SModel layout");
 static_assert(offsetof(SModel, Scene) == 0x14, "SModel layout");
+static_assert(offsetof(SModel, Nodes) == 0x24, "SModel layout");
+static_assert(offsetof(SModel, Pos) == 0x88, "SModel layout");
+static_assert(offsetof(SModel, Dirty) == 0xc8, "SModel layout");
+static_assert(offsetof(SModel, Flags) == 0xdc, "SModel layout");
+static_assert(offsetof(SModel, Anim) == 0xfc, "SModel layout");
+static_assert(offsetof(SModel, Color2) == 0x12c, "SModel layout");
+static_assert(offsetof(SModel, NodeFadeNode2) == 0x14c, "SModel layout");
+
+// 3x4 (row-vector) matrix helpers, HD 0x7c5530 / 0x7c59c0 / 0x6d7a20.
+void Mat34Mul(float* out, const float* a, const float* b);           // out = a * b
+void Mat34Inverse(float* out, const float* m);
+void PoseToMatrix(float* out, const float* pos, float scale, const float* quat);
+void Mat34To44(float* out, const float* m);                          // 0x676f60
 
 } // namespace pz
 

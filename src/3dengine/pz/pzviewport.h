@@ -1,11 +1,11 @@
 // src/3dengine/pz/pzviewport.h
 // pz::SViewport: the primary HD viewport as a facade over the SWINE device.
-// OWNER: agent A. Skeleton from P0.
+// OWNER: agent A.
 //
 // Not HD-sized on purpose: HD SViewport (0x244) owns the device, the swap
 // chain and the board; in the recompile the SWINE SGepard owns all three
-// (one D3D9 device for 2D and 3D). This class keeps the HD slot order and
-// the camera/projection state the scene needs.
+// (one D3D9 device for 2D and 3D). The camera, view, projection and screen
+// matrices are kept under their HD names (HD offsets in comments).
 
 #ifndef PZ_PZVIEWPORT_H
 #define PZ_PZVIEWPORT_H
@@ -33,7 +33,7 @@ struct SViewport : SIViewport {
     void Slot_30() override;
     void Slot_34() override;
     void Slot_38() override;
-    void Slot_3C() override;
+    void ProjectToScreen(const float* pos, float size, float* x, float* y, float* screenSize, float* z, int* fogAlpha) override;
     void Slot_40() override;
     void Slot_44() override;
     void Slot_48() override;
@@ -52,8 +52,22 @@ struct SViewport : SIViewport {
     void Slot_7C() override;
     void Slot_80() override;
 
-    SCameraParams Camera;        // HD keeps these in the viewport (+0x7c.., +0xcc fov, +0xd0 near, +0xd4 far)
+    void Clear(unsigned color, float z, unsigned stencil);   // 0x689f10
+    void UpdateScreenMatrix();                               // 0x68c070
+    void ApplyTransforms();                                  // VIEW (0x68d370 tail) + PROJECTION (0x68d160)
+
+    SCameraParams Camera;        // yaw +0x7c, pitch +0x80, eye +0x84..; fov +0xcc, near +0xd0, far +0xd4
     bool          ProjectionSet; // SetProjection was called at least once
+    float         CamOffset[3];  // +0xc0 one-shot eye offset (added and cleared by SetCamera)
+    float         View[12];      // +0x90 3x4
+    float         Proj[16];      // +0xd8
+    float         ZBias;         // +0x118
+    bool          ZBiasOff;      // +0x11c
+    int           Left, Top;     // +0x120, +0x124
+    int           Width, Height; // +0x128, +0x12c
+    float         ScreenM[16];   // +0x130 viewport scale/offset
+    float         ViewProjScreen[16]; // +0x170
+    float         SizeScale;     // +0x1f0 Proj[0] * Width / 2
 };
 
 } // namespace pz

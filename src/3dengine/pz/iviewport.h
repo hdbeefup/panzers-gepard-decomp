@@ -51,7 +51,7 @@ struct SIViewport {
     virtual void Slot_30() = 0;                             // +0x30 HD 0x68ce50 (4 arg dwords)
     virtual void Slot_34() = 0;                             // +0x34 HD 0x689c20 (3 arg dwords)
     virtual void Slot_38() = 0;                             // +0x38 HD 0x6898b0 (5 arg dwords)
-    virtual void Slot_3C() = 0;                             // +0x3c HD 0x68dda0 (7 arg dwords)
+    virtual void ProjectToScreen(const float* pos, float size, float* x, float* y, float* screenSize, float* z, int* fogAlpha) = 0; // +0x3c HD 0x68dda0 (7 arg dwords) world point -> screen (x, y, z), size scaled by 1/w; screenSize -1 behind the camera; fogAlpha = fog visibility << 24
     virtual void Slot_40() = 0;                             // +0x40 HD 0x68da50 (8 arg dwords)
     virtual void Slot_44() = 0;                             // +0x44 HD 0x68b940 (2 arg dwords)
     virtual void Slot_48() = 0;                             // +0x48 HD 0x68bbf0 (tail call)

@@ -134,6 +134,7 @@ add_subdirectory(src/tools/paktest)
 add_subdirectory(src/tools/rendertest)
 add_subdirectory(src/tools/terrainview)
 add_subdirectory(src/tools/fxview)
+add_subdirectory(src/tools/modelview)
 
 if(Python3_Interpreter_FOUND)
     execute_process(

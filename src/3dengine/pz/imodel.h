@@ -43,7 +43,7 @@ struct SIModel {
     virtual void RotateAxis(float x, float y, float z, float angle) = 0; // +0x24 HD 0x6da9e0 (4 arg dwords)
     virtual void SetScale(float scale) = 0;                 // +0x28 HD 0x6dad20 (1 arg dword) +0x94
     virtual float GetScale() = 0;                           // +0x2c HD 0x6d7ee0 (0 arg dwords)
-    virtual void SetSequence(unsigned sequence, bool p2) = 0; // +0x30 HD 0x6dafd0 (2 arg dwords) (name guessed)
+    virtual void SetSequence(unsigned sequence, bool p2) = 0; // +0x30 HD 0x6dafd0 (2 arg dwords) NOT a sequence setter: HD SetVisible(bool show, bool fade) (+0xd4; fade in/out over 1 s). Name kept until the world callers are renamed; sequences are +0x6c PlaySequence
     virtual void Slot_34() = 0;                             // +0x34 HD 0x6d86d0 (0 arg dwords)
     virtual void Slot_38() = 0;                             // +0x38 HD 0x6db2a0 (3 arg dwords)
     virtual void StoreInterpolationState() = 0;             // +0x3c HD 0x6da0f0 (0 arg dwords) copies pose to the previous-tick slot; SGameLogic::Refresh per doodad
@@ -58,9 +58,9 @@ struct SIModel {
     virtual void SetNodeVisible(int node, bool visible) = 0; // +0x60 HD 0x6da8a0 (2 arg dwords) hides "Block"/"Platform" (decompiler shows 1 arg; RET 8)
     virtual void Slot_64() = 0;                             // +0x64 HD 0x6da810 (4 arg dwords)
     virtual void Slot_68() = 0;                             // +0x68 HD 0x6da7a0 (3 arg dwords)
-    virtual void Slot_6C() = 0;                             // +0x6c HD 0x6da200 (2 arg dwords)
-    virtual void Slot_70() = 0;                             // +0x70 HD 0x6da960 (1 arg dword)
-    virtual void Slot_74() = 0;                             // +0x74 HD 0x6da920 (1 arg dword)
+    virtual void PlaySequence(const char* name, bool blend) = 0; // +0x6c HD 0x6da200 (2 arg dwords) starts the named sequence (0x6d7f70 lookup); blend keeps the old one for its BlendTime
+    virtual void AdvanceAnimation(float seconds) = 0;       // +0x70 HD 0x6da960 (1 arg dword) advances the sequence (accumulated when flag 4 is set)
+    virtual void AdvanceAnimationByDistance(float distance) = 0; // +0x74 HD 0x6da920 (1 arg dword) seconds = distance / (sequence Speed * prototype scale)
     virtual void Slot_78() = 0;                             // +0x78 HD 0x6d78c0 (0 arg dwords)
     virtual void Slot_7C() = 0;                             // +0x7c HD 0x6d7850 (1 arg dword)
     virtual void Slot_80() = 0;                             // +0x80 HD 0x6d7f00 (1 arg dword)
@@ -94,7 +94,7 @@ struct SIModel {
     virtual void Slot_F0() = 0;                             // +0xf0 HD 0x6da2c0 (2 arg dwords)
     virtual void Slot_F4() = 0;                             // +0xf4 HD 0x6d7900 (0 arg dwords)
     virtual void Slot_F8() = 0;                             // +0xf8 HD 0x6d85d0 (0 arg dwords)
-    virtual void Slot_FC() = 0;                             // +0xfc HD 0x6d6f40 (6 arg dwords)
+    virtual void GetWorldBounds(float* minX, float* maxX, float* minY, float* maxY, float* minZ, float* maxZ) = 0; // +0xfc HD 0x6d6f40 (6 arg dwords) world AABB of the mesh-node BBOX corners (tick pose)
     virtual void Slot_100() = 0;                            // +0x100 HD 0x6d7150 (4 arg dwords)
     virtual void Slot_104() = 0;                            // +0x104 HD 0x6d7400 (2 arg dwords)
 
