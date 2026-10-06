@@ -4,6 +4,8 @@
 add_library(pz3d STATIC
     pzcommon.h
     pztrace.cpp
+    hdmath.h
+    hdmath.cpp
     igepardhd.h
     iviewport.h
     iscene.h

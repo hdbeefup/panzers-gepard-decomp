@@ -8,7 +8,9 @@
 #include "unit.h"
 #include "unitprops.h"
 #include "unitextern.h"
+#include "world.h"
 #include "worldapi.h"
+#include "drivermath.h"
 #include "pzunitregistry.h"
 #include "pz/ipixie.h"
 #include "logger.h"
@@ -436,8 +438,32 @@ unsigned SGunner::ServerRefresh()
             ConsumeAmmo();                                    // 0x583e30
             Loaded = true;
             ReloadLeft = Proto->ReloadTime;
-            // HD then shortens the reload of squad members and crews by
-            // their rank (unit +0x88); no menu unit carries XP.
+            // Experienced squad members (rank 2: 5 %, 3..4: 10 % a rank)
+            // and crews of unit type 0xe (rank 1: 5 %, 2..4: 10 % a rank)
+            // reload faster.
+            SUnit* ru = Unit;
+            int rank = -1;
+            if (ru->Proto->ClassType == 6 && ru->Parent > -1 &&
+                WorldUnit(ru->Parent)->Proto->ClassType == 5 && WorldUnit(ru->Parent)->Proto->UnitType != 0xe) {
+                rank = ru->GetRank();                         // +0x88
+                if (rank == 2)
+                    rank = 100;
+                else if ((unsigned)(rank - 3) > 1)
+                    rank = -1;
+            } else if (ru->Proto->ClassType == 0 && ru->Proto->UnitType == 0xe) {
+                rank = ru->GetRank();
+                if (rank == 1)
+                    rank = 100;
+                else if ((unsigned)(rank - 2) > 2)
+                    rank = -1;
+            }
+            if (rank == 100) {
+                ReloadLeft = (int)((float)ReloadLeft - (float)Proto->ReloadTime * 0.05f);   // DAT_007f4534
+            } else if (rank >= 0) {
+                float left = (float)ReloadLeft;
+                float r = (float)ru->GetRank();
+                ReloadLeft = (int)(left - r * ((float)Proto->ReloadTime * 0.1f));          // DAT_007f59a8
+            }
         }
     }
     if (!Target || Idle) {
@@ -546,6 +572,46 @@ void SGunner::ConsumeAmmo()
     }
     if (AmmoLeft < 0.0f)
         AmmoLeft = 0.0f;
+}
+
+// PANZERS 0x584240
+// The weapon type (SPGunner +0x24); a squad answers with its first member's
+// first gunner.
+int SGunner::GetWeaponType()
+{
+    SGunner* g = this;
+    while (g->Unit->Proto->ClassType == 5 && g->Unit->Members.Size > 0) {
+        SUnit* m = WorldUnit(g->Unit->Members.Array[0].Unit);
+        if (m->Gunners.Size <= 0)
+            Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "class SGunner *", 0);
+        g = m->Gunners.Array[0];
+    }
+    return g->Proto->WeaponType;
+}
+
+// PANZERS 0x583990
+// Whether the direction from the unit to (x, z) lies in the gunner's firing
+// arc (start arc + parent turret + unit direction, +-half the arc width).
+bool SGunner::IsInArc(float x, float y, float z)
+{
+    (void)y;
+    SUnit* u = Unit;
+    float dx = x - u->Pos[0];
+    float dz = z - u->Pos[2];
+    float angle = DAtan2f((double)dx, (double)dz);            // 0x78d07a, fstp dword
+    float base = u->Dir;
+    int parent = Proto->ParentGunner;
+    if (parent > -1) {
+        if (parent >= u->Gunners.Size)
+            Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "class SGunner *", parent);
+        base = (float)WrapAngle((double)u->Gunners.Array[parent]->TurretAngle + (double)base);
+    }
+    double a = WrapAngle((double)Proto->FireStartArc + (double)base);
+    float d = (float)WrapAngle((double)angle - a);
+    float half = Proto->FireArc * 0.5f;                       // DAT_007f453c
+    if (d > Proto->MaxRightAngle + half)
+        return false;
+    return Proto->MaxLeftAngle - half <= d;
 }
 
 } // namespace pz

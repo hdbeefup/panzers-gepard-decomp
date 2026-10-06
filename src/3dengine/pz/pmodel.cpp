@@ -698,9 +698,13 @@ void SPModel::SortSequences()
             else if (Sequences[k].Next == best)
                 Sequences[k].Next = i;
         }
-        SPSequence t = Sequences[i];
-        Sequences[i] = Sequences[best];
-        Sequences[best] = t;
+        // HD swaps the 0x38-byte records raw. A member-wise C++ swap would
+        // run SString::operator= (a deep copy that frees the old buffer,
+        // which the temporary still points at) and corrupt the names.
+        unsigned char t[sizeof(SPSequence)];
+        memcpy(t, &Sequences[i], sizeof(SPSequence));
+        memcpy((void*)&Sequences[i], &Sequences[best], sizeof(SPSequence));
+        memcpy((void*)&Sequences[best], t, sizeof(SPSequence));
     }
 }
 

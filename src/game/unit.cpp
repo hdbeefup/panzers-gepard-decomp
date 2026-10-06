@@ -49,12 +49,6 @@ void SUnit::Slot_44()
     PZ_M2_TRACE("SUnit::Slot_44 (0x5bce20)");
 }
 
-void SUnit::Slot_48()
-{
-    STUB_LOG("SUnit::Slot_48 (0x5bcb60)");
-    PZ_M2_TRACE("SUnit::Slot_48 (0x5bcb60)");
-}
-
 void SUnit::Slot_54()
 {
     STUB_LOG("SUnit::Slot_54 (0x546ab0)");
@@ -427,12 +421,6 @@ void SUnit::Slot_18C()
     PZ_M2_TRACE("SUnit::Slot_18C (0x548380)");
 }
 
-void SUnit::AI_Heartbeat()
-{
-    STUB_LOG("SUnit::AI_Heartbeat (0x5b37d0)");
-    PZ_M2_TRACE("SUnit::AI_Heartbeat (0x5b37d0)");
-}
-
 void SUnit::Slot_194()
 {
     STUB_LOG("SUnit::Slot_194 (0x55e330)");
@@ -455,13 +443,6 @@ void SUnit::Slot_1BC()
 {
     STUB_LOG("SUnit::Slot_1BC (0x55cf60)");
     PZ_M2_TRACE("SUnit::Slot_1BC (0x55cf60)");
-}
-
-void SUnit::ServerRefreshMedic(float dt)
-{
-    STUB_LOG("SUnit::ServerRefreshMedic (0x5bfa50)");
-    PZ_M2_TRACE("SUnit::ServerRefreshMedic (0x5bfa50)");
-    (void)dt;
 }
 
 } // namespace pz

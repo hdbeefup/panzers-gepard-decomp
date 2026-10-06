@@ -13,6 +13,7 @@ struct SStream;
 namespace pz {
 
 struct SIModel;
+struct SBlockBitmap;   // blockmaprefresh.h
 
 // HD SDoodad: the payload of a World+0x140 heap element (element stride 200,
 // so 0xc4 bytes after the heap link).
@@ -26,8 +27,8 @@ struct SDoodad {
     float    TiltZ;                 // +0x1c
     SIModel* Model;                 // +0x20 scene +0x50 CreateModelFromFile
     SIModel* RuinModel;             // +0x24 "<name>_rom.4d" if it exists
-    int      _28;                   // +0x28 model +0xc0 argument (0)
-    void*    BlockRect;             // +0x2c model +0xa8(4, "Block") result (blockmap; M2)
+    int      Highlight;             // +0x28 model +0xc0 SetHighlight argument (0)
+    SBlockBitmap* BlockRect;        // +0x2c model +0xa8 BuildNodeBlockBitmap(4, "Block"), owned
     unsigned Flags;                 // +0x30 4 obstruction, 8 indestructible, 0x10 demolishable, ...
     unsigned char _34[0x5c - 0x34];
     int      Obstruction;           // +0x5c objects.ini

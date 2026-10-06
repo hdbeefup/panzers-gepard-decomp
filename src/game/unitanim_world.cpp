@@ -3,6 +3,7 @@
 // test tool links its own binding instead. OWNER: agent A.
 
 #include "unitanim.h"
+#include "buildingunit.h"
 #include "gamelogic.h"
 #include "worldapi.h"
 #include "world.h"
@@ -69,10 +70,15 @@ static SIPixie* WorldPixie()
     return g_Pixie;
 }
 
+static bool WorldBuildingOccupiedByTeam(SIUnit* b, int player)
+{
+    return static_cast<SBuildingUnit*>(b)->IsOccupiedByTeam(player);   // 0x5468e0
+}
+
 SUnitAnimEnv g_UnitAnimEnv = {
     WorldSeed, WorldTerrainHeight, WorldLocalPlayer, WorldNoFogOfWar, WorldPlayerTeam,
     WorldHasGameLogic, WorldCanSeeGroundUnit, WorldFrame, WorldGetUnit, WorldGameLogicInt,
-    WorldPixie,
+    WorldPixie, WorldBuildingOccupiedByTeam,
 };
 
 } // namespace pz

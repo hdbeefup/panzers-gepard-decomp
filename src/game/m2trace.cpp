@@ -10,7 +10,9 @@
 
 namespace pz {
 
-SM2Switches g_M2 = { false, false, false };
+// M2 is on by default since M2-I (the menu world CRC matches the original
+// over three 90 s convoy cycles); "-nom2" or PZ_M2=0 turns it off.
+SM2Switches g_M2 = { true, false, false };
 unsigned g_M2Tick = 0;
 
 static bool EnvFlag(const char* name, bool* value)
@@ -24,11 +26,15 @@ static bool EnvFlag(const char* name, bool* value)
 
 void M2ParseCommandLine(int* argc, char** argv)
 {
-    bool m2 = false;
+    bool m2 = false, nom2 = false;
     int w = 1;
     for (int r = 1; r < *argc; ++r) {
         if (argv[r] && !_stricmp(argv[r], "-m2")) {
             m2 = true;
+            continue;
+        }
+        if (argv[r] && !_stricmp(argv[r], "-nom2")) {
+            nom2 = true;
             continue;
         }
         argv[w++] = argv[r];
@@ -40,6 +46,8 @@ void M2ParseCommandLine(int* argc, char** argv)
         g_M2.Enabled = true;
         g_M2.Trace = true;
     }
+    if (nom2)
+        g_M2.Enabled = false;
     if (EnvFlag("PZ_M2", &v))
         g_M2.Enabled = v;
     if (EnvFlag("PZ_M2_TRACE", &v))

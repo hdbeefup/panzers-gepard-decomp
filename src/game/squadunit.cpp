@@ -1,6 +1,6 @@
 // src/game/squadunit.cpp
 // SPanzersSquadUnit and SPanzersSquadMemberUnit (0x5977e0..0x5a1300).
-// OWNER: agent U. See squadunit.h.
+// OWNER: agent U (orders, placement: M2-I sub-agent SQ). See squadunit.h.
 
 #include <math.h>
 #include <stdlib.h>
@@ -8,7 +8,6 @@
 #include "squadunit.h"
 #include "gunner.h"
 #include "idriver.h"
-#include "unitanim.h"
 #include "unitextern.h"
 #include "world.h"
 #include "worldapi.h"
@@ -17,6 +16,9 @@
 #include "pz/imodel.h"
 #include "logger.h"
 #include "doodad.h"
+#include "drivermath.h"
+#include "gamelogic.h"
+#include "target.h"
 #include "stub_log.h"
 
 namespace pz {
@@ -33,15 +35,15 @@ SPanzersSquadUnit::SPanzersSquadUnit(SPPanzersSquadUnit* proto, int worldIndex)
 {
     memset(&P, 0, sizeof(SPanzersSquadUnit) - offsetof(SPanzersSquadUnit, P));
     P = proto;
-    _35c = true;
-    _390 = true;
-    _39c = -1;
+    CanHeal = true;
+    RestartOrders = true;
+    RequestedState = -1;
 }
 
 // PANZERS 0x599110
 SPanzersSquadUnit::~SPanzersSquadUnit()
 {
-    free(_384.Array);
+    free(MemberOrderDelay.Array);
     free(RelPos.Array);
 }
 
@@ -122,14 +124,25 @@ void SPanzersSquadUnit::SetRelativeNormalPositions()
     }
 }
 
-// The formation switch of Init 0x59c470 / SetCurrentTarget 0x59f580.
+// PANZERS 0x5a09d0
+// SetRelativePositions (also inline in Init 0x59c470 and SetCurrentTarget
+// 0x59f580): new member radii and, for the normal formation, a new random
+// ring.
 void SPanzersSquadUnit::SetRelativePositions()
 {
-    SetMembersRadius();
+    SetMembersRadius();                                       // 0x59fda0
     if (FormationType == 0)
-        SetRelativeNormalPositions();
+        SetRelativeNormalPositions();                         // 0x5a0740
     else if (FormationType != 1 && FormationType != 2)
         Logger.g->Panic("SPanzersSquadUnit::SetRelativePositions - Unknown formation_type");
+}
+
+// PANZERS 0x599190
+SSquadRelPos* SPanzersSquadUnit::RelPosAt(int i)
+{
+    if (i < 0 || i >= RelPos.Size)
+        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "struct SSquadRelPos", i);
+    return &RelPos.Array[i];
 }
 
 // PANZERS 0x59bff0
@@ -141,35 +154,28 @@ void SPanzersSquadUnit::GetSquadMemberRelativePosition(float* out, int i)
     out[1] = 0.0f;
     if (i >= RelPos.Size)
         Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "struct SSquadRelPos", i);
-    double a = (double)RelPos.Array[i].Angle;
-    out[0] = (float)sin(a) * RelPos.Array[i].Radius;          // 0x78d640
-    out[1] = (float)cos(a) * RelPos.Array[i].Radius;          // 0x78d480
+    out[0] = (float)DSin((double)RelPos.Array[i].Angle) * RelPos.Array[i].Radius;   // 0x78d640
+    out[1] = (float)DCos((double)RelPos.Array[i].Angle) * RelPos.Array[i].Radius;   // 0x78d480
 }
 
-// The member offset loop of Place 0x5a1220 / SetPosition 0x59fe30 / Init:
-// the relative position turned by the formation direction (+0x24c) into
-// +0x210, the member direction into +0x238.
-void SPanzersSquadUnit::PlaceMemberOffsets(int dirBits)
+// HD inline (0x59e0d0, 0x59fe30, 0x5a1220, 0x59c470): member i's offset,
+// cos(+0x24c) * rel.x + sin(+0x24c) * rel.z and cos * rel.z - sin * rel.x,
+// in float after each 0x78d480 / 0x78d640 result is rounded to float.
+void SPanzersSquadUnit::GetFormationOffset(int i, float* ox, float* oz)
 {
-    for (int i = 0; i < Members.Size && i < 5; ++i) {
-        float rel[2];
-        GetSquadMemberRelativePosition(rel, i);
-        double fd = (double)FormationDir;
-        float c = (float)cos(fd);
-        float s = (float)sin(fd);
-        MemberOffset[i][0] = c * rel[0] + s * rel[1];
-        MemberOffset[i][1] = c * rel[1] - s * rel[0];
-        if (i >= RelPos.Size)
-            Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "struct SSquadRelPos", i);
-        MemberDir[i] = RelPos.Array[i].HasDir ? RelPos.Array[i].Dir : dirBits;
-    }
+    float rel[2];
+    GetSquadMemberRelativePosition(rel, i);                   // 0x59bff0
+    float c = (float)DCos((double)FormationDir);              // 0x78d480
+    float s = (float)DSin((double)FormationDir);              // 0x78d640
+    *ox = c * rel[0] + s * rel[1];
+    *oz = c * rel[1] - s * rel[0];
 }
 
 // PANZERS 0x59c470
 void SPanzersSquadUnit::Init(SUnitDef* def)
 {
     int n = P->MaxNumberOfUnits;
-    // 0x546ca0 / 0x546af0: Members and _384 sized to n and cleared.
+    // 0x546ca0 / 0x546af0: Members and MemberOrderDelay sized to n and cleared.
     Members.Size = n;
     if (Members.Max < n) {
         Members.Max = n;
@@ -178,32 +184,29 @@ void SPanzersSquadUnit::Init(SUnitDef* def)
     if (Members.Max)
         memset(Members.Array, 0, Members.Max * sizeof(SUnitMember));
     SetUnitSize();                                            // +0x1c4
-    _384.Size = n;
-    if (_384.Max < n) {
-        _384.Max = n;
-        _384.Array = (int*)realloc(_384.Array, n * sizeof(int));
+    MemberOrderDelay.Size = n;
+    if (MemberOrderDelay.Max < n) {
+        MemberOrderDelay.Max = n;
+        MemberOrderDelay.Array = (int*)realloc(MemberOrderDelay.Array, n * sizeof(int));
     }
-    if (_384.Max)
-        memset(_384.Array, 0, _384.Max * sizeof(int));
+    if (MemberOrderDelay.Max)
+        memset(MemberOrderDelay.Array, 0, MemberOrderDelay.Max * sizeof(int));
     Unplaced = def->Stored;
-    SetRelativePositions();
+    SetRelativePositions();                                   // inline 0x5a09d0
     int dirBits;
     memcpy(&dirBits, &def->Dir, 4);
-    for (int i = 0; i < n; ++i) {
-        float rel[2];
-        GetSquadMemberRelativePosition(rel, i);
-        double fd = (double)FormationDir;
-        float c = (float)cos(fd);
-        float s = (float)sin(fd);
-        if (i < 5) {
-            MemberOffset[i][0] = c * rel[0] + s * rel[1];
-            MemberOffset[i][1] = c * rel[1] - s * rel[0];
+    for (int i = 0; i < RelPos.Size; ++i) {
+        float ox, oz;
+        GetFormationOffset(i, &ox, &oz);
+        if (i < 5) {                                          // HD writes +0x210 + 8 * i unchecked
+            MemberOffset[i][0] = ox;
+            MemberOffset[i][1] = oz;
         }
-        float ox = c * rel[0] + s * rel[1];
-        float oz = c * rel[1] - s * rel[0];
-        int mdir = RelPos.Array[i].HasDir ? RelPos.Array[i].Dir : dirBits;
+        int mdir = RelPosAt(i)->HasDir ? RelPosAt(i)->Dir : dirBits;
         if (i < 5)
             MemberDir[i] = mdir;
+        if (i >= Members.Size)
+            Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "struct SUnitMember", i);
         Members.Array[i].Owner = WorldIndex;
         float pos[3] = { def->Pos[0] + ox, 0.0f, def->Pos[1] + oz };
         float md;
@@ -226,6 +229,8 @@ void SPanzersSquadUnit::Init(SUnitDef* def)
     // HD: the squad's board elements (name tag, rank icons, ...) here.
     _ec = def->GlobalState;                                   // param_1[0x3b]
     SUnit::Init(def);                                         // 0x5ba8e0
+    if (g_GameLogic)                                          // DAT_008f2078
+        RefreshTargeting();                                   // +0x34
 }
 
 // PANZERS 0x59fab0
@@ -242,15 +247,10 @@ void SPanzersSquadUnit::Hook20(int p1)
 void SPanzersSquadUnit::SetPosition(float x, float z, int dirBits, int yrelBits)
 {
     for (int i = 0; i < RelPos.Size; ++i) {
-        float rel[2];
-        GetSquadMemberRelativePosition(rel, i);
-        double fd = (double)FormationDir;
-        float c = (float)cos(fd);
-        float s = (float)sin(fd);
-        float ox = c * rel[0] + s * rel[1];
-        float oz = c * rel[1] - s * rel[0];
-        int mdir = RelPos.Array[i].HasDir ? RelPos.Array[i].Dir : dirBits;
-        if (i < 5) {
+        float ox, oz;
+        GetFormationOffset(i, &ox, &oz);
+        int mdir = RelPosAt(i)->HasDir ? RelPosAt(i)->Dir : dirBits;
+        if (i < 5) {                                          // HD writes +0x210 / +0x238 unchecked
             MemberOffset[i][0] = ox;
             MemberOffset[i][1] = oz;
             MemberDir[i] = mdir;
@@ -282,17 +282,10 @@ void SPanzersSquadUnit::Place(float x, float z, float dir)
     int dirBits;
     memcpy(&dirBits, &dir, 4);
     for (int i = 0; i < Members.Size; ++i) {
-        float rel[2];
-        GetSquadMemberRelativePosition(rel, i);
-        double fd = (double)FormationDir;
-        float c = (float)cos(fd);
-        float s = (float)sin(fd);
-        float ox = c * rel[0] + s * rel[1];
-        float oz = c * rel[1] - s * rel[0];
-        if (i >= RelPos.Size)
-            Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "struct SSquadRelPos", i);
-        int mdir = RelPos.Array[i].HasDir ? RelPos.Array[i].Dir : dirBits;
-        if (i < 5) {
+        float ox, oz;
+        GetFormationOffset(i, &ox, &oz);
+        int mdir = RelPosAt(i)->HasDir ? RelPosAt(i)->Dir : dirBits;
+        if (i < 5) {                                          // HD writes +0x210 / +0x238 unchecked
             MemberOffset[i][0] = ox;
             MemberOffset[i][1] = oz;
             MemberDir[i] = mdir;
@@ -305,33 +298,49 @@ void SPanzersSquadUnit::Place(float x, float z, float dir)
     SetOnBlockMap(true);                                      // +0x198
 }
 
+// PANZERS 0x580260
+// SGameLogic::SetMovementGroupSquadsGlobalState (HD panic text says
+// SetMovementGroupMoveSpeed): the unit's group +0x14 = state, then the
+// slowest speed is recomputed (0x5824b0).
+static void SetMovementGroupSquadsGlobalState(SUnit* u, int state)
+{
+    SGameLogic* gl = g_GameLogic;
+    int g = u->_254;                                          // unit +0x254 movement group
+    if (g < 0 || g >= gl->MovementGroupSize || gl->MovementGroups[g].Next != kHeapLive)
+        Logger.g->Panic("SGameLogic::SetMovementGroupMoveSpeed: Invalid movement group %d", g);
+    gl->MovementGroups[g].SquadsGlobalState = state;
+    gl->UpdateMovementGroupSlowestMoveSpeed(g);               // 0x5824b0
+}
+
 // PANZERS 0x59f580
-// Lifted: the target swap, the gunner hand-over and the member orders for
-// position targets (+0xe4) and unit targets (+0xe8, with one seed draw per
-// member), the driver refresh and the formation reset. The movement-group
-// state request (0x56b090 / 0x580260 / 0x599450, L) and the turn test
-// (0x59d130 / 0x5a09d0) are not lifted.
 void SPanzersSquadUnit::SetCurrentTarget(STarget* target, int p2)
 {
+    if (tgt::I(target, tgt::kKind) == 1)
+        CopyDriverWayPoints();                                // 0x5bee10
+    SetTarget(&CurrentTarget, target);                        // 0x5bdef0 / 0x5b5a30
     int kind = tgt::I(target, tgt::kKind);
-    if (kind == 1)
-        STUB_LOG("SPanzersSquadUnit::SetCurrentTarget (0x59f580) 0x5bee10");
-    SetTarget(&CurrentTarget, target);
     if ((kind == 2 || kind == 3) && MainGunner >= 0) {
         tgt::I(target, tgt::kP20) = 1;
         GetGunner(MainGunner)->SetTarget(CurrentTarget);      // gunner +0x18
         int type = tgt::I(CurrentTarget, tgt::kType);
         if (type == 2) {
-            for (int i = 0; i < Members.Size; ++i)
-                STUB_LOG("SPanzersSquadUnit::SetCurrentTarget (0x59f580) member +0xe4");
+            for (int i = 0; i < Members.Size; ++i) {
+                SPanzersSquadMemberUnit* m = static_cast<SPanzersSquadMemberUnit*>(WorldUnit(Members.Array[i].Unit));
+                int xb, zb;
+                memcpy(&xb, &tgt::F(CurrentTarget, tgt::kPos), 4);
+                memcpy(&zb, &tgt::F(CurrentTarget, tgt::kPos + 8), 4);
+                m->EC_AttackPos(xb, zb, p2);                  // member +0xe4 (0x597fa0)
+            }
         } else if (type == 0) {
             for (int i = 0; i < Members.Size; ++i) {
-                STUB_LOG("SPanzersSquadUnit::SetCurrentTarget (0x59f580) member +0xe8");
+                SPanzersSquadMemberUnit* m = static_cast<SPanzersSquadMemberUnit*>(WorldUnit(Members.Array[i].Unit));
+                m->EC_Attack(tgt::I(CurrentTarget, tgt::kUnit), p2);   // member +0xe8 (0x597e80)
                 int r = WorldRand();
-                SUnit* m = WorldUnit(Members.Array[i].Unit);
-                if (m->Gunners.Size < 1)
+                SUnit* m2 = WorldUnit(Members.Array[i].Unit);
+                if (m2->Gunners.Size < 1)
                     Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "class SGunner *", 0);
-                m->Gunners.Array[0]->_60 = (i != 0) * 2 - (int)((double)r * 3.0517578125e-05 * 5.0);   // DAT_007f4598 (not verified)
+                // DAT_007f4598 = -1/32768: the truncated product is always 0.
+                m2->Gunners.Array[0]->_60 = (i != 0) * 2 - (int)((double)r * -3.0517578125e-05);
             }
         } else {
             Logger.g->Panic("SPanzersSquadUnit::SetCurrentTarget: Unknown target type");
@@ -339,31 +348,61 @@ void SPanzersSquadUnit::SetCurrentTarget(STarget* target, int p2)
     } else {
         StopGunners();                                        // +0xec
     }
-    if (_18c != -1) {
-        if (g_World->Units.IsLive(_18c))
-            WorldUnit(_18c)->_190 = false;
+    if (_18c != -1 && g_World->Units.IsLive(_18c)) {
+        WorldUnit(_18c)->_190 = false;
         _18c = -1;
     }
-    if (ActiveDriver >= 0) {
-        SIDriver* d = GetDriver(ActiveDriver);
-        if (d)
-            d->SetTarget(CurrentTarget);     // +0x08
-    }
-    (void)p2;
+    ClearMemberMarkers();                                     // 0x59d2f0
+    if (ActiveDriver >= 0)
+        GetDriver(ActiveDriver)->SetTarget(CurrentTarget);    // driver +0x08
     if (tgt::I(target, tgt::kType) == 4)
         return;
-    // HD: 0x5a0fc0, the movement-group global state (0x56b090) and the
-    // turn-to-target test; a new formation when 0x59d130 asks for one.
+    UpdateMoveGlobalState();                                  // 0x5a0fc0
+    if (_254 > -1) {                                          // in a movement group
+        int s = g_GameLogic->GetMovementGroupSquadsGlobalState(WorldIndex);   // 0x56b090
+        if ((char)p2 != 0) {
+            if (s != 0)
+                SetMovementGroupSquadsGlobalState(this, 0);   // 0x580260
+            RequestedState = 0;
+            SetSquadBehavior(0);                              // 0x599450
+        } else if (s != GlobalState) {
+            RequestedState = s;
+            SetSquadBehavior(s);                              // 0x599450
+        }
+    } else if ((char)p2 != 0) {
+        RequestedState = 0;
+        SetSquadBehavior(0);                                  // 0x599450
+    }
+    if (MembersTooClose()) {                                  // 0x59d130
+        SetRelativePositions();                               // inline 0x5a09d0
+        return;
+    }
+    if (Wrecked)
+        return;
+    int type = tgt::I(target, tgt::kType);
+    if (type != 2 && type != 3)
+        return;
+    // Turned more than pi/4 (and less than 0.9 pi) towards the target: a
+    // new formation (0x5a09d0).
+    float dx = tgt::F(target, tgt::kPos) - Pos[0];
+    float dz = tgt::F(target, tgt::kPos + 8) - Pos[2];
+    float a = (float)DAtan2((double)dx, (double)dz);          // 0x78d07a, fstp qword
+    double d = fabs((double)a - (double)Dir);
+    double w = d > kHdPi ? kHdTwoPi - d : d;
+    if (w > 0.7853981852531433) {                             // DAT_007f7f50
+        double w2 = d > kHdPi ? kHdTwoPi - d : d;
+        if (2.8274333477020264 > w2)                          // DAT_007fa400
+            SetRelativePositions();                           // 0x5a09d0
+    }
 }
 
 // PANZERS 0x59af20
 void SPanzersSquadUnit::EC_Move(int xBits, int zBits, int p3, bool p4, int p5)
 {
-    bool flag = !(p3 == 0 && _39c != 0) ? true : false;
-    (void)p4;
-    SUnit::EC_Move(xBits, zBits, flag ? 1 : 0, false, p5);     // 0x5b8ea0
-    // HD 0x5a0d30 (squad global state for the move).
-    if (_39c == -1)
+    int flag = ((char)p3 != 0 || RequestedState == 0) ? 1 : 0;
+    SUnit::EC_Move(xBits, zBits, flag, p4, p5);               // 0x5b8ea0
+    UpdateMovingMembersRelPos();                              // 0x5a0d30
+    if (RequestedState == -1)
         RestoreBehavior();                                    // +0x1ac
 }
 
@@ -429,13 +468,6 @@ void SPanzersSquadUnit::GetCenterPosition(float* out)
     out[2] = k * sz;
 }
 
-// PANZERS 0x59dda0 (not lifted)
-void SPanzersSquadUnit::RefreshSquadFormation()
-{
-    STUB_LOG("SPanzersSquadUnit::RefreshSquadFormation (0x59dda0)");
-    PZ_M2_TRACE("SPanzersSquadUnit::RefreshSquadFormation (0x59dda0)");
-}
-
 // ---------------------------------------------------------------------------
 // SPanzersSquadMemberUnit
 
@@ -445,7 +477,7 @@ SPanzersSquadMemberUnit::SPanzersSquadMemberUnit(SPPanzersSquadMemberUnit* proto
 {
     P = proto;
     Board344 = Board348 = 0;                                  // board +0x08(4, ...): not created
-    _34c = 0;
+    ParachuteTicks = 0;
     Parachute = nullptr;
     if (proto->ParachuteProto >= 0) {
         Parachute = g_Scene->CreateModelFromPrototype(proto->ParachuteProto, 1);   // scene +0x58

@@ -26,6 +26,8 @@
 #include "pz/imodel.h"
 #include <math.h>
 #include "stub_log.h"
+#include "unit.h"
+#include "target.h"
 
 namespace pz {
 
@@ -40,8 +42,10 @@ static int Bits(float f)
     return i;
 }
 
-// PANZERS 0x5bb980 / 0x5bbb60 / 0x5bb8a0 (non-queued path) + 0x5b95a0
-static void UnitOrder(int unit, int command, float x, float z, int target, int param, bool flag)
+// The unit order entry points SUnit 0x5bb980 (at a point), 0x5bbb60 (with a
+// parameter, e.g. a path) and 0x5bb8a0 (at a unit).
+enum { kOrderAt, kOrderParam, kOrderUnit };
+static void UnitOrder(int unit, int kind, int command, float x, float z, int target, int param, bool flag, bool add)
 {
     if (!UV::kReal) {
         // M1 stand-ins: remembered for the test mover (StandInMove).
@@ -61,25 +65,15 @@ static void UnitOrder(int unit, int command, float x, float z, int target, int p
         }
         return;
     }
-    // 0x5b75c0(0): the order queue (+0x19c {array, size, max}) is emptied.
-    int* queue = (int*)((unsigned char*)(void*)UV::Iface(unit) + 0x19c);
-    queue[1] = 0;
-    if (queue[2] > 0 && queue[0])
-        memset((void*)(size_t)queue[0], 0, queue[2] * 0x1c);
-    SIUnit* u = UV::Iface(unit);
-    switch (command) {
-    case 1:
-        u->EC_Move(Bits(x), Bits(z), flag, false, 0);             // +0xac(x, z, flag, 0, 0)
-        break;
-    case 6:
-        u->EC_MoveAlongPath(param, -1, flag);                     // +0xb4(path, -1, flag)
-        break;
-    case 7:
-        u->EC_Follow(target, flag);                               // +0xb8(unit, flag)
-        break;
-    default:
-        Logger.g->Warning("STUB: UnitOrder command %d not mapped (0x5b95a0)", command);
-        break;
+    (void)Bits;
+    SUnit* u = WorldUnit(unit);
+    if (kind == kOrderAt) {
+        float xz[2] = { x, z };
+        u->OrderAt(command, xz, flag, add);                       // 0x5bb980(command, xz, flag, queue)
+    } else if (kind == kOrderParam) {
+        u->OrderParam(command, param, flag, add);                 // 0x5bbb60(command, param, flag, queue)
+    } else {
+        u->OrderUnit(command, target, flag, add);                 // 0x5bb8a0(command, unit, flag, queue)
     }
 }
 
@@ -234,7 +228,7 @@ int SGameLogic::GroupOrder(bool convoy, int p3, SFoundUnits* g, bool p5, float x
         qsort(mg->Members, mg->MemberCount, sizeof(SMovementGroupMember), CompareMemberDist);
     }
     SetMovementGroupBossUnit(mgi, p5, x, z);                      // 0x57fcb0
-    SetMovementGroupFormationDir2(mgi, 0);                        // 0x57ffc0
+    SetMovementGroupFormationDir2(mgi, 0.0f);                     // 0x57ffc0
     SetMovementGroupFormationDir(mgi, 0);                         // 0x57ff40
     return mgi;
 }
@@ -256,9 +250,7 @@ void SGameLogic::MoveFoundUnitsToLocation(SFoundUnits* g, int command, const flo
         dest[0] = target[0] + (UV::X(u) - g->X);
         dest[1] = target[1] + (UV::Z(u) - g->Z);
         const float* p = UV::MovementGroup(u) < 0 ? dest : target;
-        if (queue)
-            Logger.g->Warning("STUB: queued unit order (0x5bb980 queue path) not implemented");
-        UnitOrder(u, command, p[0], p[1], 0, 0, p4);              // 0x5bb980(command, p, p4, queue)
+        UnitOrder(u, kOrderAt, command, p[0], p[1], 0, 0, p4, queue);   // 0x5bb980(command, p, p4, queue)
         if (marker) {
             // HD: pixie +0x24 PlayEffect(scene, TargetRingFx, (dest x, 0, dest z), (0, 1, 0), 0).
             Logger.g->Warning("STUB: MoveFoundUnitsToLocation target marker (0x57efd0)");
@@ -279,7 +271,7 @@ void SGameLogic::ConvoyAlongPath(int group, int path)
     int boss = mg->Members[0].Unit;
     if (!m2u::IsLive(boss))
         Logger.g->Panic("SHeapTRB::operator[]: invalid index (%d)", boss);
-    UnitOrder(boss, 6, 0.0f, 0.0f, 0, path, false);              // 0x5bbb60(6, path, 0, 0)
+    UnitOrder(boss, kOrderParam, 6, 0.0f, 0.0f, 0, path, false, false);   // 0x5bbb60(6, path, 0, 0)
     SendConvoyMovementGroupFollowers(group);                      // 0x57e6f0
 }
 
@@ -291,7 +283,7 @@ void SGameLogic::SendConvoyMovementGroupFollowers(int group)
     for (int k = 1; k < mg->MemberCount; ++k) {
         int u = MemberUnit(mg, k);
         int front = mg->Members[k - 1].Unit;
-        UnitOrder(u, 7, 0.0f, 0.0f, front, 0, false);            // 0x5bb8a0(7, front, 0, 0): EC_Follow
+        UnitOrder(u, kOrderUnit, 7, 0.0f, 0.0f, front, 0, false, false);   // 0x5bb8a0(7, front, 0, 0): EC_Follow
         mg = Group(this, group, "SHeap<SMovementGroup>::operator[]: invalid index (%d)");
     }
 }
@@ -337,18 +329,28 @@ void SGameLogic::RemoveUnitFromMovementGroup(int unit)
         break;
     }
     if (convoy) {
-        // HD: if the unit holds a target (+0x1f8) the new boss (or the last
-        // unit) takes it over (STarget refcount 0x5bdef0 / 0x5b5a30, then
-        // +0xa0 SetCurrentTarget), and the followers are sent again.
-        bool hasTarget = UV::kReal && UV::RawInt(unit, 0x1f8) != 0;
-        if (hasTarget) {
+        // The unit's primary target (+0x1f8, the convoy path) goes to the
+        // new boss, or to the last unit when the group was dissolved, and
+        // the followers are sent again.
+        STarget* t = UV::kReal ? (STarget*)(size_t)UV::RawInt(unit, 0x1f8) : nullptr;
+        if (t) {
+            int heir = -1;
             if (GroupLive(this, g)) {
                 if (wasBoss)
-                    Logger.g->Warning("STUB: convoy boss target hand-over (0x579510: 0x5bdef0 / 0x5b5a30, agent U)");
-                SendConvoyMovementGroupFollowers(g);
+                    heir = GetMovementGroupBossUnit(g);           // 0x56adc0
             } else if (last >= 0 && wasBoss) {
-                Logger.g->Warning("STUB: convoy target hand-over to the last unit (0x579510, agent U)");
+                heir = last;
             }
+            if (heir >= 0) {
+                SUnit* h = WorldUnit(heir);
+                if (h->PrimaryTarget)
+                    h->PrimaryTarget->Release();                  // 0x5bdef0
+                t->AddRef();                                      // 0x5b5a30
+                h->PrimaryTarget = t;
+                h->SetCurrentTarget(t, 0);                        // +0xa0
+            }
+            if (GroupLive(this, g))
+                SendConvoyMovementGroupFollowers(g);              // 0x57e6f0
         }
     } else if (GroupLive(this, g)) {
         mg = &MovementGroups[g];
@@ -356,19 +358,16 @@ void SGameLogic::RemoveUnitFromMovementGroup(int unit)
         int big = GetMovementGroupBiggestUnit(g);
         for (int k = 0; k < mg->MemberCount; ++k) {
             int m = MemberUnit(mg, k);
-            bool notify = false;
             if (wasBoss && boss >= 0 && UnitRank(boss) != UnitRank(unit))
-                notify = true;                                    // 0x5b5b50(m)
+                WorldUnit(m)->DriverDropGlobalPath();             // 0x5b5b50
             else if (unit == biggest && big >= 0 && UV::RawInt(unit, 0x5c) != UV::RawInt(big, 0x5c))
-                notify = true;                                    // 0x5b5b50(m)
+                WorldUnit(m)->DriverDropGlobalPath();             // 0x5b5b50
             else if (speed != mg->MoveSpeed)
-                notify = true;                                    // 0x5b5ba0(m)
-            if (notify && UV::kReal)
-                Logger.g->Warning("STUB: movement group member update (0x5b5b50 / 0x5b5ba0, agent U)");
-            (void)m;
+                WorldUnit(m)->DriverDropLocalPath();              // 0x5b5ba0
+            mg = &MovementGroups[g];
         }
-    } else if (last >= 0 && UV::kReal) {
-        Logger.g->Warning("STUB: last unit of a dissolved group (0x5b5b50, agent U)");
+    } else if (last >= 0) {
+        WorldUnit(last)->DriverDropGlobalPath();                  // 0x5b5b50
     }
     UV::MovementGroup(unit) = -1;                                 // +0x254 = -1
 }
@@ -415,14 +414,17 @@ int SGameLogic::GetMovementGroupSquadsGlobalState(int unit)
     return MovementGroups[g].SquadsGlobalState;
 }
 
-// PANZERS 0x56b240 (HD takes the unit)
-void SGameLogic::GetMovementGroupUnitFormationPos(int unit, float* out)
+// PANZERS 0x56b240
+// The member's offset from the group centre at order time; (0, 0) when the
+// unit is not in the member list.
+void SGameLogic::GetMovementGroupUnitFormationPos(float* out, SIUnit* unit)
 {
-    int g = UV::MovementGroup(unit);
+    const unsigned char* u = (const unsigned char*)(void*)unit;
+    int g = *(const int*)(u + 0x254);
     if (!GroupLive(this, g))
         Logger.g->Panic("SGameLogic::GetMovementGroupUnitFormationPos: Invalid movement group %d", g);
     SMovementGroupElem* mg = &MovementGroups[g];
-    int wi = UV::WorldIndex(unit);
+    int wi = *(const int*)(u + 0x74);
     for (int k = 0; k < mg->MemberCount; ++k) {
         if (mg->Members[k].Unit == wi) {
             out[0] = mg->Members[k].DX;
@@ -495,9 +497,9 @@ void SGameLogic::SetMovementGroupFormationDir(int group, int p2)
 }
 
 // PANZERS 0x57ffc0
-void SGameLogic::SetMovementGroupFormationDir2(int group, int p2)
+void SGameLogic::SetMovementGroupFormationDir2(int group, float dir)
 {
-    Group(this, group, "SGameLogic::SetMovementGroupFormationDir: Invalid movement group %d")->FormationDir2 = p2;
+    Group(this, group, "SGameLogic::SetMovementGroupFormationDir: Invalid movement group %d")->FormationDir = dir;
 }
 
 // PANZERS 0x5800d0
@@ -533,7 +535,7 @@ void SGameLogic::UpdateMovementGroupSlowestMoveSpeed(int group)
     mg->MoveSpeed = 0.0f;
     for (int k = 0; k < mg->MemberCount; ++k) {
         int u = MemberUnit(mg, k);
-        float s = UV::kReal ? UV::Iface(u)->GetMoveSpeed(-1) : 0.0f;   // +0x1b0
+        float s = UV::kReal ? UV::Iface(u)->GetMoveSpeed(mg->SquadsGlobalState) : 0.0f;   // +0x1b0(group +0x14), 0x5825a1
         mg = Group(this, group, "SHeap<SMovementGroup>::operator[]: invalid index (%d)");
         if (s != 0.0f && (mg->MoveSpeed == 0.0f || s < mg->MoveSpeed))
             mg->MoveSpeed = s;

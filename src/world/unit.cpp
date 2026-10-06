@@ -17,6 +17,8 @@
 #include "unit.h"
 #include "gunner.h"
 #include "unitextern.h"
+#include "blockmap.h"
+#include "drivermath.h"
 #include "gamelogic.h"
 #include "stream.h"
 #include "properties.h"
@@ -195,60 +197,265 @@ int SWorld::CreateUnit(int player, const char* className, const float* pos, floa
 // ---------------------------------------------------------------------------
 // Free space
 
+// HD constants of the free-space search.
+static const double kFesHalfPiD = 1.5707963705062866;   // 0x7f5a38 (0x7f7fa8 is its negation)
+static const float  kFesPiF = 3.1415927410125732f;      // 0x7f4584
+static const float  kFesMinusPiF = -3.1415927410125732f; // 0x7f7fb8
+
 // PANZERS 0x5e58d0
-// From (x, z) backwards along `dir` in half-metre steps (max(12, 2 * size)
-// tries); then HD walks a square spiral around the point (125 rings) and
-// logs "did not find empty space". The spiral (block-map tests 0x5da050 /
-// 0x5d9c10, P) is not lifted: after the straight tries the start point is
-// returned with that log line.
-bool SWorld::FindEmptySpace(float x, float z, float dir, int size, unsigned short flags, bool p6, float* out)
+// From (x, z) backwards along `dir` in quarter-metre steps (max(12, 2 *
+// size) tries, the first two on the start point), then two square spirals
+// in opposite directions, taking turns every four rings (125 turns; the
+// step grows to size / 8 at turn 10), on the static block map (and the
+// unit map when `units`). The point itself when nothing is free.
+float* SWorld::FindEmptySpace(float* out, float x, float z, float dir, int size, unsigned mask,
+                              bool units)
 {
-    if (x < 0.0f || z < 0.0f)
+    if (0.0f > x || 0.0f > z)
         Logger.g->Panic("SWorld::FindEmptySpace: Negative pos");
-    out[0] = x;
-    out[1] = z;
-    if (size == 0)
-        return true;
-    double s = sin((double)dir);                                  // 0x78d640
-    double c = cos((double)dir);                                  // 0x78d480
+    if (size == 0) {
+        out[0] = x;
+        out[1] = z;
+        return out;
+    }
+    float s = (float)DSin((double)dir);                           // 0x78d640
+    float c = (float)DCos((double)dir);                           // 0x78d480
     float px = x, pz = z;
-    int tries = size * 2 > 0xc ? size * 2 : 0xc;
-    for (int i = 0; i < tries; ++i) {
-        int xb, zb;
-        memcpy(&xb, &px, 4);
-        memcpy(&zb, &pz, 4);
-        if (!PzBlockMapTest(xb, zb, size, (short)flags) && (!p6 || !PzBlockMapTestUnits(px, pz, size))) {
+    for (int i = 0; ; ) {
+        int tries = size * 2 > 0xc ? size * 2 : 0xc;
+        if (i >= tries)
+            break;
+        if (!BlockMap_CheckStatic(this, px, pz, size, mask) &&            // 0x5d9e00
+            (!units || !BlockMap_CheckDynamic(this, px, pz, size))) {     // 0x5d99f0
             out[0] = px;
             out[1] = pz;
-            return true;
+            return out;
         }
-        px = x - (float)i * (float)s * 0.5f;                     // DAT_007f4538 (not verified)
-        pz = z - (float)i * (float)c * 0.5f;
+        float fi = (float)i;
+        ++i;
+        px = x - fi * s * 0.25f;                                  // 0x7f4538
+        pz = z - fi * c * 0.25f;
     }
-    if (Logger.g)
-        Logger.g->Log(1, "SWorld::FindEmptySpace - did not find empty space. Pos: x:%f, z:%f", (double)x, (double)z);
-    return false;
+
+    // Spiral start: the quadrant of dir picks the first corner direction.
+    int quad;
+    if (dir >= 0.0f && kFesHalfPiD > (double)dir)
+        quad = 0;
+    else if ((double)dir >= kFesHalfPiD && kFesPiF > dir)
+        quad = 1;
+    else if (dir >= kFesMinusPiF && -kFesHalfPiD > (double)dir)         // 0x7f7fa8
+        quad = 2;
+    else
+        quad = 3;
+    float step = 0.25f;
+    float cx = x, cz = z;
+    int ring = 0;
+    float axA = x, azA = z, axB = x, azB = z;
+    int ringA = 0, ringB = 0;
+
+    // Block test of a spiral point (cell box corner, as 0x5d9e00 does).
+    #define PZ_FES_TEST()                                                         \
+        {                                                                         \
+            double h = (double)(size - 1) * 0.5;                                  \
+            int ix = (int)(float)((double)(px * 4.0f) - h);                       \
+            int iz = (int)(float)((double)(pz * 4.0f) - h);                       \
+            if (!BlockMap_CheckStaticInternal(this, ix, iz, size, mask) &&        \
+                (!units || !BlockMap_CheckDynamicInternal(this, ix, iz, size))) { \
+                out[0] = px;                                                      \
+                out[1] = pz;                                                      \
+                return out;                                                       \
+            }                                                                     \
+        }
+
+    for (int k = 0; ; ) {
+        if (k == 10) {
+            step = (float)size * 0.125f;                          // 0x7f7f40
+            if (0.25f > step)
+                step = 0.25f;
+        }
+        if (quad == 0) {
+            int n = ring * 2 + 1;
+            do {
+                cx -= step;
+                n += 2;
+                cz -= step;
+                ++ring;
+                int cntA = n, cntB = n - 1, j = 1, e1 = 0, e2 = 0;
+                px = cx;
+                pz = cz;
+                if (n > 0) {
+                    do {
+                        if (cntB <= 0)
+                            break;
+                        PZ_FES_TEST();
+                        if (j % 2 == 1) {
+                            --cntA;
+                            ++e1;
+                            pz = cz;
+                            px = (float)e1 * step + cx;
+                        } else {
+                            ++e2;
+                            --cntB;
+                            px = cx;
+                            pz = (float)e2 * step + cz;
+                        }
+                        ++j;
+                    } while (cntA > 0);
+                }
+            } while (ring % 4 != 0);
+        } else if (quad == 1) {
+            int n = ring * 2;
+            do {
+                cz += step;
+                n += 2;
+                cx -= step;
+                ++ring;
+                int cntA = n, cntB = n + 1, j = 1, e1 = 0, e2 = 0;
+                px = cx;
+                pz = cz;
+                if (n > 0) {
+                    do {
+                        if (cntB <= 0)
+                            break;
+                        PZ_FES_TEST();
+                        if (j % 2 == 1) {
+                            --cntB;
+                            px = cx;
+                            ++e1;
+                            pz = cz - (float)e1 * step;
+                        } else {
+                            --cntA;
+                            ++e2;
+                            px = (float)e2 * step + cx;
+                            pz = cz;
+                        }
+                        ++j;
+                    } while (cntA > 0);
+                }
+            } while (ring % 4 != 0);
+        } else if (quad == 2) {
+            int n = ring * 2 + 1;
+            do {
+                cz += step;
+                n += 2;
+                cx += step;
+                ++ring;
+                int cntA = n, cntB = n - 1, j = 1, e1 = 0, e2 = 0;
+                px = cx;
+                pz = cz;
+                if (n > 0) {
+                    do {
+                        if (cntB <= 0)
+                            break;
+                        PZ_FES_TEST();
+                        if (j % 2 == 1) {
+                            --cntA;
+                            ++e1;
+                            px = cx - (float)e1 * step;
+                            pz = cz;
+                        } else {
+                            ++e2;
+                            --cntB;
+                            pz = cz - (float)e2 * step;
+                            px = cx;
+                        }
+                        ++j;
+                    } while (cntA > 0);
+                }
+            } while (ring % 4 != 0);
+        } else {
+            int n = ring * 2;
+            do {
+                cz -= step;
+                n += 2;
+                cx += step;
+                ++ring;
+                int cntA = n, cntB = n + 1, j = 1, e1 = 0, e2 = 0;
+                px = cx;
+                pz = cz;
+                if (n > 0) {
+                    do {
+                        if (cntB <= 0)
+                            break;
+                        PZ_FES_TEST();
+                        if (j % 2 == 1) {
+                            --cntB;
+                            ++e1;
+                            pz = (float)e1 * step + cz;
+                            px = cx;
+                        } else {
+                            --cntA;
+                            ++e2;
+                            pz = cz;
+                            px = cx - (float)e2 * step;
+                        }
+                        ++j;
+                    } while (cntA > 0);
+                }
+            } while (ring % 4 != 0);
+        }
+        // Swap spirals: odd turns park this one in B and resume A, even
+        // turns park it in A and resume B.
+        if (k & 1) {
+            axB = cx;
+            azB = cz;
+            ringB = ring;
+            cx = axA;
+            cz = azA;
+            ring = ringA;
+        } else {
+            ringA = ring;
+            axA = cx;
+            azA = cz;
+            cx = axB;
+            cz = azB;
+            ring = ringB;
+        }
+        quad = (quad + 2) & 3;
+        ++k;
+        if (k >= 0x7d)
+            break;
+    }
+    #undef PZ_FES_TEST
+    Logger.g->Log(1, "SWorld::FindEmptySpace - did not find empty space. Pos: x:%f, z:%f", (double)x,
+                  (double)z);
+    out[0] = x;
+    out[1] = z;
+    return out;
 }
 
 // PANZERS 0x5e5700
-// The unit's own spot (ux, uz) if it is free, else FindEmptySpace towards
-// it from (x, z).
-bool SWorld::FindEmptySpaceNear(float x, float z, float ux, float uz, int size, unsigned short flags, float* out)
+// (x, z) itself when its cell is free and the footprint is free; otherwise
+// FindEmptySpace 0x5e58d0 (always with units) along the direction from the
+// reference point (refX, refZ) to (x, z) when the centre cell is blocked,
+// or from (x, z) towards the first blocked cell of the footprint.
+float* SWorld::FindEmptySpaceNear(float* out, float x, float z, float refX, float refZ, int size,
+                                  unsigned mask, bool units)
 {
-    if (x < 0.0f || z < 0.0f)
+    if (0.0f > x || 0.0f > z)
         Logger.g->Panic("SWorld::FindEmptySpace: Negative pos");
+    if (size == 0) {
+        out[0] = x;
+        out[1] = z;
+        return out;
+    }
+    if (BlockMap_CheckStatic(this, x, z, 1, mask) ||                      // 0x5d9e00
+        (units && BlockMap_CheckDynamic(this, x, z, size))) {             // 0x5d99f0
+        float dir = DAtan2f((double)(x - refX), (double)(z - refZ));      // 0x78d07a
+        return FindEmptySpace(out, x, z, dir, size, mask, true);
+    }
+    int cx, cz;
+    if (BlockMap_CheckStaticCell(this, x, z, size, mask, &cx, &cz) ||    // 0x5d9eb0
+        (units && BlockMap_CheckDynamicCell(this, x, z, size, &cx, &cz))) {   // 0x5d9a90
+        double h = (double)size * 0.5;
+        float fx = (float)(((double)cx + h) * 0.25) - x;          // 0x7f5a10
+        float fz = (float)(((double)cz + h) * 0.25) - z;
+        float dir = DAtan2f((double)fx, (double)fz);              // 0x78d07a
+        return g_World->FindEmptySpace(out, x, z, dir, size, mask, true);
+    }
     out[0] = x;
     out[1] = z;
-    if (size == 0)
-        return true;
-    int xb, zb;
-    memcpy(&xb, &x, 4);
-    memcpy(&zb, &z, 4);
-    bool blocked = PzBlockMapTest(xb, zb, 1, (short)flags) != 0;
-    if (!blocked && !PzBlockMapTestPath(xb, zb, size, (short)flags, 0, 0))
-        return true;
-    float dir = (float)atan2((double)(ux - x), (double)(uz - z));   // 0x78d07a
-    return FindEmptySpace(x, z, dir, size, flags, true, out);
+    return out;
 }
 
 // PANZERS 0x5ef760

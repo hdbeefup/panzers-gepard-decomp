@@ -16,8 +16,17 @@ struct SSingleUnit : SUnit {
     void InitNew(int player, const float* pos, float dir, int p4, float hp) override;   // 0x5ad9f0
     void Place(float x, float z, float dir) override;            // 0x5b0950
     void SetOnBlockMap(bool on) override;                        // 0x5ae950
+    void RefreshMisc() override;                                 // 0x5af890
+    void Uninit() override;                                      // 0x5abde0 (unitai.cpp)
+    void RefreshTargeting() override;                            // 0x5aef40 (unitai.cpp)
+    void UpdateVisuals(SIViewport* vp) override;                 // 0x5aaaa0 (unitai.cpp)
+    void EC_Move(int xBits, int zBits, int p3, bool p4, int p5) override;   // 0x5ac4b0 (unitai.cpp)
+    float GetMaxRange(int weapon) override;                      // 0x5acbd0 (unitai.cpp)
+    float GetMinRange(int weapon) override;                      // 0x5acd30 (unitai.cpp)
+    int GetRank() override;                                      // 0x5acb30 (unitai.cpp)
 
     void InitCrewAndChildren(int player, float dir, bool fromDef, float cargo);   // the shared part of 0x5ad150 / 0x5ad9f0
+    void PlaceAttachedUnit(SUnit* unit, int node);               // 0x5b02e0
 
     SPSingleUnit* P;                 // +0x340
     int      Board[0x19];            // +0x344..+0x3a4 board elements (health, rank, selection; not created)

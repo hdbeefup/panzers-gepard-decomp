@@ -14,6 +14,7 @@ add_library(pzgame STATIC
     gamelogic.cpp
     triggers.cpp
     movementgroup.cpp
+    logicextra.cpp
     # U: units + prototypes
     unit.h
     unit.cpp
@@ -25,10 +26,12 @@ add_library(pzgame STATIC
     unitextern.h
     unitextern.cpp
     unitbase.cpp
+    unitai.cpp
     singleunit.h
     singleunit.cpp
     squadunit.h
     squadunit.cpp
+    squadrefresh.cpp
     buildingunit.h
     buildingunit.cpp
     gunner.h

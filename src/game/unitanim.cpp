@@ -4,6 +4,8 @@
 // SBuildingAnimation. SVehicleAnimation and the running gear are in
 // unitanim_vehicle.cpp. OWNER: agent A.
 
+#include <windows.h>
+#include <intrin.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -11,8 +13,10 @@
 #include <string.h>
 #include "unitanim.h"
 #include "unitanim_model.h"
+#include "drivermath.h"
 #include "iunit.h"
 #include "idriver.h"
+#include "pz/hdmath.h"
 #include "pz/imodel.h"
 #include "pz/iscene.h"
 #include "pz/igepardhd.h"
@@ -102,23 +106,38 @@ static void HdFree(SHdDArray<T>& a)
     a.Count = a.Max = 0;
 }
 
-static int RoundHd(float f)                                       // x87 FISTP, round to nearest
+// The animation code converts with fld dword / fldcw 0x8de160 (0x087f: round
+// up) / fistp (0x5c7ce5, 0x5ce1a0, 0x5cea81, ..., 0x5cf5ef, 0x5cf65e): ceil.
+// The product is an x87 fmul at the game's 24-bit precision, stored with
+// fstp dword: a single-precision product, done here in SSE so the compiler
+// cannot keep a wider intermediate.
+static int RoundHdTicks(float seconds, float factor = 1.0f)
 {
-    return (int)lrintf(f);
+    __m128 p = _mm_mul_ss(_mm_set_ss(seconds), _mm_set_ss(20.0f));   // fmul dword [0x7f35d8]
+    if (factor != 1.0f)
+        p = _mm_mul_ss(p, _mm_set_ss(factor));
+    return (int)ceilf(_mm_cvtss_f32(p));
 }
 
 unsigned UnitAnimNextSeed()
 {
-    unsigned* s = g_UnitAnimEnv.Seed();
-    *s = *s * 0x343fdu + 0x269ec3u;
-    return *s;
+    unsigned s = HdLcgStep(g_UnitAnimEnv.Seed());
+    static int s_Trace = -1;                                      // recompile only: PZ_M2_RNGLOG=1
+    if (s_Trace < 0)
+        s_Trace = getenv("PZ_M2_RNGLOG") ? 1 : 0;
+    if (s_Trace && Logger.g) {
+        void* bt[3] = {};
+        RtlCaptureStackBackTrace(1, 3, bt, nullptr);
+        Logger.g->Log(0, "PZM2 RNG %d %p %08x %p %p", g_UnitAnimEnv.HasGameLogic() ? g_UnitAnimEnv.Frame() : -1,
+                      bt[0], s, bt[1], bt[2]);
+    }
+    return s;
 }
 
-// PANZERS 0x555a00
+// PANZERS 0x555a00 (HdRandInt on the env's seed, for the animview tool)
 int UnitAnimRand(int n)
 {
-    unsigned s = UnitAnimNextSeed();
-    return (int)((double)((s >> 16) & 0x7fff) * 3.0517578125e-05 * (double)n);
+    return HdRandScale(HdLcg15(UnitAnimNextSeed()), n);
 }
 
 static SIPUnit* PUnitOf(SIUnit* u)
@@ -756,14 +775,16 @@ int SUnitAnimation::StateChangeTicks()
 {
     SHdStr t = { nullptr, 0 };
     GetChangingText(&t);
-    int ticks = RoundHd((float)(AnimModelSequenceLength(Model(), HdStr(t)) * 20.0f));   // +0x84
+    int ticks = RoundHdTicks(AnimModelSequenceLength(Model(), HdStr(t)));   // +0x84
     HdStrFree(&t);
     if (ticks == 0) {
+        // The stand sequence's blend time (+0x88): fmul 20.0, fstp dword, cvttss2si.
         GetStandText(&t, &UnitField<int>(Unit, kUnitGlobalState));
-        ticks = (int)(AnimModelSequenceLength(Model(), HdStr(t)) * 20.0f);              // +0x88 (blend time)
+        float bt = Model()->GetSequenceBlendTime(HdStr(t));       // +0x88 0x6d8010
+        ticks = _mm_cvtt_ss2si(_mm_mul_ss(_mm_set_ss(bt), _mm_set_ss(20.0f)));
         HdStrFree(&t);
     }
-    return (int)((float)ticks * SpeedFactor);
+    return _mm_cvtt_ss2si(_mm_mul_ss(_mm_set_ss((float)ticks), _mm_set_ss(SpeedFactor)));   // cvtdq2ps, mulss, cvttss2si
 }
 
 // PANZERS 0x5cae80
@@ -921,7 +942,7 @@ void SWalkerAnimation::AdvanceByDistance()
     const float* prev = &UnitField<float>(u, kUnitPrevPos);
     float dx = pos[0] - prev[0];
     float dz = pos[2] - prev[2];
-    float heading = (float)atan2((double)dx, (double)dz);       // 0x78d07a
+    float heading = (float)DAtan2((double)dx, (double)dz);      // 0x78d07a, fstp qword
     double d = fabs((double)UnitField<float>(u, kUnitPrevDir) - (double)heading);
     if (d > 3.1415927410125732)
         d = 6.2831854820251465 - d;
@@ -984,7 +1005,7 @@ static void WalkerStartDie(SWalkerAnimation* a)
         play = HdStr(alt);
     }
     m->PlaySequence(play, true);
-    UnitField<int>(u, kUnitDieTicks) = RoundHd((float)(AnimModelSequenceLength(m, play) * 20.0f));
+    UnitField<int>(u, kUnitDieTicks) = RoundHdTicks(AnimModelSequenceLength(m, play));
     HdStrFree(&alt);
     HdStrFree(&name);
     int& t = UnitField<int>(u, kUnitDieTicks);
@@ -1129,7 +1150,7 @@ void SWalkerAnimation::UpdateModel()
         UnitUpdateMoveMode(u);
         SHdStr t = { nullptr, 0 };
         GetChangingText(&t);
-        int ticks = RoundHd((float)(AnimModelSequenceLength(m, HdStr(t)) * 20.0f * SpeedFactor));
+        int ticks = RoundHdTicks(AnimModelSequenceLength(m, HdStr(t)), SpeedFactor);
         if (ticks < 1)
             m->PlaySequence(StandText(), true);
         else
@@ -1155,7 +1176,7 @@ void SWalkerAnimation::UpdateModel()
             HdStrFormat(&name, "%s_fight%d%s", WProto->StateName(state),
                         UnitAnimRand(WProto->States.Data[state].FightCount) + 1, sub);
         m->PlaySequence(HdStr(name), true);
-        int len = RoundHd((float)(AnimModelSequenceLength(m, HdStr(name)) * 20.0f));
+        int len = RoundHdTicks(AnimModelSequenceLength(m, HdStr(name)));
         Timer = UnitAnimRand(0x14) + len + 0x3c;
         ResetRelax();
         m->AdvanceAnimation(kTick);
@@ -1165,7 +1186,7 @@ void SWalkerAnimation::UpdateModel()
     SHdStr& forced = UnitField<SHdStr>(u, kUnitForcedSeq);
     if (forced.len != 0) {
         m->PlaySequence(HdStr(forced), true);
-        int len = RoundHd((float)(AnimModelSequenceLength(m, HdStr(forced)) * 20.0f));
+        int len = RoundHdTicks(AnimModelSequenceLength(m, HdStr(forced)));
         Timer = UnitAnimRand(0x3c) + len + 10;
         // 0x5c7c30 clears the unit's SString (HD frees the buffer; the
         // buffer belongs to the unit's allocator, so only the text is cut).
@@ -1197,6 +1218,17 @@ void SWalkerAnimation::UpdateModel()
         type = AnimModelSequenceType(m);
         Timer = UnitAnimRand(0x3c) + 0x3c;
     }
+    {
+        // Recompile-only: PZ_M2_ANIMTRACE=<unit index> logs this walker's timers per tick.
+        static int s_Trace = -2;
+        if (s_Trace == -2) {
+            const char* t = getenv("PZ_M2_ANIMTRACE");
+            s_Trace = t ? atoi(t) : -1;
+        }
+        if (s_Trace >= 0 && UnitField<int>(u, 0x74) == s_Trace && Logger.g)
+            Logger.g->Log(0, "PZM2 ANIM f%d u%d mode %d type %d timer %d relax %d brk %d", e.Frame(), s_Trace, mode, type,
+                          Timer, RelaxTimer, brk);
+    }
     if (type == 1) {
         --Timer;
         if (0 < RelaxTimer)
@@ -1217,12 +1249,12 @@ void SWalkerAnimation::UpdateModel()
                 if (AnimModelSequenceLength(m, HdStr(relax)) == 0.0f)
                     HdStrSet(&relax, HdStr(idle));
                 m->PlaySequence(HdStr(relax), true);
-                int len = RoundHd((float)(AnimModelSequenceLength(m, HdStr(relax)) * 20.0f));
+                int len = RoundHdTicks(AnimModelSequenceLength(m, HdStr(relax)));
                 Timer = UnitAnimRand(0x3c) + len + 0x14;
                 HdStrFree(&relax);
             } else {
                 m->PlaySequence(HdStr(idle), true);
-                int len = RoundHd((float)(AnimModelSequenceLength(m, HdStr(idle)) * 20.0f));
+                int len = RoundHdTicks(AnimModelSequenceLength(m, HdStr(idle)));
                 Timer = UnitAnimRand(0x3c) + len + 0x14;
             }
             HdStrFree(&idle);
@@ -1354,18 +1386,10 @@ void SBuildingAnimation::InitModel(SIModel* model)
     m->SetPosition(pos[0], pos[1], pos[2]);
 }
 
-// SBuildingUnit 0x5468e0 (agent U): does a unit of the player's team occupy
-// the building. Only the empty building is decided here.
+// SBuildingUnit 0x5468e0: does a unit of the player's team occupy the building.
 static bool BuildingOccupiedByTeam(SIUnit* b, int player)
 {
-    (void)player;
-    int n = UnitField<int>(b, kUnitOccupantCount);
-    if (n == 0)
-        return false;
-    if (g_UnitAnimEnv.NoFogOfWar())
-        return true;
-    PZ_M2_TRACE("SBuildingAnimation: occupied building (SBuildingUnit 0x5468e0) not lifted");
-    return false;
+    return g_UnitAnimEnv.BuildingOccupiedByTeam(b, player);
 }
 
 // PANZERS 0x5cb650

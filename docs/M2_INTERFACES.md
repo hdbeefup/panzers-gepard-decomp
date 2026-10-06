@@ -12,8 +12,8 @@ All addresses are HD `PANZERS.exe` addresses.
 
 | What | How |
 |---|---|
-| Default build and run | `panzers.exe -nointro`. The M2 path is **off**, and SGameLogic::Refresh runs the M1 model-only tick exactly as before. |
-| M2 path | `panzers.exe -nointro -m2` (sets the switch and the trace), or `PZ_M2=1`. `PZ_M2_TRACE=0/1` overrides the trace. |
+| Default build and run | `panzers.exe -nointro`. Since M2-I the M2 path is **on** by default (docs/M2_STATUS.md). `-nom2` or `PZ_M2=0` runs the M1 model-only tick exactly as before. |
+| M2 path with trace | `panzers.exe -nointro -m2` (sets the switch and the trace), or `PZ_M2=1`. `PZ_M2_TRACE=0/1` overrides the trace. |
 | CRC log | `PZ_M2_CRC=1` logs `PZM2 CRC <frame> <crc> <seed> <units>` every tick (§8). |
 | Log lines | `PZM2: -m2 on, ...` once (SGameLogic ctor), then `PZM2 t<tick>: <Class::Name (0xADDR)>` on ticks 0, 1, 2 and every 200th tick, at most 4 per call site per tick. Each stub also logs `STUB: <name> called` once. |
 

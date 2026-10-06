@@ -10,6 +10,7 @@
 #include "target.h"
 #include "iunit.h"
 #include "gamelogic.h"
+#include "squadunit.h"
 #include "world.h"
 #include "worldapi.h"
 #include "logger.h"
@@ -536,12 +537,9 @@ static float Env_GetMovementGroupMoveSpeed(SIUnit* unit)
 }
 static void Env_GetMovementGroupUnitFormationPos(float* out, SIUnit* unit)
 {
-    out[0] = out[1] = 0.0f;
-    // HD 0x56b240(out, unit); L takes the world index.
-    if (g_GameLogic)
-        g_GameLogic->GetMovementGroupUnitFormationPos(DU_I(unit, 0x74), out);
+    g_GameLogic->GetMovementGroupUnitFormationPos(out, unit);     // 0x56b240(out, unit)
 }
-// 0x56af90: the group formation direction (+0x20, float bits).
+// 0x56af90: the group formation direction (+0x20).
 static float Env_GetMovementGroupFormationDir(int group)
 {
     SMovementGroupElem* mg = EnvGroup(group);
@@ -549,15 +547,11 @@ static float Env_GetMovementGroupFormationDir(int group)
         DrvPanic("SGameLogic::GetMovementGroupFormationDir: Invalid movement group %d", group);
         return 0.0f;
     }
-    float f;
-    memcpy(&f, &mg->FormationDir2, 4);
-    return f;
+    return mg->FormationDir;
 }
 static void Env_SetMovementGroupFormationDir(int group, float dir)
 {
-    // HD 0x57ffc0(group, float dir); L stores the bits at +0x20.
-    if (g_GameLogic)
-        g_GameLogic->SetMovementGroupFormationDir2(group, FBits(dir));
+    g_GameLogic->SetMovementGroupFormationDir2(group, dir);       // 0x57ffc0(group, dir)
 }
 // 0x56b110 GetMovementGroupUnitDistSqrFromTarget: the member's +0x0c, -1.0
 // when the unit is not a member.
@@ -578,50 +572,35 @@ static bool Env_CanSeeGroundUnit(int player, SIUnit* unit)
 {
     return g_GameLogic ? g_GameLogic->CanSeeGroundUnit(player, unit) : true;
 }
-static float* Env_FindEmptySpace(float* out, float x, float z, float, float, int, int, bool)
+static float* Env_FindEmptySpace(float* out, float x, float z, float refX, float refZ, int size, int mask, bool flag)
 {
-    // U's SWorld::FindEmptySpace 0x5e5700; without U: the point itself.
-    out[0] = x;
-    out[1] = z;
-    return out;
+    return g_World->FindEmptySpaceNear(out, x, z, refX, refZ, size, (unsigned)mask, flag);   // 0x5e5700
 }
-static float* Env_FindEmptySpaceDir(float* out, float x, float z, float, int, int, bool)
+static float* Env_FindEmptySpaceDir(float* out, float x, float z, float dir, int size, int mask, bool flag)
 {
-    out[0] = x;
-    out[1] = z;
-    return out;
+    return g_World->FindEmptySpace(out, x, z, dir, size, (unsigned)mask, flag);              // 0x5e58d0
 }
-static void Env_WorldUnitMoved(int, float) {}
-static float* Env_UnitGetEntrance(SIUnit* unit, float* out)
+static void Env_WorldUnitMoved(int unit, float speed)
 {
-    out[0] = DU_F(unit, 0x8c);
-    out[1] = DU_F(unit, 0x90);
-    out[2] = DU_F(unit, 0x94);
-    return out;
+    g_World->UnitMoved(unit, speed);                              // 0x5e4870
 }
-static void Env_UnitOnDriverReachedTarget(SIUnit* unit) { unit->Slot_48(); }
-static void Env_UnitSlot9C(SIUnit* unit, int) { unit->Slot_9C(); }
+// The unit side (SUnit, unitai.cpp).
+#define Env_UnitGetEntrance SUnit::EnvGetEntrance                 // +0x78
+#define Env_UnitOnDriverReachedTarget SUnit::EnvOnDriverReachedTarget   // +0x48 0x5bcb60
+#define Env_UnitSlot9C SUnit::EnvSlot9C                           // +0x9c 0x5c1d40
+#define Env_UnitOnDriverStucked SUnit::EnvOnDriverStucked         // 0x5bcd20
+#define Env_UnitIsPosInRange SUnit::EnvIsPosInRange               // 0x5b6fd0
+#define Env_UnitGetAimer SUnit::EnvGetAimer                       // 0x5b9ce0
 static void Env_UnitTowedFollow(SIUnit*, float, float, float, float, float, SIUnit*, float*,
                                 float*, float*)
 {
-    DrvPanic("SUnit::GhostFrames_AddTop (unit +0x74) for a towed unit: not lifted (agent U)");
+    DrvPanic("SUnit::GhostFrames_AddTop (unit +0x74) for a towed unit: not lifted (no towed units in the menu)");
 }
-static void Env_UnitOnDriverStucked(SIUnit*)
-{
-    DrvPanic("SUnit::OnDriverStucked (0x5bcd20): not lifted (agent U)");
-}
-static bool Env_UnitIsPosInRange(SIUnit*, float, float, float)
-{
-    DrvPanic("SUnit 0x5b6fd0: not lifted (agent U)");
-    return false;
-}
-static void* Env_UnitGetAimer(SIUnit*) { return nullptr; }
-static float Env_SquadUnitMoveSpeed(SIUnit* squad) { return squad->GetMoveSpeed(-1); }
-static void Env_SquadMemberRelativePos(SIUnit*, float* out, int)
-{
-    out[0] = out[1] = 0.0f;
-}
-static void Env_SquadMembersStep(SIUnit*, float) {}
+// The squad side (squadrefresh.cpp).
+#define Env_SquadUnitMoveSpeed SquadEnv_MoveSpeed                 // 0x59b990
+#define Env_SquadMemberRelativePos SquadEnv_MemberRelativePos     // 0x59bff0
+#define Env_SquadMembersStep SquadEnv_MembersStep                 // 0x5a0450
+#define Env_SquadMembersStep2 SquadEnv_MembersStep2               // 0x5a0060
 static float Env_TerrainHeight(float x, float z)
 {
     return g_World ? g_World->GetTerrainHeight(x, z) : 0.0f;
@@ -655,7 +634,7 @@ SDriverEnv g_DriverEnv = {
     Env_SquadUnitMoveSpeed,
     Env_SquadMemberRelativePos,
     Env_SquadMembersStep,
-    Env_SquadMembersStep,
+    Env_SquadMembersStep2,
     Env_TerrainHeight,
     Env_WaterHeight,
 };

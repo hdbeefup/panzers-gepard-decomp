@@ -182,8 +182,11 @@ struct SWorld {
     SUnit* GetUnit(int index);
     int  CreateUnit(int player, const char* className, const float* pos, float dir, int p5,
                     float hp, int parent, bool crew, const char* scriptId);   // 0x5e3170
-    bool FindEmptySpace(float x, float z, float dir, int size, unsigned short flags, bool p6, float* out); // 0x5e58d0
-    bool FindEmptySpaceNear(float x, float z, float ux, float uz, int size, unsigned short flags, float* out); // 0x5e5700
+    // HD returns the 2-float point through the hidden pointer `out`.
+    float* FindEmptySpace(float* out, float x, float z, float dir, int size, unsigned mask,
+                          bool units);                         // 0x5e58d0
+    float* FindEmptySpaceNear(float* out, float x, float z, float refX, float refZ, int size,
+                              unsigned mask, bool units);      // 0x5e5700
     void UnitStored(int unit, int player);                     // 0x5ef760 (StoreUnit: units targeting it stop)
 
     // Camera and terrain queries.
@@ -192,6 +195,31 @@ struct SWorld {
     void SetCameraAngles(float yaw, float pitch);              // 0x5f83b0
     float GetTerrainHeight(float x, float z);                  // 0x5e7730
     float GetWaterHeight(float x, float z);                    // 0x5ec490
+    // --- M2-I sub-agent BW (SWorld unit rows): add declarations here only.
+    // World+0x158 SHeap of doodad animations (element 0x20 = Next + 0x1c):
+    // a doodad a unit drove over falls (Kind 0x10) or trembles (Kind 0x20).
+    // Filled by CrushDoodad 0x5e3c80, animated by RefreshDoodadAnims (inline in
+    // SGameLogic::Refresh 0x576d80).
+    struct SDoodadAnim {
+        int   Doodad;        // +0x00 World+0x140 index
+        int   Kind;          // +0x04 0x10 falls, 0x20 scrub trembles
+        float Amplitude;     // +0x08 tilt in degrees: ScrubTrembling, or 0 rising to DemolishAngleMax
+        float Velocity;      // +0x0c DemolishAngleVelocity, then += sin(tilt) * Velocity2 per tick
+        float Velocity2;     // +0x10 DemolishAngleVelocity
+        float Dir;           // +0x14 fall / tremble direction (radians)
+        bool  Done;          // +0x18
+        unsigned char _19[3];
+    };
+    SHeap<SDoodadAnim>& DoodadAnims() { return *(SHeap<SDoodadAnim>*)((unsigned char*)this + 0x158); }
+    int  AllocDoodadAnim();                                    // 0x5d8b90 SHeap<0x1c>::Alloc on +0x158
+    void UnitMoved(int unit, float wantedSpeed);               // 0x5e4870 (drivers, after each move)
+    void CrushDoodad(int doodad, float x, float y, float z);   // 0x5e3c80 (unit position by value)
+    void RefreshFlyingFox();                                   // 0x5f6bf0
+    void RefreshDoodadAnims();                                 // 0x577a10 inline in 0x576d80
+    void RefreshWires();                                       // 0x577a47 inline in 0x576d80 (0x605930 per +0x7454)
+    // --- end BW
+    // --- M2-I sub-agent LG (SWorld rows the logic needs): add declarations here only.
+    // --- end LG
 
     // +0x000 vptr
     unsigned char _004[4];

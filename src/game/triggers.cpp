@@ -16,6 +16,9 @@
 #include "worldapi.h"
 #include "world.h"
 #include "pzunitregistry.h"
+#include "blockmaprefresh.h"
+#include "unit.h"
+#include "unitextern.h"
 #include "logger.h"
 #include "stub_log.h"
 
@@ -122,20 +125,15 @@ void SWorld::UpdateSpeech()
     }
 }
 
-// PANZERS 0x604620 (guards only)
+// HD 0x604620; the body is P's BlockMap_RefreshDirtyRect (blockmaprefresh.cpp,
+// which carries the marker).
 // Rebuilds the block-map flags of the dirty rectangle (World+0x7504..0x7510,
 // mask +0x7514) from the terrain layers, the effects and the units. It only
 // runs when something marked the rectangle dirty (+0x7500).
 void SWorld::RefreshBlockMapDirtyRect()
 {
     PZ_M2_TRACE("SWorld::RefreshBlockMapDirtyRect (0x604620)");
-    unsigned char* b = (unsigned char*)this;
-    if (BlockMap == nullptr)
-        return;
-    if (b[0x7500] == 0)
-        return;
-    b[0x7500] = 0;
-    STUB_LOG("SWorld::RefreshBlockMapDirtyRect body (0x604620, block map: agent P)");
+    BlockMap_RefreshDirtyRect(this);
 }
 
 // ---------------------------------------------------------------------------
@@ -417,11 +415,25 @@ void SGameLogic::DispatchLeaveLocation(int unit, int location)
     DispatchEvent(this, TE_LEAVES_LOCATION, location, unit);
 }
 
+// PANZERS 0x571380
+// Event 5 (a unit got in a vehicle, SUnit::StoreUnit): every trigger of that
+// event type, whatever its parameter, with Unit = p1 and Unit2 = p2.
 void SGameLogic::Dispatch_571380(int p1, int p2)
 {
-    STUB_LOG("SGameLogic::Dispatch_571380 (0x571380)");
     PZ_M2_TRACE("SGameLogic::Dispatch_571380 (0x571380)");
-    (void)p1; (void)p2;
+    SRunningTrigger rt;
+    memset(&rt, 0, sizeof(rt));                                   // memset 0x34
+    STriggerArray<STrigger>* t = Triggers();
+    for (int i = 0; i < t->Size; ++i) {
+        if (t->Array[i].Event.Type != 5)
+            continue;
+        rt.Unit = p1;                                             // +0x0c
+        rt.Unit2 = p2;                                            // +0x10
+        rt.Trigger = i;
+        CheckConditions(&rt);                                     // 0x580600
+        t = Triggers();
+    }
+    free(rt.Found.Units);
 }
 
 // PANZERS 0x5640b0
@@ -773,12 +785,20 @@ static void ActionCreateUnit(SGameLogic* gl, const STriggerAction* a, SRunningTr
                       SStr(a->Str10), player, a->P20, (double)cx, (double)cz, unit);
     if (unit < 0)
         return;
-    float px = cx, pz = cz;
     if (UV::kReal) {
-        // TODO(U): SWorld::FindEmptySpace 0x5e58d0(cx, cz, dir + pi, unit +0x58,
-        // unit +0xd8, 1); warn "SGameLogic::RunTriggers/ACTION_CREATE_UNIT_2:
-        // World->FindEmptySpace tul messze talalt helyet" if more than 10 m away.
-        UV::Iface(unit)->Place(px, pz, def.Dir);                  // +0x50
+        // 0x5e58d0(out, cx, cz, def.Dir + pi (0x7f4584, addss), unit +0x58,
+        // (word) unit +0xd8, 1); a spot more than 10 m away (squared distance
+        // > 100.0f, 0x7ee558) is only a warning (0x65cac0).
+        float out[2];
+        w->FindEmptySpace(out, cx, cz, def.Dir + 3.1415927f, UV::RawInt(unit, 0x58), UV::FlagsD8(unit), true);
+        float dx = out[0] - cx;
+        float dz = out[1] - cz;
+        if (dx * dx + dz * dz > 100.0f)
+            Logger.g->Warning(withCrew ? "SGameLogic::RunTriggers/ACTION_CREATE_UNIT_2: World->FindEmptySpace tul "
+                                         "messze talalt helyet"                                   // 0x7f7830
+                                       : "SGameLogic::RunTriggers/ACTION_CREATE: World->FindEmptySpace tul messze "
+                                         "talalt helyet");                                        // 0x7f7728
+        UV::Iface(unit)->Place(out[0], out[1], def.Dir);          // +0x50
     }
     (void)gl;
 }
@@ -795,12 +815,16 @@ static void ActionTeleport(const STriggerAction* a, SRunningTrigger* rt)
         return;
     for (int k = 0; k < rt->Found.Count; ++k) {
         int u = FoundUnit(&rt->Found, k);
-        // TODO(U): 0x5c2d30 (stops the unit: targets, drivers) before the move.
+        if (UV::kReal)
+            WorldUnit(u)->StopUnit();                             // 0x5c2d30
         UV::SetFlagsD8(u, UV::FlagsD8(u) & 0xfffe);
         float tx = cx, tz = cz;
-        if (UV::UnitType(u) != 0xc) {
-            // TODO(U): SWorld::FindEmptySpace 0x5e5700(cx, cz, unit x, unit z,
-            // unit +0x58, unit +0xd8, 1) picks the free spot near the centre.
+        if (UV::UnitType(u) != 0xc && UV::kReal) {               // SPUnit +0x44
+            // 0x5e5700(out, cx, cz, unit x, unit z, unit +0x58, (word) unit +0xd8, 1)
+            float out[2];
+            g_World->FindEmptySpaceNear(out, cx, cz, UV::X(u), UV::Z(u), UV::RawInt(u, 0x58), UV::FlagsD8(u), true);
+            tx = out[0];
+            tz = out[1];
         }
         if (TrigTrace())
             Logger.g->Log(0, "PZM2 TRIG t%d   TELEPORT unit %d '%s' -> loc %d (%.1f, %.1f)", (int)g_M2Tick, u,

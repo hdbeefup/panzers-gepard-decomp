@@ -132,3 +132,37 @@ Removed in P2-D because the lifted Panzers code now provides them:
 
 Removed in P3-Y: `SSettings::Save` (HD 0x64fdd0). Added in P3-Y:
 `PzStub_ApplyGraphicsOptions` (above). The stub count stays at 26.
+
+## M2-I: menu game logic on by default
+
+Branch `m2-integrate` (on `menu-3d` 50447c8). Census
+`1488 lifted + 1331 SWINE-shared + 301 stubs (22 shell, 121 menu3d skeleton, 158 m2 skeleton)`
+(M2 start: `1357 + 1331 + 273 (22, 117, 134)`). The M2 game logic is now the
+default; `-nom2` or `PZ_M2=0` turns it off (docs/M2_STATUS.md).
+
+Runs from `scratchpad\m2i\run\` (`panzers.exe -nointro`, windowed): two
+335 s idle runs with `PZ_M2_CRC=1` (world CRC identical to the original for
+all 6,199 compared frames), three boot -> Options -> Credits -> Exit loops
+each with `-m2`, by default and once with `-nom2` (exit code 0, no
+`crash.txt`).
+
+Stubs hit on the M2 path, besides the shell / menu3d ones listed above
+(first-call names):
+
+| Stub | HD address | When |
+|---|---|---|
+| `SDriver::StartEffects`, `StartMoveEffects`, `StartWaterEffects` | 0x55bb80 / 0x55bc50 / 0x55be10 (pixie +0x28 / +0x30 / +0x64 not typed) | a vehicle starts moving (no dust / exhaust effects) |
+| `SSingleUnit::UpdateVisuals (0x5aaaa0) board and armour decals` | board part of 0x5aaaa0 | every frame (no health bars) |
+| `SBuildingUnit 0x546f70 building eye heights` | 0x546f70 (engine model +0x100 / +0xd8) | map load (visibility map eye heights next to the house) |
+| `SPanzersSquadUnit::Hook20 (0x59fab0) equipment slots` | 0x59fab0 | squad creation |
+| `SModel::Slot_CC (0x6dad80)`, `SPixie::Slot_14 (0x69ee50)`, `SPUnitAnimation::Slot_0C (0x5cb470)` | engine / animation slots | unit creation (shadow texture, effect, animation prototype hook) |
+| `SPTrailEffect (EffectType 8)`, `SPDecalEffect (4)`, `SPLiteEffect (7)` | 0x6edcd0 / 0x6ea0f0 / 0x6ed790 | effect prototypes of the units |
+
+No longer hit: `SGameLogic::Refresh (0x576d80)` and `UpdateUnitVisuals
+(0x5638f0)` as stubs, `SGameLogic::Tick_565e10` (visibility maps lifted),
+`SGameLogic::Dispatch_571380`, the convoy hand-over and movement-group
+"STUB:" warnings of 0x579510, `SUnit::AI_Heartbeat (0x5b37d0)`,
+`SUnit::ServerRefreshMedic (0x5bfa50)` (entry lifted),
+`SPanzersSquadUnit::RefreshSquadFormation (0x59dda0)`, and the SModel slots
++0x38 / +0x48 / +0x4c / +0x50 / +0x54 / +0x58 / +0x64 / +0x68 / +0x78 /
++0x80 / +0x84 / +0x88 / +0xa8 / +0xc0 / +0xdc / +0xf0 (named and lifted).

@@ -15,6 +15,7 @@
 #include "worldapi.h"
 #include "pzunitregistry.h"
 #include "trigger.h"
+#include "blockmaprefresh.h"
 #include "pz/igepardhd.h"
 #include "pz/iscene.h"
 #include "pz/iviewport.h"
@@ -431,6 +432,16 @@ void SDoodad::Initialize()
     FreeSString(&dirSec);
 }
 
+// PANZERS 0x661b30
+// SBlockBitmap dtor (frees the bits), then the caller's operator delete(0x1c).
+// The bitmap comes from SModel::BuildNodeBlockBitmap (pz3d, new / new[]).
+static void FreeBlockBitmap(SBlockBitmap* bm)
+{
+    delete[] bm->Bits;
+    bm->Bits = nullptr;
+    delete bm;
+}
+
 // PANZERS 0x6012d0
 void SDoodad::UpdatePosition()
 {
@@ -438,14 +449,29 @@ void SDoodad::UpdatePosition()
     if (Model) {
         Model->SetPosition(X, y, Z);                              // model +0x18
         Model->SetRotation(Angle, TiltX, TiltZ);                  // model +0x1c
-        // HD: model +0xc0(_28) and the "Block" rectangle into the block map
-        // (model +0xa8(4, "Block"), 0x5ef380): slots pending (agent A) / M2.
+        Model->SetHighlight(Highlight);                                 // model +0xc0
+        // The old footprint's cells (3-cell margin) are rebuilt without it,
+        // the new one (4 cells per unit from the "Block" node) is marked;
+        // the block map rebuild 0x604620 ORs Flags into its set cells.
+        if (BlockRect) {
+            BlockMap_MarkDirty(g_World, BlockRect->X - 3, BlockRect->Z - 3,
+                               BlockRect->W + 3 + BlockRect->X, BlockRect->H + 3 + BlockRect->Z,
+                               0x303c);                           // 0x5ef380
+            FreeBlockBitmap(BlockRect);                           // 0x661b30, delete(0x1c)
+        }
+        BlockRect = Model->BuildNodeBlockBitmap(4, "Block");      // model +0xa8
+        if (BlockRect)
+            BlockMap_MarkDirty(g_World, BlockRect->X - 3, BlockRect->Z - 3,
+                               BlockRect->W + 3 + BlockRect->X, BlockRect->H + 3 + BlockRect->Z,
+                               0x303c);                           // 0x5ef380
     }
     if (RuinModel) {
         RuinModel->SetPosition(X, y, Z);
         RuinModel->SetRotation(Angle, TiltX, TiltZ);
+        RuinModel->SetHighlight(Highlight);                             // model +0xc0
     }
-    // HD: attached lights (0x6090e0) - none in the menu map.
+    if (LightCount > 0)
+        STUB_LOG("SDoodad::UpdatePosition (0x6012d0) attached lights 0x6090e0");
 }
 
 // PANZERS 0x5d4e50
@@ -466,7 +492,11 @@ void SDoodad::Release()
         RuinModel->Release();
         RuinModel = nullptr;
     }
-    BlockRect = nullptr;
+    BlockMap_ApplyBitmap(g_World, BlockRect, false, Flags);       // 0x5f4910 (clear + mark dirty)
+    if (BlockRect) {
+        FreeBlockBitmap(BlockRect);                               // 0x661b30, delete(0x1c)
+        BlockRect = nullptr;
+    }
     free(Lights);
     Lights = nullptr;
     LightCount = LightMax = 0;
@@ -1179,8 +1209,13 @@ bool SWorld::LoadMap(SStream* stream, bool p2, int p3, int p4)
         s->ReadChunkValidate(0);
     }
     s->ReadChunkValidate(0);                                      // MAPF
-    // HD: 0x5ef380(0, 0, BlockW, BlockH, 0x7f3f) block-map flags,
-    // 0x608600 SWorld::UpdateWaterMap, 0x604620 world refresh (M2).
+    // The whole block map is rebuilt from the loaded words, the doodad
+    // footprints and the units: 0x5ef380(0, 0, BlockW, BlockH, 0x7f3f), then
+    // HD 0x608600 SWorld::UpdateWaterMap (water map = height map, then the
+    // lakes; not lifted, the water map keeps what the map load gave it),
+    // then 0x604620.
+    BlockMap_MarkDirty(this, 0, 0, BlockW, BlockH, 0x7f3f);       // 0x5ef380
+    RefreshBlockMapDirtyRect();                                   // 0x604620
     LoadParam3 = 0;
     LoadParam4 = 0;
     PzGepard()->PurgeModelPrototypes();                           // Gepard +0x28

@@ -22,6 +22,8 @@ namespace pz {
 
 struct SGunner;
 struct SIDriver;
+struct SIPDriver;
+struct SPGunner;
 
 // +0x16c element (8 bytes): a unit stored in a vehicle or building.
 struct SUnitStored {
@@ -170,6 +172,80 @@ struct SUnit : SIUnit {
     void SetUnitSize() override;                                 // 0x5c21d0
     void GetCenterPosition(float* out) override;                 // 0x5b9d40
 
+    // --- M2-I sub-agent UB (SUnit AI, targeting, orders, effects): add declarations here only.
+    // Element types of the unit arrays decoded by UB (unitai.cpp).
+    struct SNearUnit {                   // +0x1a8 / +0x1b4 element (8 bytes)
+        int  Unit;                       // +0x00 world index
+        bool Blocked;                    // +0x04 +0x1a8 only: the unit blocks this one's footprint (0x5b78a0)
+        unsigned char _5[3];
+    };
+    struct SInvalidTarget {              // +0x1c0 element (0x10 bytes), CollectInvalidTargets 0x5b76e0
+        int  Unit;                       // +0x00 world index of the target the driver got stuck on
+        int  Frame;                      // +0x04 logic frame it was (re)marked
+        int  Count;                      // +0x08 times marked (max 5)
+        bool AttackOk;                   // +0x0c 0x5bb6b0(unit, false) fails while clear
+        bool FollowOk;                   // +0x0d 0x5bb6b0(unit, true) fails while clear
+        unsigned char _e[2];
+    };
+    struct SOrder {                      // +0x19c element (0x1c bytes): a queued command (0x5bb980)
+        int   Command;                   // +0x00 ExecuteCommand 0x5b95a0 case
+        float X;                         // +0x04
+        float Z;                         // +0x08
+        int   Unit;                      // +0x0c
+        int   Param;                     // +0x10 (path, behaviour, ...)
+        int   Param2;                    // +0x14
+        bool  Queue;                     // +0x18 passed on as the last argument of the EC_ slot
+        unsigned char _19[3];
+    };
+    struct SPoint2 {                     // +0x308 element (8 bytes): a copy of the driver's global path (0x5bee10)
+        float X;
+        float Z;
+    };
+
+    // Targeting (unitai.cpp).
+    void FillNearUnits(float sightRange, float nearRange);       // 0x5b78a0 (+0x1b4 in sight range, +0x1a8 near)
+    bool IsTargetable(int unit, bool follow);                    // 0x5bb6b0 (live, placed, not marked invalid in +0x1c0)
+    bool IsWaitingAfterStuck();                                  // 0x5bb400
+    bool IsHiddenInBlockMap();                                   // 0x5bb5c0 (the unit stands in a static block)
+    bool IsAIDefault();                                          // 0x5bb470 AI player, no AI group, behaviour 1
+    bool HasSlotWeapon(int weapon);                              // 0x5ba820 (+0x138 / +0x144)
+    int  FindTarget(int mode, SGunner* gunner, float minRange, float maxRange, bool p5);   // 0x5b4720 (-1 = none)
+    void AutoRepairSupply(float supplyLevel);                    // 0x5bd610 (repairers / supporters)
+    int  GetBuildingAction(int unit);                            // 0x5ba2b0 (-1 = not a building)
+    bool NeedsSupply(float level);                               // 0x5bc700
+    bool NeedsRepair();                                          // 0x5bc840 (stub)
+    // Per tick (ServerRefresh 0x5bee90).
+    void RefreshDriverEffects();                                 // 0x5bd910
+    void RefreshInvalidTargets();                                // 0x5bdcd0
+    void CollectInvalidTargets();                                // 0x5b76e0
+    void EnableStaticEffects();                                  // 0x5c2200
+    bool GetMovingDriver(SIDriver** out);                        // 0x5b9bf0 refresh driver, else the active one
+    bool GetActivePDriver(SIPDriver** out);                      // 0x5b9c70
+    bool GetMainPGunner(SPGunner** out);                         // 0x5b9ce0 (the driver's aimer)
+    bool IsPosInGunnerArc(float x, float y, float z);            // 0x5b6fd0 (main gunner 0x583990)
+    void OnDriverStucked();                                      // 0x5bcd20
+    void StopUnit();                                             // 0x5c2d30 (targets, gunners, driver; teleport)
+    void DriverDropGlobalPath();                                 // 0x5b5b50 (driver 0x550730)
+    void DriverDropLocalPath();                                  // 0x5b5ba0 (driver 0x550780)
+    void CopyDriverWayPoints();                                  // 0x5bee10 (driver +0x94 into +0x308)
+    // Order queue (+0x19c).
+    void OrderAt(int command, const float* xz, bool queue, bool add);   // 0x5bb980
+    void OrderParam(int command, int param, bool queue, bool add);      // 0x5bbb60
+    void OrderUnit(int command, int unit, bool queue, bool add);        // 0x5bb8a0
+    void ExecuteCommand(const SOrder& order);                    // 0x5b95a0
+    // Callable forms for the driver environment (g_DriverEnv, driverunit.cpp).
+    static void   EnvOnDriverStucked(SIUnit* unit);              // 0x5bcd20
+    static bool   EnvIsPosInRange(SIUnit* unit, float x, float y, float z);   // 0x5b6fd0
+    static void*  EnvGetAimer(SIUnit* unit);                     // 0x5b9ce0 (SPGunner*, +0x28 = fire start arc)
+    static float* EnvGetEntrance(SIUnit* unit, float* out);      // +0x78: 0x55ce70 / SBuildingUnit 0x548200
+    static void   EnvOnDriverReachedTarget(SIUnit* unit);        // +0x48 (SUnit 0x5bcb60)
+    static void   EnvSlot9C(SIUnit* unit, int p1);               // +0x9c (SUnit 0x5c1d40: +0x112 = p1)
+    // --- end UB
+    // --- M2-I sub-agent SQ (helpers squads need on SUnit): add declarations here only.
+    // --- end SQ
+    // --- M2-I sub-agent BW (helpers buildings / SWorld need on SUnit): add declarations here only.
+    // --- end BW
+
     // Non-virtual SUnit helpers (HD thiscall functions).
     void SetActiveDriver(int index);                             // 0x5c0cb0
     void SetGlobalState(int state, int p2);                      // 0x5b7390
@@ -183,6 +259,9 @@ struct SUnit : SIUnit {
     SIDriver* GetDriver(int index);                              // 0x55cc00
     SGunner* GetGunner(int index);                               // 0x55cc40
     void SetTarget(STarget** slot, STarget* t);                  // refcount swap (inline in HD)
+    void UpdateSeenByPlayers();                                  // 0x5bc5c0
+    void RefreshRepairTarget(float range);                       // 0x5c01e0 (target kind 6)
+    void RefreshSupplyTarget(float range);                       // 0x5bf280 (target kind 7)
 
     // M1 visuals until agent A's animations land (unit.cpp): the walker
     // stand sequence, the building node hiding, the idle tick.
@@ -293,12 +372,12 @@ struct SUnit : SIUnit {
     bool             _190;           // +0x190
     unsigned char    _191[3];
     SString          ScriptID;       // +0x194
-    SUnitArray<int>  _19c;           // +0x19c
-    SUnitArray<int>  _1a8;           // +0x1a8
-    SUnitArray<int>  _1b4;           // +0x1b4
-    SUnitArray<int>  _1c0;           // +0x1c0
-    int              _1cc;           // +0x1cc -1
-    int              _1d0;           // +0x1d0
+    SUnitArray<SOrder> Orders;       // +0x19c queued commands (0x5bb980; ServerRefresh runs one when idle)
+    SUnitArray<SNearUnit> NearUnits; // +0x1a8 units close enough to collide (0x5b78a0; drivers 0x554870 / 0x555450)
+    SUnitArray<SNearUnit> SightUnits;// +0x1b4 units in weapon / sight range (0x5b78a0)
+    SUnitArray<SInvalidTarget> InvalidTargets; // +0x1c0 (0x5b76e0, timed out by 0x5bdcd0)
+    int              StuckFrame;     // +0x1cc -1, frame of the last OnDriverStucked (0x5b76e0)
+    int              StuckCount;     // +0x1d0 0..8 (0x5bb400 waits StuckCount * 5 ticks)
     bool             _1d4;           // +0x1d4
     unsigned char    _1d5[3];
     SUnitGhostQueue  GhostFrames;    // +0x1d8
@@ -332,14 +411,14 @@ struct SUnit : SIUnit {
     bool             _2eb;           // +0x2eb 1
     float            Cargo;          // +0x2ec 1.0
     int              _2f0;           // +0x2f0
-    bool             _2f4;           // +0x2f4
+    bool             HasReturnPos;   // +0x2f4 AI units go back to +0x2f8/+0x2fc (AI_Heartbeat 0x5b37d0)
     unsigned char    _2f5[3];
-    int              _2f8;           // +0x2f8
-    int              _2fc;           // +0x2fc
+    float            ReturnX;        // +0x2f8
+    float            ReturnZ;        // +0x2fc
     float            _300;           // +0x300
     bool             _304;           // +0x304
     unsigned char    _305[3];
-    SUnitArray<int>  _308;           // +0x308
+    SUnitArray<SPoint2> WayPoints;   // +0x308 copy of the driver's global path (0x5bee10)
     SUnitArray<int>  StaticEffects;  // +0x314 pixie effect handles (0x5c2a70)
     SUnitArray<int>  _320;           // +0x320 pixie effect handles (StopEffects 0x5c3030)
     bool             _32c;           // +0x32c

@@ -24,6 +24,7 @@
 #include <string.h>
 #include "unitanim.h"
 #include "unitanim_model.h"
+#include "drivermath.h"
 #include "iunit.h"
 #include "pz/imodel.h"
 #include "pz/igepardhd.h"
@@ -144,8 +145,8 @@ void SRunningGear::InitModel(SIModel* model)
 // PANZERS 0x5aa2c0
 void SRunningGear::Update(SIModel* model, float x, float z, double dir, float steer)
 {
-    double s = sin(dir);                                           // 0x78d640
-    double c = cos(dir);                                           // 0x78d480
+    double s = DSin(dir);                                          // 0x78d640
+    double c = DCos(dir);                                          // 0x78d480
     // HD: with a caterpillar belt the trails get the track points here
     // (scene +0x90), see the constructor.
     float fs = (float)s;
@@ -474,8 +475,8 @@ void SVehicleAnimation::UpdateModel()
 
     // Body sway: a damped spring driven by the movement of the tick and the
     // slope (MaxSpringAngle caps it).
-    float tx = (float)sin(atan((double)sx));                     // 0x78d190, 0x78d640
-    float tz = (float)sin(atan((double)sz));
+    float tx = (float)DSin(HdAtan((double)sx));                  // 0x78d190, 0x78d640
+    float tz = (float)DSin(HdAtan((double)sz));
     const SPVehicleAnimation* p = VProto;
     const float* prev = &UnitField<float>(u, kUnitPrevPos);
     Spring[0] = (double)(prev[0] - pos[0]) * 1.5 + SpringVel[0] * 0.05 + Spring[0];
@@ -518,8 +519,8 @@ void SVehicleAnimation::UpdateModel()
         AntennaReset = false;
     }
 
-    double cd = cos((double)dir);                                  // 0x78d480
-    double sd = sin((double)dir);                                  // 0x78d640
+    double cd = DCos((double)dir);                                 // 0x78d480
+    double sd = DSin((double)dir);                                 // 0x78d640
     float bodyX = (float)((cd * Spring[0] - sd * Spring[1]) * (double)p->SpringScale);
     float bodyZ = (float)((cd * Spring[1] + sd * Spring[0]) * (double)p->SpringScale);
     AnimModelSetNodeTilt(m, BodyNode, 0.0f, 0.0f, 0.0f, 0.0f, bodyX, bodyZ);   // +0x48
@@ -547,7 +548,7 @@ void SVehicleAnimation::UpdateModel()
             if (gunners < 1)
                 Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "SGunner *", 0);
             double a = (double)*reinterpret_cast<const float*>(g[0] + kGunnerYaw);
-            double ca = cos(a), sa = sin(a);
+            double ca = DCos(a), sa = DSin(a);                   // 0x78d480, 0x78d640
             AnimModelSetNodeTilt(m, AntennaNode, 0.0f, 0.0f, 0.0f, 0.0f,
                                  (float)((ca * Rod[0] - sa * Rod[1]) * (double)p->RodSpringScale),
                                  (float)((ca * Rod[1] + sa * Rod[0]) * (double)p->RodSpringScale));
@@ -610,7 +611,8 @@ void SVehicleAnimation::UpdateModel()
             UnitField<int>(u, kUnitMoveMode) = 6;                 // SUnit 0x5c10f0 while changing
             SHdStr t = { nullptr, 0 };
             GetChangingText(&t);
-            int ticks = (int)lrintf((float)(AnimModelSequenceLength(m, HdStr(t)) * 20.0f));
+            // fmul dword 20.0 at 24-bit precision, fstp dword, fistp with cw 0x087f (up)
+            int ticks = (int)ceilf(_mm_cvtss_f32(_mm_mul_ss(_mm_set_ss(AnimModelSequenceLength(m, HdStr(t))), _mm_set_ss(20.0f))));
             if (ticks < 1)
                 m->PlaySequence(stand, true);
             else

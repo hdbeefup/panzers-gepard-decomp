@@ -1,13 +1,8 @@
 // src/game/unitanim_model.h
-// SModel / SGepard slots the unit animations call that the shared SIModel
-// and SIGepardHD interfaces still list as Slot_XX (their pzmodel.cpp /
-// pzgepard.cpp bodies are logged stubs). OWNER: agent A.
-//
-// The bodies are lifted here as free functions on the concrete pz::SModel so
-// that agent A's files stay the only ones touched. They belong in pzmodel.cpp
-// as the slot bodies (+0x38, +0x48, +0x4c, +0x54, +0x64, +0x68, +0x78, +0x84,
-// +0xf0) once that file has an owner again; the callers would then use the
-// named interface slots.
+// The model calls of the unit animations: thin wrappers over the named
+// SIModel slots (+0x38, +0x48, +0x4c, +0x54, +0x64, +0x68, +0x78, +0x84,
+// +0xf0; bodies in src/3dengine/pz/pzmodel.cpp) and the SGepard prototype
+// sequence queries (+0x30 / +0x34, still Slot_XX in igepardhd.h).
 
 #ifndef PZ_GAME_UNITANIM_MODEL_H
 #define PZ_GAME_UNITANIM_MODEL_H

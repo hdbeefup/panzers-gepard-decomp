@@ -13,6 +13,7 @@ add_library(pzworld STATIC
     pzunitregistry.h
     unitregistry.cpp
     unit.cpp
+    worldunits.cpp
     trigger.h
     trigger.cpp
     # P: block map + A*

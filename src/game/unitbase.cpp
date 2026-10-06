@@ -5,7 +5,9 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <intrin.h>
 #include "unit.h"
+#include "drivermath.h"
 #include "gunner.h"
 #include "idriver.h"
 #include "unitanim.h"
@@ -44,9 +46,9 @@ SUnit* WorldUnit(int index)
 // HD inline MSVC rand() on World+0x7518.
 int WorldRand()
 {
-    unsigned s = g_World->RandomSeed * 0x343fdu + 0x269ec3u;
-    g_World->RandomSeed = s;
-    return (int)(s >> 16) & 0x7fff;
+    int r = HdLcg15(HdLcgStep(&g_World->RandomSeed));
+    HdRngTrace(_ReturnAddress());
+    return r;
 }
 
 static int PlayerField(int player, int off)
@@ -80,6 +82,14 @@ static int AnimStateIndex(SIUnitAnimation* anim, const char* name)   // 0x5c7ed0
         return 0;
     SPUnitAnimation* p = static_cast<SUnitAnimation*>(anim)->Proto;
     return p ? p->FindState(name) : 0;
+}
+
+// A field of P's SDriver / SPDriver at its HD offset (driver.h cannot be
+// included next to unitanim.h: both define SHdDArray).
+template <typename T>
+static T& DriverField(void* d, int off)
+{
+    return *(T*)((unsigned char*)d + off);
 }
 
 static void ReleaseTarget(STarget** slot)
@@ -135,7 +145,7 @@ SUnit::SUnit(SPUnit* proto, int worldIndex)
     _12c = 1.0f;
     _134 = -1;
     _f8 = 1;
-    _1cc = -1;
+    StuckFrame = -1;
     GhostFrames.Top = -1;
     _1f0 = -1;
     Anim = proto->PAnimation ? proto->PAnimation->CreateAnimation(this) : nullptr;   // draws the world seed twice
@@ -183,15 +193,15 @@ SUnit::~SUnit()
 {
     ArrayFree(&_320);
     ArrayFree(&StaticEffects);
-    ArrayFree(&_308);
+    ArrayFree(&WayPoints);
     FreeSString((SString*)&_25c);                             // +0x25c SString (A: sub-state)
     ArrayFree(&ChildUnits);
     free(GhostFrames.Array);                                  // 0x5b32f0
     GhostFrames.Array = nullptr;
-    ArrayFree(&_1c0);
-    ArrayFree(&_1b4);
-    ArrayFree(&_1a8);
-    ArrayFree(&_19c);
+    ArrayFree(&InvalidTargets);
+    ArrayFree(&SightUnits);
+    ArrayFree(&NearUnits);
+    ArrayFree(&Orders);
     FreeSString(&ScriptID);
     ArrayFree(&Members);
     ArrayFree(&Stored);
@@ -445,7 +455,7 @@ void SUnit::Init(SUnitDef* def)
     RandomSide = (rand() * 2) >> 15;                          // 0x78c846 (CRT rand)
     InitMoveFlags();                                          // 0x5c1170
     InitModel();                                              // 0x5b7d70
-    SetGlobalState(GlobalState, 0);                           // 0x5b7390
+    SetGlobalState(def->GlobalState, 0);                      // 0x5b7390(def +0x3c, 0) (0x5bab68)
     if (Proto->ClassType != 5 && GlobalState > 0 && Anim) {
         SPUnitAnimation* pa = static_cast<SUnitAnimation*>(Anim)->Proto;
         if (pa && pa->StateCount() <= GlobalState) {
@@ -553,12 +563,32 @@ void SUnit::SetPosition(float x, float z, int dirBits, int yrelBits)
     StoreInterpolationState();
     SetOnBlockMap(true);
     if (Towed >= 0) {
-        STUB_LOG("SUnit::SetPosition (0x5c1980) towed unit");
+        // HD: the towed unit leaves the block map, takes the position the
+        // tow bar gives it (+0x74 GhostFrames_AddTop(pos, dir, +0x300,
+        // towed, &pos, &dir, &+0x300)), goes back on it and is teleported
+        // there with its own +0x24.
+        SUnit* t = WorldUnit(Towed);
+        (void)t;
+        STUB_LOG("SUnit::SetPosition (0x5c1980) towed unit (+0x74)");
     }
-    if (_7c && (_104 & 1) != 0 && g_World->Units.IsLive(Parent)) {
+    if (_7c && (_104 & 1) != 0) {
         SUnit* parent = WorldUnit(Parent);
         if ((parent->_104 & 1) == 0)
-            parent->Remove(false);
+            parent->Remove(false);                            // +0x70(0)
+    }
+    if (Proto->ClassType == 0xb) {
+        // A gun's crew on the ground (not attached) stands at its seat nodes.
+        for (int i = 0; i < Members.Size; ++i) {
+            if (Members.Array[i].Attached)
+                continue;
+            float p[3] = { 0.0f, 0.0f, 0.0f };
+            Model->GetNodePosition(Members.Array[i].Node, p); // model +0x54
+            SUnit* m = WorldUnit(Members.Array[i].Unit);
+            m->Pos[0] = p[0];
+            m->Pos[1] = p[1];
+            m->Pos[2] = p[2];
+            WorldUnit(Members.Array[i].Unit)->Dir = Dir;
+        }
     }
 }
 
@@ -638,10 +668,7 @@ void SUnit::GetCenterPosition(float* out)
 // Per tick
 
 // PANZERS 0x5bee90
-// Lifted control flow. Parts that need other agents go through their hooks
-// (STarget::Refresh, the driver refresh); the driver effects (0x5bd910),
-// the unit effects timer (0x5bdcd0) and the per-player sighting (0x562b10)
-// are not lifted yet.
+// The per-player sighting 0x562b10 (units with +0x6d) is not lifted.
 void SUnit::ServerRefresh(int frame)
 {
     if (LastRefreshFrame == frame)
@@ -649,23 +676,30 @@ void SUnit::ServerRefresh(int frame)
     LastRefreshFrame = frame;
     if (Frozen)
         return;
-    if (--EffectTimer == 0) {
-        // HD 0x5c2200: pixie +0x60(effect, 1) for each static effect.
+    if (--EffectTimer == 0)
+        EnableStaticEffects();                                // 0x5c2200
+    if (CurrentTarget && RefreshDriver > -1) {
+        GetDriver(RefreshDriver)->Refresh();                  // +0x14
+        if (DriverField<void*>(GetDriver(RefreshDriver), 0xc0) == nullptr)   // SDriver +0xc0 Target
+            RefreshDriver = -1;
     }
-    if (CurrentTarget && RefreshDriver >= 0) {
-        SIDriver* d = GetDriver(RefreshDriver);
-        if (d) {
-            d->Refresh();                                     // +0x14
-            // HD: the refresh driver is dropped when its +0xc0 target is gone.
-        }
-    }
-    if (Wrecked) {                                            // HD +0x150 byte
-        Slot_30();                                            // dead unit refresh
+    if (Wrecked) {                                            // +0x150
+        RefreshDriverEffects();                               // 0x5bd910
+        Slot_30();                                            // +0x30 dead unit refresh
         return;
     }
-    if (_1a8.Size != 0 && PrimaryTarget == nullptr) {
-        STUB_LOG("SUnit::ServerRefresh (0x5bee90) queued orders (0x5b36e0 / 0x5b95a0)");
+    if (Orders.Size != 0 && PrimaryTarget == nullptr) {
+        if (Orders.Size <= 0)                                 // 0x5b36e0(0)
+            Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "struct SUnit::SOrder", 0);
+        SOrder o = Orders.Array[0];
+        // 0x5bdfa0(0): SDArray::Remove
+        Orders.Size--;
+        if (Orders.Size != 0)
+            memmove(&Orders.Array[0], &Orders.Array[1], Orders.Size * sizeof(SOrder));
+        memset(&Orders.Array[Orders.Size], 0, sizeof(SOrder));
+        ExecuteCommand(o);                                    // 0x5b95a0
     }
+    RefreshInvalidTargets();                                  // 0x5bdcd0
     int gf = g_GameLogic ? g_GameLogic->GetFrame() : frame;   // 0x56d1a0
     if ((gf + WorldIndex) % 20 == 0) {
         RefreshTargeting();                                   // +0x34
@@ -705,12 +739,50 @@ void SUnit::ServerRefresh(int frame)
             AI_Heartbeat();                                   // +0x190
         }
     }
-    if (_6d) {
+    if (_6d && !IsHiddenInBlockMap()) {                       // 0x5bb5c0
+        // HD: for each of the 12 players, LastSeenFrame[p] = logic frame
+        // when 0x562b10(p, this).
         STUB_LOG("SUnit::ServerRefresh (0x5bee90) per-player sighting (0x562b10)");
     }
     RefreshMisc();                                            // +0x38
+    RefreshDriverEffects();                                   // 0x5bd910
     if (RemoveMe)
         g_World->RemoveUnit(WorldIndex);                      // 0x5f8060
+}
+
+// PANZERS 0x5bc5c0
+// A moving armoured unit not hidden by the block map is stamped as seen
+// (+0x26c[player] = logic frame) by every player it is in vision of.
+void SUnit::UpdateSeenByPlayers()
+{
+    if (!(MoveFlags & 1)) {
+        int size = UnitSizeBlocks < 1 ? 1 : UnitSizeBlocks;
+        if (TestBlockMap(*(int*)&Pos[0], *(int*)&Pos[2], *(int*)&Dir, size, 1))   // +0x1a8
+            return;
+    }
+    for (int p = 0; p < 12; ++p)
+        if (g_GameLogic->IsInPlayerVision(p, this))          // 0x562650
+            _26c[p] = g_GameLogic->Frame;                     // DAT_008f2078 +0x08
+}
+
+// PANZERS 0x5c01e0 (entry test)
+// Repairing: only for a current target of kind 6 (never in the menu).
+void SUnit::RefreshRepairTarget(float range)
+{
+    (void)range;
+    if (!CurrentTarget || tgt::I(CurrentTarget, tgt::kKind) != 6)
+        return;
+    STUB_LOG("SUnit::RefreshRepairTarget (0x5c01e0) repair target");
+}
+
+// PANZERS 0x5bf280 (entry test)
+// Resupplying: only for a current target of kind 7 (never in the menu).
+void SUnit::RefreshSupplyTarget(float range)
+{
+    (void)range;
+    if (!CurrentTarget || tgt::I(CurrentTarget, tgt::kKind) != 7)
+        return;
+    STUB_LOG("SUnit::RefreshSupplyTarget (0x5bf280) supply target");
 }
 
 // PANZERS 0x5bd600
@@ -732,7 +804,7 @@ void SUnit::SetCurrentTarget(STarget* target, int p2)
     (void)p2;
     int kind = tgt::I(target, tgt::kKind);
     if (kind == 1)
-        STUB_LOG("SUnit::SetCurrentTarget (0x5c0d10) 0x5bee10");
+        CopyDriverWayPoints();                                // 0x5bee10
     if ((kind == 2 || kind == 3) && MainGunner >= 0) {
         tgt::I(target, tgt::kP20) = 1;
         SGunner* g = GetGunner(MainGunner);
@@ -801,9 +873,10 @@ void SUnit::EC_MoveAlongPath(int path, int p2, int p3)
 }
 
 // PANZERS 0x5b8ba0
-// The reachability test 0x5bb6b0 is not lifted (always true here).
 void SUnit::EC_Follow(int unit, int p2)
 {
+    if (!IsTargetable(unit, true))                            // 0x5bb6b0(unit, 1)
+        return;
     if (unit == WorldIndex)
         return;
     if (WorldUnit(unit)->Proto->ClassType == 3)
@@ -824,12 +897,28 @@ void SUnit::Stop()
         return;
     ReleaseTarget(&CurrentTarget);
     SIDriver* d = GetDriver(ActiveDriver);
-    if (!d)
-        return;
     PzDriverReset(d, true);                                   // 0x55bf50(1)
-    // HD: a driver still braking (+0xd4 ticks, speed +0xc8 against the
-    // prototype speed +0x08) gets a stop target at the unit position
-    // (+0x0c); that needs the driver fields (P).
+    SIDriver* sd = GetDriver(ActiveDriver);
+    int speedSteps = DriverField<int>(sd, 0xd4);             // SDriver +0xd4 SpeedSteps
+    if (speedSteps == 1)
+        return;
+    // A unit still too fast to stop in one speed step brakes towards a
+    // stop target at its own position (driver +0x0c SetTargetStopped).
+    float maxSpeed = DriverField<float>(sd->GetPDriver(), 0x08);   // SPDriver +0x08 MaxSpeed
+    float steps = (Speed / maxSpeed) * (float)speedSteps;
+    if ((int)steps > 1) {                                     // cvttss2si
+        STarget* t = PzTargetNew(0);                          // new 0x38, 0x5b27c0(0)
+        tgt::I(t, tgt::kType) = 2;
+        tgt::F(t, tgt::kPos) = Pos[0];
+        tgt::F(t, tgt::kPos + 4) = Pos[1];
+        tgt::F(t, tgt::kPos + 8) = Pos[2];
+        if (_cc)
+            tgt::B(t, tgt::kFlag2C) = 1;
+        SetTarget(&CurrentTarget, t);
+        GetDriver(ActiveDriver)->SetTargetStopped(CurrentTarget);   // driver +0x0c
+        return;
+    }
+    PzDriverReset(GetDriver(ActiveDriver), true);             // 0x55bf50(1)
 }
 
 // PANZERS 0x5b90b0
@@ -871,7 +960,7 @@ void SUnit::SetBehavior(int behavior)
         *sub = "";
     int ticks = static_cast<SUnitAnimation*>(Anim)->StateChangeTicks();   // 0x5c7c80
     StateChanging = true;
-    StateChangeTime = (int)((float)ticks * 1.0f);             // DAT_007f83dc (not verified)
+    StateChangeTime = (int)((float)ticks * 0.8f);             // cvtdq2ps, mulss DAT_007f83dc (0.8f), cvttss2si
 }
 
 // PANZERS 0x546ac0
@@ -939,11 +1028,11 @@ bool SUnit::StoreUnit(int unit, int mode)
     u->StoreMode = mode;
     u->SetAIGroup(u->AIGroup);
     u->SetAIGroup(-1);
-    if (u->_2f4) {
-        u->_2f4 = false;
-        _2f4 = true;
-        _2f8 = u->_2f8;
-        _2fc = u->_2fc;
+    if (u->HasReturnPos) {
+        u->HasReturnPos = false;
+        HasReturnPos = true;
+        ReturnX = u->ReturnX;
+        ReturnZ = u->ReturnZ;
     }
     int si = ArrayAdd(&Stored);                               // 0x546830
     Stored.Array[si].Unit = unit;
@@ -1015,8 +1104,20 @@ bool SUnit::StoreUnit(int unit, int mode)
             if (kind == 0) {
                 seat->Attached = false;
             } else if (kind == 10) {
+                // Kneeling seat: the member stays on the ground at the
+                // seat node, not attached to the vehicle model.
                 seat->Attached = false;
-                STUB_LOG("SUnit::StoreUnit (0x5c30d0) kneel seat");
+                float p[3] = { 0.0f, 0.0f, 0.0f };
+                Model->GetNodePosition(seat->Node, p);                // model +0x54
+                member->Pos[0] = p[0];
+                member->Pos[1] = p[1];
+                member->Pos[2] = p[2];
+                member->InVehicleAnim = 1;
+                member->Pos[1] = g_World->GetTerrainHeight(member->Pos[0], member->Pos[2]);   // 0x5e7730
+                member->Dir = Dir;
+                *(SString*)&member->_25c = "";
+                member->_f0 = false;
+                member->SetBehavior(AnimStateIndex(member->Anim, "kneel"));   // +0x12c
             } else {
                 static const char* const kSeat[] = { nullptr, "_driver", "_sitgun", "_standgun", "_sitpass",
                                                      "_standpass", "_kneelgun", "_mg", "_ground_gun",
@@ -1025,7 +1126,7 @@ bool SUnit::StoreUnit(int unit, int mode)
                     Logger.g->Panic("SUnit::StoreUnit - Unknown UNIT_IN_VEHICLE_ANIM_ substring");
                 *(SString*)&member->_25c = kSeat[kind];
                 member->InVehicleAnim = 1;
-                // HD: member model +0xdc attaches it to this unit's model at the seat node.
+                member->Model->AttachTo(Model, seat->Node);           // member model +0xdc at the seat node
                 seat->Attached = true;
                 member->SetGlobalState(AnimStateIndex(member->Anim, "vehicle"), mode == 3 ? 0 : 1);
             }

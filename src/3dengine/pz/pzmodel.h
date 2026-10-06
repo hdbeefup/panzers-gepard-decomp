@@ -66,27 +66,27 @@ struct SModel : SIModel, SIAttachable {
     float GetScale() override;
     void SetVisible(bool show, bool fade) override;
     void Slot_34() override;
-    void Slot_38() override;
+    void SetNodeFade(bool show, int node, int node2) override;
     void StoreInterpolationState() override;
     int FindNode(const char* name) override;
     void Slot_44() override;
-    void Slot_48() override;
-    void Slot_4C() override;
-    void Slot_50() override;
-    void Slot_54() override;
-    void Slot_58() override;
+    void SetNodeTilt(int node, float x, float y, float z, float yaw, float tiltX, float tiltZ) override;
+    void SetNodeRotation(int node, float x, float y, float z, float a, float b) override;
+    void GetNodePositionAxis(int node, float* pos, float* axisY) override;
+    void GetNodePosition(int node, float* pos) override;
+    void GetNodeMatrix(float* m34, int node) override;
     void Slot_5C() override;
     void SetNodeVisible(int node, bool visible) override;
-    void Slot_64() override;
-    void Slot_68() override;
+    void SetNodeTexRotation(int node, float u, float v, float angle) override;
+    void SetNodeTexScroll(int node, float u, float v) override;
     void PlaySequence(const char* name, bool blend) override;
     void AdvanceAnimation(float seconds) override;
     void AdvanceAnimationByDistance(float distance) override;
-    void Slot_78() override;
+    int GetSequenceType() override;
     void Slot_7C() override;
-    void Slot_80() override;
-    void Slot_84() override;
-    void Slot_88() override;
+    float GetSequenceLengthAt(int seq) override;
+    float GetSequenceLength(const char* name) override;
+    float GetSequenceBlendTime(const char* name) override;
     void Slot_8C() override;
     void Slot_90() override;
     void SetFlags(unsigned flags) override;
@@ -94,25 +94,25 @@ struct SModel : SIModel, SIAttachable {
     void Slot_9C() override;
     void Slot_A0() override;
     void Slot_A4() override;
-    void Slot_A8() override;
+    SBlockBitmap* BuildNodeBlockBitmap(int cellsPerUnit, const char* node) override;
     void Slot_AC() override;
     void Slot_B0() override;
     void Slot_B4() override;
     void Slot_B8() override;
     void Slot_BC() override;
-    void Slot_C0() override;
+    void SetHighlight(int mode) override;
     void Slot_C4() override;
     void Slot_C8() override;
     void Slot_CC() override;
     void Slot_D0() override;
     void Slot_D4() override;
     void Slot_D8() override;
-    void Slot_DC() override;
+    void AttachTo(SIModel* parent, int node) override;
     void Slot_E0() override;
     void Slot_E4() override;
     void SetSway(float phase, float p2, float p3) override;
     void Slot_EC() override;
-    void Slot_F0() override;
+    void SetColor2(bool on, unsigned color) override;
     void Slot_F4() override;
     void Slot_F8() override;
     void GetWorldBounds(float* minX, float* maxX, float* minY, float* maxY, float* minZ, float* maxZ) override;
@@ -130,6 +130,8 @@ struct SModel : SIModel, SIAttachable {
     void RenderShadow(SViewport* vp);                            // 0x6d9570
     void ComputeNodes(int frame, const float* attach, bool prev); // 0x6dc7b0
     void UpdateFade();                                           // 0x6dc4f0
+    void AttachChild(int node, SIAttachable* child);             // 0x6d5940
+    void DetachChild(int node, SIAttachable* child);             // 0x6d7340
     SAnimState Advance(const SAnimState& s, float dt) const;     // 0x6dae20
     bool IsVisible() const { return Visible; }                   // +0x34 0x6d86d0
 

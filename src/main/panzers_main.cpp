@@ -135,8 +135,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nS
     // Recompile-only "-menu3d" / "-nomenu3d" (and PZ_MENU3D / PZ_MENU3D_TRACE): 3D menu
     // world test hook, src/3dengine/pz/pztrace.cpp.
     pz::Menu3DParseCommandLine(&__argc, __argv);
-    // Recompile-only "-m2" (and PZ_M2 / PZ_M2_TRACE / PZ_M2_CRC): M2 game
-    // logic in the menu world, src/game/m2trace.cpp. Default off.
+    // Recompile-only "-m2" / "-nom2" (and PZ_M2 / PZ_M2_TRACE / PZ_M2_CRC): M2
+    // game logic in the menu world, src/game/m2trace.cpp. Default on.
     pz::M2ParseCommandLine(&__argc, __argv);
 
     WIN32_FILE_ATTRIBUTE_DATA fad;

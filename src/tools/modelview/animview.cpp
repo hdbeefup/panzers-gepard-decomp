@@ -63,12 +63,13 @@ int EnvFrame() { return g_Tick; }
 SIUnit* EnvGetUnit(int) { return nullptr; }
 int EnvGLInt(unsigned) { return 0; }
 SIPixie* EnvPixie() { return nullptr; }
+bool EnvBuildingOccupied(SIUnit*, int) { return false; }
 
 } // namespace
 
 namespace pz {
 SUnitAnimEnv g_UnitAnimEnv = { EnvSeed, EnvHeight, EnvLocalPlayer, EnvNoFog, EnvTeam, EnvHasGL,
-                               EnvCanSee, EnvFrame, EnvGetUnit, EnvGLInt, EnvPixie };
+                               EnvCanSee, EnvFrame, EnvGetUnit, EnvGLInt, EnvPixie, EnvBuildingOccupied };
 }
 
 namespace {

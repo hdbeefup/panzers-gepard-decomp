@@ -64,8 +64,9 @@ enum M2HdSize : unsigned {
 
 // Runtime switch (src/game/m2trace.cpp). Recompile-only test hook.
 //   Enabled: SGameLogic::Refresh runs the M2 path (triggers, units, drivers)
-//            instead of the M1 model-only tick. "-m2" or PZ_M2=1; default off.
-//   Trace:   per-tick call trace of the M2 stubs. "-m2" turns it on;
+//            instead of the M1 model-only tick. Default on (M2-I); "-nom2"
+//            or PZ_M2=0 turns it off, "-m2" or PZ_M2=1 turns it on.
+//   Trace:   per-tick call trace of the M2 functions. "-m2" turns it on;
 //            PZ_M2_TRACE=0/1 overrides it.
 //   Crc:     log the HD world CRC (SGameLogic 0x56aa10) every tick as
 //            "PZM2 CRC <frame> <crc> <seed> <units>" (determinism test,

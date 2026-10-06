@@ -11,6 +11,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "pzmodel.h"
+#include "hdmath.h"
 #include "pzscene.h"
 #include "pzviewport.h"
 #include "pzgepard.h"
@@ -18,6 +19,7 @@
 #include "tracks.h"
 #include "logger.h"
 #include "stub_log.h"
+#include "../../world/blockmaprefresh.h"   // SBlockBitmap (HD 0x661a50 layout)
 
 namespace pz {
 
@@ -127,21 +129,6 @@ static void QuatTransToMatrix(float* o, const float* q, const float* t)
     o[9] = t[0];
     o[10] = t[1];
     o[11] = t[2];
-}
-
-// PANZERS 0x661440: atan approximation x / (1 + 0.280872 x^2), folded.
-static float AtanApprox(float x)
-{
-    double d = (double)x;
-    if (1.0f < x) {
-        double r = (double)(float)(1.0 / d);
-        return (float)(1.5707963705062866 - r / ((double)(float)(1.0 / d) * 0.280872 * r + 1.0));
-    }
-    if (x < -1.0f) {
-        double r = (double)(float)(1.0 / d);
-        return (float)(-1.5707963705062866 - r / ((double)(float)(1.0 / d) * 0.280872 * r + 1.0));
-    }
-    return (float)((double)x / (d * 0.280872 * (double)x + 1.0));
 }
 
 // ---------------------------------------------------------------------------
@@ -257,6 +244,9 @@ SModel::~SModel()
     if (Proto) {
         --Proto->RefCount;   // released by PurgeModelPrototypes
     }
+    // PANZERS 0x6d5710 (SAttachable dtor, the base part): leave the parent's node.
+    if (AttachParent)
+        static_cast<SModel*>(AttachParent)->DetachChild(AttachNode, static_cast<SIAttachable*>(this));   // 0x6d7340
 }
 
 // PANZERS 0x6d5900
@@ -326,25 +316,25 @@ void SModel::SetRotation(float angle, float tiltX, float tiltZ)
     if (1e-05 <= (double)l2) {
         float len = (float)sqrt((double)l2);
         double h = (double)angle * 0.5;
-        float s = (float)sin(h);
+        float s = (float)HdSin(h);
         float s0 = s * 0.0f;
-        float c = (float)cos(h);
+        float c = (float)HdCos(h);
         float ax = -(tiltX / len);
-        double h2 = (double)AtanApprox(len) * 0.5;
-        float ts = (float)sin(h2);
+        double h2 = (double)HdFastAtan(len) * 0.5;
+        float ts = (float)HdSin(h2);
         float bz = (tiltZ / len) * ts;
         float by = ts * 0.0f;
         float bx = ax * ts;
-        float tc = (float)cos(h2);
+        float tc = (float)HdCos(h2);
         q[0] = (bz * c + s0 * tc + by * s0) - bx * s;
         q[1] = (s * tc + by * c + bx * s0) - bz * s0;
         q[2] = (bx * c + s0 * tc + bz * s) - by * s0;
         q[3] = ((tc * c - bz * s0) - by * s) - bx * s0;
     } else {
         double h = (double)angle * 0.5;
-        q[1] = (float)sin(h);
+        q[1] = (float)HdSin(h);
         q[2] = q[1] * 0.0f;
-        q[3] = (float)cos(h);
+        q[3] = (float)HdCos(h);
         q[0] = q[2];
     }
     Dirty = true;
@@ -454,10 +444,56 @@ void SModel::Slot_34()
 {
 }
 
-// PANZERS 0x6db2a0 (node fade in/out; not used by the menu path)
-void SModel::Slot_38()
+// PANZERS 0x6db2a0
+// Fades a node (a building roof) out or in over one second; node2 is shown
+// while the node fades.
+void SModel::SetNodeFade(bool show, int node, int node2)
 {
-    STUB_LOG("SModel::Slot_38 (0x6db2a0)");
+    if (node < 0 || node >= Proto->NodeCount)
+        return;
+    bool cur = Nodes[node].Visible && NodeFadeState != -1;
+    if (cur == show)
+        return;
+    UpdateFade();                                                 // 0x6dc4f0
+    NodeFadeNode = node;
+    NodeFadeNode2 = node2;
+    float now = Scene->Seconds;                                   // scene +0xb0
+    if (!show) {
+        if (!Nodes[node].Visible)
+            return;
+        SetNodeVisible(node2, true);                              // +0x60
+        if (NodeFadeState == 1) {
+            NodeFadeState = -1;
+            NodeFadeStart = (now + NodeFadeAlpha) - 1.0f;
+            return;
+        }
+        if (NodeFadeState != 0)
+            return;
+        NodeFadeState = -1;
+        NodeFadeAlpha = 1.0f;
+    } else {
+        if (Nodes[node].Visible) {
+            if (NodeFadeState != -1)
+                return;
+            NodeFadeState = 1;
+            NodeFadeStart = now - NodeFadeAlpha;
+            return;
+        }
+        SetNodeVisible(node, true);
+        SModelNode& fn = Nodes[NodeFadeNode];
+        for (int i = 0; i < fn.AttachedCount; ++i)
+            fn.Attached[i]->Attach_0C();                          // attachment +0x0c(show)
+        for (int j = 0; j < Proto->NodeCount; ++j) {
+            if (Proto->Nodes[j].Parent != NodeFadeNode)
+                continue;
+            SModelNode& cn = Nodes[j];
+            for (int i = 0; i < cn.AttachedCount; ++i)
+                cn.Attached[i]->Attach_0C();
+        }
+        NodeFadeState = 1;
+        NodeFadeAlpha = 0.0f;
+    }
+    NodeFadeStart = now;
 }
 
 // PANZERS 0x6da0f0
@@ -502,11 +538,118 @@ int SModel::FindNode(const char* name)
 }
 
 void SModel::Slot_44() { STUB_LOG("SModel::Slot_44 (0x6d7c20)"); }
-void SModel::Slot_48() { STUB_LOG("SModel::Slot_48 (0x6da4d0)"); }
-void SModel::Slot_4C() { STUB_LOG("SModel::Slot_4C (0x6da330)"); }
-void SModel::Slot_50() { STUB_LOG("SModel::Slot_50 (0x6d7d70)"); }
-void SModel::Slot_54() { STUB_LOG("SModel::Slot_54 (0x6d7d30)"); }
-void SModel::Slot_58() { STUB_LOG("SModel::Slot_58 (0x6d7c60)"); }
+// PANZERS 0x6da4d0
+// Node user transform: position (in model units), yaw about y and a tilt
+// towards (tiltX, tiltZ) by the fast atan 0x661440 of its length.
+void SModel::SetNodeTilt(int node, float x, float y, float z, float yaw, float tiltX, float tiltZ)
+{
+    if (node < 0 || node >= Proto->NodeCount)
+        return;
+    SModelNode& n = Nodes[node];
+    float inv = 1.0f / Scl;
+    n.Pos[0] = inv * x;
+    n.Pos[1] = inv * y;
+    n.Pos[2] = inv * z;
+    float q[4];
+    double len = (double)(tiltX * tiltX + tiltZ * tiltZ);
+    if (1e-05 <= len) {
+        len = sqrt(len);
+        double h = (double)yaw * 0.5;
+        float sA = (float)HdSin(h);
+        float f9 = sA * 0.0f;
+        float cA = (float)HdCos(h);
+        float nz = -tiltZ;
+        double t = (double)HdFastAtan((float)len) * 0.5;
+        float sT = (float)HdSin(t);
+        float f4 = (float)((double)nz / len) * sT;
+        float f5 = (float)((double)tiltX / len) * sT;
+        float f10 = sT * 0.0f;
+        float cT = (float)HdCos(t);
+        q[0] = (f4 * cA + f9 * cT + f5 * sA) - f10 * f9;
+        q[1] = (f5 * cA + f9 * cT + f10 * f9) - f4 * sA;
+        q[3] = ((cT * cA - f4 * f9) - f5 * f9) - f10 * sA;
+        q[2] = (sA * cT + f10 * cA + f4 * f9) - f5 * f9;
+    } else {
+        double h = (double)yaw * 0.5;
+        float sA = (float)HdSin(h);
+        q[0] = sA * 0.0f;
+        q[1] = q[0];
+        q[2] = sA;
+        q[3] = (float)HdCos(h);
+    }
+    memcpy(n.Quat, q, sizeof(q));
+    Dirty = true;                                                 // +0xc8 = 0x101
+    PrevDirty = true;
+}
+
+// PANZERS 0x6da330
+// Node user transform: position and two rotations (a about z, then b about
+// x); the wheels of the running gear.
+void SModel::SetNodeRotation(int node, float x, float y, float z, float a, float b)
+{
+    if (node < 0 || node >= Proto->NodeCount)
+        return;
+    SModelNode& n = Nodes[node];
+    float inv = 1.0f / Scl;
+    n.Pos[0] = inv * x;
+    n.Pos[1] = inv * y;
+    n.Pos[2] = inv * z;
+    double ha = (double)a * 0.5;
+    float sA = (float)HdSin(ha);
+    float f6 = sA * 0.0f;
+    float cA = (float)HdCos(ha);
+    double hb = (double)b * 0.5;
+    float sB = (float)HdSin(hb);
+    float f8 = sB * 0.0f;
+    float cB = (float)HdCos(hb);
+    float f9 = f8 * f6;
+    n.Quat[0] = (sB * cA + f6 * cB + f8 * sA) - f9;
+    n.Quat[1] = (f8 * cA + f6 * cB + f9) - sB * sA;
+    n.Quat[2] = (sA * cB + f8 * cA + sB * f6) - f9;
+    n.Quat[3] = ((cB * cA - sB * f6) - f9) - f8 * sA;
+    Dirty = true;
+    PrevDirty = true;
+}
+// PANZERS 0x6d7d70
+void SModel::GetNodePositionAxis(int node, float* pos, float* axisY)
+{
+    float m[12];
+    GetNodeMatrix(m, node);                                       // +0x58
+    pos[0] = m[9];
+    pos[1] = m[10];
+    pos[2] = m[11];
+    axisY[0] = m[3];
+    axisY[1] = m[4];
+    axisY[2] = m[5];
+}
+
+// PANZERS 0x6d7d30
+void SModel::GetNodePosition(int node, float* pos)
+{
+    float m[12];
+    GetNodeMatrix(m, node);                                       // +0x58
+    pos[0] = m[9];
+    pos[1] = m[10];
+    pos[2] = m[11];
+}
+
+// PANZERS 0x6d7c60
+// The logic-pose node matrix (node +0x30), recomputed from the current pose
+// on demand (the same set GetWorldBounds uses).
+void SModel::GetNodeMatrix(float* m34, int node)
+{
+    if (node < 0 || node >= Proto->NodeCount) {
+        static const float kIdentity[12] = { 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 };
+        memcpy(m34, kIdentity, 48);
+        return;
+    }
+    ExtraFrame = Scene->FrameCount;                               // scene +0xa0
+    if (PrevDirty) {
+        PrevDirty = false;
+        ComputeNodes(ExtraFrame, nullptr, true);                  // 0x6dc7b0(frame, 0, 1)
+    }
+    memcpy(m34, Nodes[node].PrevWorld, 48);
+}
 void SModel::Slot_5C() { STUB_LOG("SModel::Slot_5C (0x6d7dd0)"); }
 
 // PANZERS 0x6da8a0
@@ -517,8 +660,37 @@ void SModel::SetNodeVisible(int node, bool visible)
         Nodes[node].Visible = visible;
 }
 
-void SModel::Slot_64() { STUB_LOG("SModel::Slot_64 (0x6da810)"); }
-void SModel::Slot_68() { STUB_LOG("SModel::Slot_68 (0x6da7a0)"); }
+// PANZERS 0x6da810
+void SModel::SetNodeTexRotation(int node, float u, float v, float angle)
+{
+    if (node < 0 || node >= Proto->NodeCount)
+        return;
+    SModelNode& n = Nodes[node];
+    n.TexAnim[0] = u;
+    n.TexAnim[2] = v;
+    n.TexAnim[4] = angle;
+    if (n.TexAnimType != 2) {
+        n.TexAnimType = 2;
+        n.TexAnim[1] = u;
+        n.TexAnim[3] = v;
+        n.TexAnim[5] = angle;
+    }
+}
+
+// PANZERS 0x6da7a0
+void SModel::SetNodeTexScroll(int node, float u, float v)
+{
+    if (node < 0 || node >= Proto->NodeCount)
+        return;
+    SModelNode& n = Nodes[node];
+    n.TexAnim[0] = u;
+    n.TexAnim[2] = v;
+    if (n.TexAnimType != 1) {
+        n.TexAnimType = 1;
+        n.TexAnim[1] = u;
+        n.TexAnim[3] = v;
+    }
+}
 
 // PANZERS 0x6da200
 void SModel::PlaySequence(const char* name, bool blend)
@@ -558,11 +730,38 @@ void SModel::AdvanceAnimationByDistance(float distance)
     AdvanceAnimation(distance / (Proto->Sequences[Anim.Seq].Speed * Proto->Scale));
 }
 
-void SModel::Slot_78() { STUB_LOG("SModel::Slot_78 (0x6d78c0)"); }
+// PANZERS 0x6d78c0 (HD indexes the playing sequence without a check)
+int SModel::GetSequenceType()
+{
+    return Proto->Sequences[Anim.Seq].Type;
+}
+
 void SModel::Slot_7C() { STUB_LOG("SModel::Slot_7C (0x6d7850)"); }
-void SModel::Slot_80() { STUB_LOG("SModel::Slot_80 (0x6d7f00)"); }
-void SModel::Slot_84() { STUB_LOG("SModel::Slot_84 (0x6d7f30)"); }
-void SModel::Slot_88() { STUB_LOG("SModel::Slot_88 (0x6d8010)"); }
+
+// PANZERS 0x6d7f00
+float SModel::GetSequenceLengthAt(int seq)
+{
+    if (seq >= 0 && seq < Proto->SequenceCount)
+        return Proto->Sequences[seq].Length;
+    return 0.0f;
+}
+
+// PANZERS 0x6d7f30
+float SModel::GetSequenceLength(const char* name)
+{
+    int i = Proto->FindSequence(name);                            // 0x6d7f70
+    if (i >= 0)
+        return Proto->Sequences[i].Length;
+    return 0.0f;
+}
+// PANZERS 0x6d8010
+float SModel::GetSequenceBlendTime(const char* name)
+{
+    int i = Proto->FindSequence(name);                            // 0x6d7f70
+    if (i >= 0)
+        return Proto->Sequences[i].BlendTime;
+    return 0.0f;
+}
 void SModel::Slot_8C() { STUB_LOG("SModel::Slot_8C (0x6d7e30)"); }
 void SModel::Slot_90() { STUB_LOG("SModel::Slot_90 (0x6d8050)"); }
 
@@ -580,20 +779,238 @@ void SModel::Slot_98() { STUB_LOG("SModel::Slot_98 (0x6d7910)"); }
 void SModel::Slot_9C() { STUB_LOG("SModel::Slot_9C (0x6dad50)"); }
 void SModel::Slot_A0() { STUB_LOG("SModel::Slot_A0 (0x6d6ce0)"); }
 void SModel::Slot_A4() { STUB_LOG("SModel::Slot_A4 (0x6d61c0)"); }
-void SModel::Slot_A8() { STUB_LOG("SModel::Slot_A8 (0x6d5ca0)"); }
+
+// PANZERS 0x661a50
+// SBlockBitmap ctor (the caller does operator new(0x1c)): w x h cells at
+// (0, 0), one bit per cell, rows of (w + 7) >> 3 zeroed bytes.
+static SBlockBitmap* NewBlockBitmap(int w, int h)
+{
+    SBlockBitmap* bm = new SBlockBitmap;
+    bm->W = w;
+    bm->Stride = (w + 7) >> 3;
+    bm->H = h;
+    bm->Z = 0;
+    bm->X = 0;
+    bm->_14 = bm->Stride * h;
+    bm->Bits = new unsigned char[bm->_14];                        // 0x766b87
+    memset(bm->Bits, 0, bm->_14);
+    return bm;
+}
+
+// PANZERS 0x6ce9a0
+// SMesh::LockIndexBuffer: the index data at +0x48.
+static void LockIndexBuffer(SMesh* m)
+{
+    m->IndexBuffer->Lock(0, 0, (void**)&m->Indices, 0);
+}
+
+// PANZERS 0x6ce790
+// SMesh::GetFaces: a new[] copy of the mesh's faces as an index list (3 per
+// face); strips are unrolled with the odd faces' winding swapped.
+static void GetFaces(SMesh* m, int* count, unsigned short** out)
+{
+    if (m->IndexCount == 0)
+        Logger.g->Panic("SMesh::GetFaces: No index buffer");
+    if (m->Indices == nullptr)
+        Logger.g->Panic("SMesh::GetFaces: Index buffer is not locked");
+    if (m->MaterialCount == 0) {
+        *count = (int)((unsigned)m->IndexCount / 3);
+        *out = new unsigned short[m->IndexCount];
+        memcpy(*out, m->Indices, (size_t)m->IndexCount * 2);
+        return;
+    }
+    *count = 0;
+    for (unsigned i = 0; i < m->MaterialCount; ++i)
+        *count += m->Materials[i].PrimCount;
+    *out = new unsigned short[(size_t)*count * 3];
+    int src = 0;
+    int dst = 0;
+    for (unsigned i = 0; i < m->MaterialCount; ++i) {
+        const SMaterial& mat = m->Materials[i];
+        if (mat.PrimType == 4) {                                  // D3DPT_TRIANGLELIST
+            memcpy(*out + dst, m->Indices + src, (size_t)mat.PrimCount * 6);
+            src += mat.PrimCount * 3;
+            dst += mat.PrimCount * 3;
+            continue;
+        }
+        unsigned short a = m->Indices[src];
+        unsigned short b = m->Indices[src + 1];
+        src += 2;
+        for (int k = 0; k < mat.PrimCount; ++k) {
+            unsigned short c = m->Indices[src];
+            ++src;
+            if (k & 1) {
+                (*out)[dst] = b;
+                (*out)[dst + 1] = a;
+            } else {
+                (*out)[dst] = a;
+                (*out)[dst + 1] = b;
+            }
+            (*out)[dst + 2] = c;
+            dst += 3;
+            a = b;
+            b = c;
+        }
+    }
+}
+
+// PANZERS 0x6d5ca0
+// The node's mesh in the logic pose (node +0x30 matrix), projected on XZ and
+// rasterised at cellsPerUnit cells per unit: a cell is set when its centre is
+// strictly inside a face (all three edge functions > 0). The bitmap spans
+// floor(min * cells) .. ceil(max * cells) of the projected vertices.
+SBlockBitmap* SModel::BuildNodeBlockBitmap(int cellsPerUnit, const char* name)
+{
+    int node = FindNode(name);                                    // +0x40
+    if (node < 0)
+        return nullptr;
+    ExtraFrame = Scene->FrameCount;                               // scene +0xa0
+    if (PrevDirty) {
+        PrevDirty = false;
+        ComputeNodes(ExtraFrame, nullptr, true);                  // 0x6dc7b0(frame, 0, 1)
+    }
+    float minX = 10000.0f;                                        // 0x7fd710
+    float minZ = 10000.0f;
+    float m[12];
+    memcpy(m, Nodes[node].PrevWorld, 48);
+    float maxX = -10000.0f;                                       // 0x7f5aa8
+    float maxZ = -10000.0f;
+    if (node >= Proto->NodeCount)
+        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "SPModelNode", node);
+    SMesh* mesh = Proto->Nodes[node].Mesh;                        // proto node +0x44
+    int count = mesh->VertexCount;                                // 0x6ce990
+    float* pts = new float[(size_t)count * 2]();                  // (x, z) per vertex
+    mesh->Lock();                                                 // mesh +0x30
+    for (int i = 0; i < count; ++i) {
+        const float* v = (const float*)(mesh->Vertices + mesh->OffPosition + mesh->Stride * i);
+        float x = v[0] * m[0];
+        x = x + v[1] * m[3];
+        x = x + v[2] * m[6];
+        x = x + m[9];
+        float z = v[0] * m[2];
+        z = z + v[1] * m[5];
+        z = z + v[2] * m[8];
+        z = z + m[11];
+        pts[i * 2] = x;
+        pts[i * 2 + 1] = z;
+        if (minX > x)
+            minX = x;
+        if (x > maxX)
+            maxX = x;
+        if (minZ > z)
+            minZ = z;
+        if (z > maxZ)
+            maxZ = z;
+    }
+    mesh->Unlock();                                               // mesh +0x34
+    // x87 frndint under the control words 0x47f (down) / 0x87f (up) of the
+    // SSE products, stored as floats: exact floor / ceil.
+    float cells = (float)cellsPerUnit;
+    float x0 = floorf(cells * minX);
+    float x1 = ceilf(cells * maxX);
+    float z0 = floorf(cells * minZ);
+    float z1 = ceilf(cells * maxZ);
+    int w = (int)(x1 - x0);                                       // cvttss2si
+    int h = (int)(z1 - z0);
+    float inv = 1.0f / cells;                                     // 0x7f1b58
+    SBlockBitmap* bm = NewBlockBitmap(w, h);                      // new(0x1c), 0x661a50
+    LockIndexBuffer(mesh);                                        // 0x6ce9a0
+    int faces;
+    unsigned short* idx;
+    GetFaces(mesh, &faces, &idx);                                 // 0x6ce790
+    for (int cz = 0; cz < h; ++cz) {
+        float pz = (((float)cz + z0) + 0.5f) * inv;               // 0x7f453c
+        for (int cx = 0; cx < w; ++cx) {
+            float px = (((float)cx + x0) + 0.5f) * inv;
+            for (int f = 0; f < faces; ++f) {
+                const float* p0 = pts + idx[f * 3] * 2;
+                const float* p1 = pts + idx[f * 3 + 1] * 2;
+                const float* p2 = pts + idx[f * 3 + 2] * 2;
+                float e = (pz - p0[1]) * (p1[0] - p0[0]) + (px - p0[0]) * (p0[1] - p1[1]);
+                if (!(e > 0.0f))
+                    continue;
+                e = (px - p1[0]) * (p1[1] - p2[1]) + (pz - p1[1]) * (p2[0] - p1[0]);
+                if (!(e > 0.0f))
+                    continue;
+                e = (pz - p2[1]) * (p0[0] - p2[0]) + (px - p2[0]) * (p2[1] - p0[1]);
+                if (!(e > 0.0f))
+                    continue;
+                bm->Bits[bm->Stride * cz + (cx >> 3)] |= (unsigned char)(1u << (cx & 7));
+            }
+        }
+    }
+    mesh->UnlockIndexBuffer();                                    // 0x6cea30
+    delete[] pts;
+    delete[] idx;
+    bm->X = (int)x0;                                              // cvttss2si
+    bm->Z = (int)z0;
+    return bm;
+}
 void SModel::Slot_AC() { STUB_LOG("SModel::Slot_AC (0x6d8090)"); }
 void SModel::Slot_B0() { STUB_LOG("SModel::Slot_B0 (0x6d6700)"); }
 void SModel::Slot_B4() { STUB_LOG("SModel::Slot_B4 (0x6d59e0)"); }
 void SModel::Slot_B8() { STUB_LOG("SModel::Slot_B8 (0x6d5ae0)"); }
 void SModel::Slot_BC() { STUB_LOG("SModel::Slot_BC (0x6dae10)"); }
-void SModel::Slot_C0() { STUB_LOG("SModel::Slot_C0 (0x6dad40)"); }
+
+// PANZERS 0x6dad40
+void SModel::SetHighlight(int mode)
+{
+    Highlight = mode;
+}
+
 void SModel::Slot_C4() { STUB_LOG("SModel::Slot_C4 (0x6d7ef0)"); }
 void SModel::Slot_C8() { STUB_LOG("SModel::Slot_C8 (0x6d7920)"); }
 void SModel::Slot_CC() { STUB_LOG("SModel::Slot_CC (0x6dad80)"); }
 void SModel::Slot_D0() { STUB_LOG("SModel::Slot_D0 (0x6db7c0)"); }
 void SModel::Slot_D4() { STUB_LOG("SModel::Slot_D4 (0x6db960)"); }
 void SModel::Slot_D8() { STUB_LOG("SModel::Slot_D8 (0x6db550)"); }
-void SModel::Slot_DC() { STUB_LOG("SModel::Slot_DC (0x6d5910)"); }
+// PANZERS 0x6d5910
+void SModel::AttachTo(SIModel* parent, int node)
+{
+    static_cast<SModel*>(parent)->AttachChild(node, static_cast<SIAttachable*>(this));   // 0x6d5940
+}
+
+// PANZERS 0x6d5940
+void SModel::AttachChild(int node, SIAttachable* child)
+{
+    if (node < 0 || node >= Proto->NodeCount)
+        Logger.g->Panic("SModel::AttachChild: Invalid node index");
+    SModelNode& n = Nodes[node];
+    // PANZERS 0x6d57b0 (SDArray<SIAttachable*>::Add)
+    if (n.AttachedCount == n.AttachedMax) {
+        int nmax = n.AttachedMax < 0x10 ? 0x10 : (n.AttachedMax * 6) / 5;
+        n.Attached = (SIAttachable**)realloc(n.Attached, nmax * sizeof(SIAttachable*));
+        memset(n.Attached + n.AttachedMax, 0, (nmax - n.AttachedMax) * sizeof(SIAttachable*));
+        n.AttachedMax = nmax;
+    }
+    n.Attached[n.AttachedCount++] = child;
+    SModel* c = static_cast<SModel*>(child);                      // the only SIAttachable
+    c->AttachParent = this;                                       // attachable +0x04
+    c->AttachNode = node;                                         // attachable +0x08
+    child->Attach_0C();                                           // +0x0c(this +0xd4 visible): empty in SModel
+}
+
+// PANZERS 0x6d7340
+void SModel::DetachChild(int node, SIAttachable* child)
+{
+    if (node < 0 || node >= Proto->NodeCount)
+        Logger.g->Panic("SModel::DetachChild: Invalid node index");
+    SModelNode& n = Nodes[node];
+    for (int i = 0; i < n.AttachedCount; ++i) {
+        if (n.Attached[i] != child)
+            continue;
+        // PANZERS 0x6d87b0 (SDArray<SIAttachable*>::Remove)
+        --n.AttachedCount;
+        if (n.AttachedCount - i != 0)
+            memmove(&n.Attached[i], &n.Attached[i + 1], (n.AttachedCount - i) * sizeof(SIAttachable*));
+        n.Attached[n.AttachedCount] = nullptr;
+        SModel* c = static_cast<SModel*>(child);
+        c->AttachParent = nullptr;
+        c->AttachNode = -1;
+        return;
+    }
+    Logger.g->Panic("SModel::DetachChild: Child was not attached");
+}
 void SModel::Slot_E0() { STUB_LOG("SModel::Slot_E0 (0x6d7310)"); }
 void SModel::Slot_E4() { STUB_LOG("SModel::Slot_E4 (0x6d62e0)"); }
 
@@ -607,7 +1024,12 @@ void SModel::SetSway(float phase, float p2, float p3)
 }
 
 void SModel::Slot_EC() { STUB_LOG("SModel::Slot_EC (0x6da310)"); }
-void SModel::Slot_F0() { STUB_LOG("SModel::Slot_F0 (0x6da2c0)"); }
+// PANZERS 0x6da2c0
+void SModel::SetColor2(bool on, unsigned color)
+{
+    Color2Override = on;
+    Color2 = (int)color;
+}
 void SModel::Slot_F4() { STUB_LOG("SModel::Slot_F4 (0x6d7900)"); }
 void SModel::Slot_F8() { STUB_LOG("SModel::Slot_F8 (0x6d85d0)"); }
 // PANZERS 0x6d6f40
@@ -777,15 +1199,15 @@ void SModel::ComputeNodes(int frame, const float* attach, bool prev)
             // Sway (trees): tilt by sin/cos of the scene time.
             int ms = Scene->TimeMs;
             float t = (float)(((double)ms + (ms < 0 ? 4294967296.0 : 0.0)) * 0.001);
-            float a = (float)(sin((double)t * 1.1 + (double)SwayPhase) * (double)SwayX);
-            float b = (float)(cos((double)t * 0.9 + (double)SwayPhase) * (double)SwayZ);
+            float a = (float)(HdSin((double)t * 1.1 + (double)SwayPhase) * (double)SwayX);
+            float b = (float)(HdCos((double)t * 0.9 + (double)SwayPhase) * (double)SwayZ);
             double len = sqrt((double)(b * b + a * a));
             if (1e-05 <= len) {
                 float ax = (float)((double)b / len);
                 float az = (float)((double)-a / len);
-                double h = (double)AtanApprox((float)len) * 0.5;
-                float s = (float)sin(h);
-                float tq[4] = { ax * s, s * 0.0f, az * s, (float)cos(h) };
+                double h = (double)HdFastAtan((float)len) * 0.5;
+                float s = (float)HdSin(h);
+                float tq[4] = { ax * s, s * 0.0f, az * s, (float)HdCos(h) };
                 const float* q = src + 4;
                 float r[4];   // 0x6d5380: tq * q
                 r[0] = (tq[0] * q[3] + q[0] * tq[3] + tq[1] * q[2]) - tq[2] * q[1];

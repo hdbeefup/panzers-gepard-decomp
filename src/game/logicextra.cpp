@@ -1,0 +1,402 @@
+// src/game/logicextra.cpp
+// SGameLogic per-tick helpers of the menu loop: the per-player visibility
+// maps (fog of war) that CanSeeGroundUnit 0x562760 / IsInPlayerVision
+// 0x562650 read, and the unit-created hook of SWorld::CreateUnit.
+// OWNER: M2-I sub-agent LG. Lifted from the HD exe.
+//
+// Map layout: half-tile cells, VisW = TerrainW * 2 + 2 per row, VisH rows.
+// Bits of a cell: 1 and 2 seen (shadow cast from the eye height), 8 seen at
+// half range, 4 mine detection range, 0x10 hearing range. 0x565e10 clears
+// the inner part of one player's map per tick (players in the order of HD
+// table 0x7f6220) and re-adds every unit of that side (0x565530).
+
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+#include "gamelogic.h"
+#include "world.h"
+#include "worldapi.h"
+#include "unit.h"
+#include "buildingunit.h"
+#include "unitextern.h"
+#include "drivermath.h"
+#include "pzunitregistry.h"
+#include "doodad.h"
+#include "pz/iterrain.h"
+#include "logger.h"
+#include "stub_log.h"
+
+namespace pz {
+
+// Shadow-cast tables of 0x564fb0 (HD globals), one entry per (n, k) with
+// n = 1..0xbf and k = n..0 in that order (18527 entries):
+//   HD 0x8f2080: k / n
+//   HD 0x904200: sqrt(1 + (k / n)^2)
+//   HD 0x916380: 1 / sqrt(k^2 + n^2)
+enum { kVisTable = 0xbf * 0xc0 / 2 + 0xbf };
+static float s_VisFrac[kVisTable];
+static float s_VisSlopeLen[kVisTable];
+static float s_VisInvDist[kVisTable];
+
+// Scratch rows of 0x5662b0 (HD 0x928500 horizon heights, 0x928800 slopes).
+static float s_RowH[0xc0];
+static float s_RowS[0xc0];
+
+static inline int PlayerType(int p) { return *(const int*)(g_World->Players[p] + 0x08); }   // World+0x178
+static inline int PlayerTeam(int p) { return *(const int*)(g_World->Players[p] + 0x0c); }   // World+0x17c
+
+// PANZERS 0x564fb0
+void SGameLogic::BuildVisMaps()
+{
+    SWorld* w = g_World;
+    VisW = w->TerrainW * 2 + 2;
+    VisH = w->TerrainH * 2 + 2;
+    for (int p = 0; p < 12; ++p) {
+        int type = PlayerType(p);
+        if (type == 2 || type == 3) {
+            VisMap[p] = nullptr;
+            VisMapOwned[p] = nullptr;
+            continue;
+        }
+        // Allies (same non-zero team, World+0x17c) share the first map.
+        int team = PlayerTeam(p);
+        int k = 0;
+        if (team != 0) {
+            for (; k < p; ++k)
+                if (PlayerTeam(k) == team && VisMap[k] != nullptr)
+                    break;
+        }
+        if (team != 0 && k < p) {
+            VisMap[p] = VisMap[k];
+            VisMapOwned[p] = nullptr;
+            continue;
+        }
+        VisMap[p] = (unsigned char*)malloc(VisW * VisH);          // 0x766b87
+        memset(VisMap[p], 0, VisW * VisH);
+        VisMapOwned[p] = VisMap[p];
+    }
+    VisHeights = (float*)malloc(VisW * VisH * sizeof(float));
+    BuildVisHeights();                                            // 0x576a70
+    int t = 0;
+    for (int n = 1; n < 0xc0; ++n) {
+        float fn = (float)n;
+        float nn = fn * fn;
+        for (int k = n; k >= 0; --k) {
+            float f = (float)k / fn;
+            s_VisFrac[t] = f;
+            s_VisSlopeLen[t] = (float)sqrt((double)(f * f + 1.0f));          // 0x78d090
+            float fk = (float)k;
+            float len = (float)sqrt((double)(fk * fk + nn));
+            s_VisInvDist[t] = (float)(1.0 / (double)len);         // _DAT_007eed98 = 1.0
+            ++t;
+        }
+    }
+    VisOverlayMode = 1;
+}
+
+// HD 0x546f70 (SBuildingUnit; called by 0x576a70 for every building): guards only.
+// Raises the eye-height cells under the building model by 2.0 where the
+// model is hit by a 1 m vertical ray above the ground (model +0x100 bounds,
+// +0xd8 ray test). Both model slots are engine stubs in the recompile
+// (SModel::Slot_100 0x6d7150, Slot_D8 0x6db550), so the cells keep the bare
+// terrain height.
+static void AddBuildingHeights(SUnit* u)
+{
+    const unsigned char* pb = *(const unsigned char* const*)((const unsigned char*)u + 0x340);   // SPBuildingUnit
+    if (*(const int*)(pb + 0x13c) == 3 || u->Model == nullptr)
+        return;
+    STUB_LOG("SBuildingUnit 0x546f70 building eye heights (model +0x100 / +0xd8 not lifted in the engine)");
+}
+
+// PANZERS 0x576a70
+void SGameLogic::BuildVisHeights()
+{
+    SWorld* w = g_World;
+    for (int row = 0; row < VisH; ++row) {
+        float z = (float)((double)row * 0.5 - 0.25);              // 0x7ea760, 0x7f5a10
+        if (0.0f > z)
+            z = 0.0f;
+        else if (z > (float)w->TerrainH)
+            z = (float)w->TerrainH;
+        for (int col = 0; col < VisW; ++col) {
+            float x = (float)((double)col * 0.5 - 0.25);
+            if (0.0f > x)
+                x = 0.0f;
+            else if (x > (float)w->TerrainW)
+                x = (float)w->TerrainW;
+            // A 47 m border on big maps (more than 0x60 tiles) is a wall.
+            bool border = false;
+            if (w->TerrainW > 0x60 && (47.0f > x || x >= (float)(w->TerrainW - 0x30)))   // 0x7f7f8c
+                border = true;
+            else if (w->TerrainH > 0x60 && (47.0f > z || !(z < (float)(w->TerrainH - 0x30))))
+                border = true;
+            if (border)
+                VisHeights[VisW * row + col] = 100.0f;            // 0x42c80000
+            else
+                VisHeights[VisW * row + col] = w->GetTerrainHeight(x, z);   // 0x5e7730
+        }
+    }
+    for (int i = 0; i < w->Doodads.Size; ++i) {
+        if (w->Doodads.Array[i].Next != kHeapLive)
+            continue;
+        const SDoodad& d = w->Doodads.Array[i].Data;
+        if (d.Scrub != 0 || d.Indestructible == 0)
+            continue;
+        // HD: model +0x40 node "Platform"; without one 0x57f6a0(i).
+        STUB_LOG("SGameLogic 0x576a70 doodad \"Platform\" heights (0x57f6a0)");
+    }
+    for (int i = 0; i < w->Units.Size; ++i) {
+        if (w->Units.Array[i].Next != kHeapLive)
+            continue;
+        SUnit* u = w->Units.Array[i].Unit;
+        if (u->Proto->ClassType == 9)
+            AddBuildingHeights(u);                                // 0x546f70
+    }
+}
+
+// PANZERS 0x5662b0
+// One octant of the shadow cast from `cell` (eye height `eye`): `outer`
+// steps to the next ring, `inner` along it. A cell is seen when it is above
+// the horizon of the cells before it (less than 0.5 below counts too).
+void SGameLogic::CastVisOctant(int player, float eye, int cell, int radius, int outer, int inner, unsigned char bits)
+{
+    memset(&s_RowS[1], 0, 0xbf * sizeof(float));
+    memset(&s_RowH[1], 0, 0xbf * sizeof(float));
+    s_RowH[0] = VisHeights[cell];
+    s_RowS[0] = -10.0f;                                           // 0xc1200000
+    int diag = (int)(float)((double)radius * 0.7071067811865);    // 0x7f7f48, fistp 0xc7f
+    int t = 0;
+    for (int d = 1; d < radius; ++d) {
+        int len = d;
+        if (d > diag) {
+            len = (int)(float)sqrt((double)(float)(radius * radius - d * d));   // 0x78d090
+            t += d - len;
+        }
+        cell += (len + 1) * inner + outer;
+        for (int k = len; k >= 0; --k) {
+            cell -= inner;
+            if (k == 0) {
+                s_RowH[0] = s_RowS[0] + s_RowH[0];
+            } else {
+                float f = s_VisFrac[t];
+                float s0 = s_RowS[k];
+                float s = (s_RowS[k - 1] - s0) * f + s0;
+                s_RowS[k] = s;
+                float h0 = s_RowH[k];
+                s_RowH[k] = (s_RowH[k - 1] - h0) * f + h0 + s_VisSlopeLen[t] * s;
+            }
+            float h = VisHeights[cell];
+            if (h >= s_RowH[k]) {
+                s_RowH[k] = h;
+                s_RowS[k] = (h - eye) * s_VisInvDist[t];
+                VisMap[player][cell] |= bits;
+            } else if ((double)h + 0.5 >= (double)s_RowH[k]) {   // 0x7ea760
+                VisMap[player][cell] |= bits;
+            }
+            ++t;
+        }
+    }
+}
+
+// PANZERS 0x567180
+// The same octant walk without the horizon: every cell in range.
+void SGameLogic::FillVisOctant(int player, int cell, int radius, int outer, int inner, unsigned char bits)
+{
+    int diag = (int)(float)((double)radius * 0.7071067811865);
+    for (int d = 1; d < radius; ++d) {
+        int len = d;
+        if (d > diag)
+            len = (int)(float)sqrt((double)(float)(radius * radius - d * d));
+        cell += (len + 1) * inner + outer;
+        for (int k = len; k >= 0; --k) {
+            cell -= inner;
+            VisMap[player][cell] |= bits;
+        }
+    }
+}
+
+// HD SUnit vtbl +0x18c (0x548380 returns 0.0; SPanzersSquadUnit 0x59bf30:
+// mine detector range by rank). iunit.h types the slot as void (agent U), so
+// the two bodies are read here.
+// PANZERS 0x59bf30
+static float UnitMineRange(SUnit* u)
+{
+    if (u->Proto->ClassType != 5)
+        return 0.0f;                                              // 0x548380 fldz
+    switch (u->GetRank()) {                                       // +0x88
+    case 0: return (float)g_UnitRegistry->MineDetectorRange[0];   // registry +0xec
+    case 1: return (float)g_UnitRegistry->MineDetectorRange[1];
+    case 2: return (float)g_UnitRegistry->MineDetectorRange[2];
+    case 3: return (float)g_UnitRegistry->MineDetectorRange[3];
+    default: return SseF(u->GetSightRange());                     // +0x184
+    }
+}
+
+// The 8 octants in HD call order: (outer, inner).
+#define PZ_VIS_OCTANTS(CALL)                                                    \
+    CALL(1, VisW); CALL(1, -VisW); CALL(-VisW, 1); CALL(-VisW, -1);             \
+    CALL(-1, -VisW); CALL(-1, VisW); CALL(VisW, -1); CALL(VisW, 1)
+
+// PANZERS 0x565530
+void SGameLogic::AddUnitVision(int player, SIUnit* unit)
+{
+    if (VisMap[player] == nullptr)
+        return;
+    SUnit* u = static_cast<SUnit*>(unit);
+    SWorld* w = g_World;
+    float x = u->Pos[0];
+    float z = u->Pos[2];
+    if (48.0f > x || 48.0f > z)                                   // 0x7f7f90
+        return;
+    if (x > (float)(w->TerrainW - 0x30) || z > (float)(w->TerrainH - 0x30))
+        return;
+    int cx = (int)(x * 2.0f);                                     // fistp 0xc7f (truncation)
+    int cz = (int)(u->Pos[2] * 2.0f);
+    int sight = (int)(SseF(u->GetSightRange()) * 2.0f);          // +0x184, fmul 2.0, fstp, fistp
+    if (sight == 0)
+        return;
+    if (sight > 0x5f)
+        sight = 0x5f;
+    if (u->Proto->ClassType == 9) {
+        SBuildingUnit* b = static_cast<SBuildingUnit*>(u);
+        if (b->WindowSets.Size != 0) {                            // +0x3ec
+            // HD: per window 0x5664f0 (a sight cone along the window
+            // direction, from max(cell height, +0x358) + 0.75). Not reached
+            // in the menu.
+            STUB_LOG("SGameLogic::AddUnitVision building windows (0x5664f0)");
+            return;
+        }
+        int cell = VisW * cz + cx;
+        float eye = VisHeights[cell];
+        float inside = b->InsideY;                                // +0x358
+        if (!(eye > inside))
+            eye = inside;
+        eye = eye + 0.75f;                                        // 0x7f2fcc
+        VisMap[player][cell] |= 0xb;
+#define PZ_CAST_B(o, i) CastVisOctant(player, eye, cell, sight, (o), (i), 0xb)
+        PZ_VIS_OCTANTS(PZ_CAST_B);
+#undef PZ_CAST_B
+        return;
+    }
+    int cell = VisW * cz + cx;
+    float eye = VisHeights[cell] + 0.75f;
+    if (u->Proto->Detector || u->_138 == 8 || u->_144 == 8) {    // SPUnit +0x88, 0x5ba820(8)
+        int mines = (int)(UnitMineRange(u) * 2.0f);               // +0x18c, cvttss2si
+        if (mines > 0) {
+            if (mines > 0x5f)
+                mines = 0x5f;
+            VisMap[player][cell] |= 4;
+#define PZ_FILL_4(o, i) FillVisOctant(player, cell, mines, (o), (i), 4)
+            PZ_VIS_OCTANTS(PZ_FILL_4);
+#undef PZ_FILL_4
+        }
+    }
+    VisMap[player][cell] |= 3;
+#define PZ_CAST_3(o, i) CastVisOctant(player, eye, cell, sight, (o), (i), 3)
+    PZ_VIS_OCTANTS(PZ_CAST_3);
+#undef PZ_CAST_3
+    VisMap[player][cell] |= 8;
+    int half = sight >> 1;
+#define PZ_CAST_8(o, i) CastVisOctant(player, eye, cell, half, (o), (i), 8)
+    PZ_VIS_OCTANTS(PZ_CAST_8);
+#undef PZ_CAST_8
+    // Hearing (+0x188), shortened by rain (World+0x62c) against the registry
+    // RainHearing (+0x110).
+    int hear = (int)(SseF(u->GetExtra188()) * 2.0f);
+    if (hear <= 0)
+        return;
+    float rainHearing = (float)g_UnitRegistry->RainHearing;
+    float rain = *(const float*)((const unsigned char*)w + 0x62c);
+    if (!(rainHearing > rain))
+        return;
+    float h2 = SseF(u->GetExtra188()) * 2.0f;
+    float k = 1.0f - rain / rainHearing;                          // 0x7f1b58
+    hear = (int)(h2 * k);
+    if (hear <= 0)
+        return;
+    if (hear > 0x5f)
+        hear = 0x5f;
+    VisMap[player][cell] |= 0x10;
+#define PZ_FILL_10(o, i) FillVisOctant(player, cell, hear, (o), (i), 0x10)
+    PZ_VIS_OCTANTS(PZ_FILL_10);
+#undef PZ_FILL_10
+}
+
+// PANZERS 0x565e10
+// Rebuilds the map of `player` (only the player that owns it): clears the
+// inside, adds the vision of every unit of that side that is not inside
+// another one (or is class 10) and not +0x110, hands the local player's map
+// to the terrain, and clears bit 0 on a 3-cell frame at 0x5e.
+void SGameLogic::Tick_565e10(int player)
+{
+    PZ_M2_TRACE("SGameLogic::Tick_565e10 (0x565e10)");
+    if (VisMapOwned[player] == nullptr)
+        return;
+    if (VisMap[player] == VisMapOwned[player])
+        PlayerTable[player] = Frame;                              // +0x234[player]
+    SWorld* w = g_World;
+    for (int row = 0x5e; row < w->TerrainH * 2 - 0x5e; ++row)
+        memset(VisMap[player] + 0x5e + VisW * row, 0, VisW - 0xbe);
+    for (int i = 0; i < w->Units.Size; ++i) {
+        if (w->Units.Array[i].Next != kHeapLive)
+            continue;
+        SUnit* u = w->Units.Array[i].Unit;
+        int up = u->Player;
+        bool side;
+        if (up == player) {
+            side = true;
+        } else {
+            int team = PlayerTeam(up);
+            side = team == 0 ? up == player : team == PlayerTeam(player);   // 0x549ab0
+        }
+        if (!side)
+            continue;
+        if ((u->Parent < 0 || u->Proto->ClassType == 10) && !u->_110)
+            AddUnitVision(player, u);                             // 0x565530
+    }
+    if (VisMap[player] == VisMap[w->LocalPlayer]) {
+        if (w->Terrain)
+            w->Terrain->SetOverlay((int)(size_t)VisMap[player], VisOverlayMode);   // terrain +0x1c
+        if (MinimapFrame >= 0)
+            STUB_LOG("SGameLogic::Tick_565e10 minimap fog bitmap (0x565f1d)");
+    }
+    for (int i = 0; i < 3; ++i) {
+        for (int c = 0x5e; c < w->TerrainW * 2 - 0x5e; ++c) {
+            VisMap[player][(i + 0x5e) * VisW + c] &= 0xfe;
+            VisMap[player][(VisH - 0x63 + i) * VisW + c] &= 0xfe;
+        }
+    }
+    for (int i = 0; i < 3; ++i) {
+        for (int r = 0x5e; r < w->TerrainH * 2 - 0x5e; ++r) {
+            VisMap[player][VisW * r + i + 0x5e] &= 0xfe;
+            VisMap[player][VisW * (r + 1) + i - 0x63] &= 0xfe;
+        }
+    }
+}
+
+// Recompile: the maps this object allocated (HD frees them in 0x55fe00).
+void SGameLogic::FreeVisMaps()
+{
+    for (int p = 0; p < 12; ++p) {
+        free(VisMapOwned[p]);
+        VisMapOwned[p] = nullptr;
+        VisMap[p] = nullptr;
+    }
+    free(VisHeights);
+    VisHeights = nullptr;
+}
+
+} // namespace pz
+
+// The hook of SWorld::CreateUnit 0x5e3170 (unitextern.h): for a new unit
+// that is top-level (or class 10) and not +0x110, HD calls
+// g_GameLogic->0x565530(player, unit) with CreateUnit's player argument,
+// which InitNew stored in the unit's +0xfc.
+extern "C" void PzGameLogicUnitCreated(int unitIndex)
+{
+    using namespace pz;
+    if (!g_GameLogic)
+        return;
+    SUnit* u = WorldUnit(unitIndex);                              // 0x546490
+    g_GameLogic->AddUnitVision(u->Player, u);                     // 0x565530
+}

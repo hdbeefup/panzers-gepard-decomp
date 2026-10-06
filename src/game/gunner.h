@@ -90,6 +90,8 @@ struct SGunner {
     virtual void Slot_30(void** p1, void** p2);                  // +0x30 HD 0x584220
 
     void ConsumeAmmo();                                          // 0x583e30
+    int  GetWeaponType();                                        // 0x584240 (a squad's: its first member's gunner 0)
+    bool IsInArc(float x, float y, float z);                     // 0x583990 (y unused)
 
     // +0x00 vptr
     int        Index;           // +0x04 gunner index in the unit

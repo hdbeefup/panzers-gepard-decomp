@@ -51,7 +51,7 @@ struct SMovementGroupElem {
     int   SquadsGlobalState; // +0x14 lowest squad +0xec, 0 if not all squads (0x5800d0)
     int   BossUnit;      // +0x18 world unit index (0x56adc0)
     int   BiggestUnit;   // +0x1c world unit index (0x56acf0)
-    int   FormationDir2; // +0x20 SetMovementGroupFormationDir 0x57ffc0
+    float FormationDir;  // +0x20 SetMovementGroupFormationDir 0x57ffc0 / GetMovementGroupFormationDir 0x56af90
     bool  B24;           // +0x24 SetMovementGroupFormationDir 0x57ff40
     bool  Convoy;        // +0x25 GetMovementGroupConvoy
     unsigned char _26[2];
@@ -82,6 +82,7 @@ struct SGameLogic {
     void ProcessPacket(int frame, int p2);// 0x5737c0 per frame (SMulti absent: local frame)
     void BeginFrame();                    // 0x571840 new frame stream, world CRC into CrcHistory
     unsigned ComputeWorldCRC();           // 0x56aa10 rotl-xor over the live units (see iunit.h) ^ World+0x7518
+    void DumpUnitsForCrc();               // recompile only: PZ_M2_UNITDUMP=<n> per-tick unit trace
     void Tick_579390();                   // 0x579390 CrcHistory.RemoveBottom
     void Tick_57dfe0();                   // per tick
     void Tick_568af0();                   // per tick (scripted sequence, +0x2b8 only)
@@ -91,6 +92,18 @@ struct SGameLogic {
     int  GetFrame();                      // 0x56d1a0 (+0x08)
     bool IsPaused();                      // 0x56e150 (+0x288 || +0x2b8) (name guessed)
     bool CanSeeGroundUnit(int player, SIUnit* unit);   // 0x562760
+    bool IsInPlayerVision(int player, SIUnit* unit);   // 0x562650 own unit, or VisMap bit 4 at its cell
+
+    // --- M2-I sub-agent LG: add SGameLogic declarations here only.
+    void BuildVisMaps();                  // 0x564fb0 (ctor): +0x1c8..+0x264 and the shadow-cast tables
+    void BuildVisHeights();               // 0x576a70 (from 0x564fb0): +0x1d0 eye heights
+    void AddUnitVision(int player, SIUnit* unit);   // 0x565530 marks the unit's sight/hearing in VisMap[player]
+    void CastVisOctant(int player, float eye, int cell, int radius, int outer, int inner, unsigned char bits);   // 0x5662b0
+    void FillVisOctant(int player, int cell, int radius, int outer, int inner, unsigned char bits);   // 0x567180
+    void FreeVisMaps();                   // recompile: the maps owned by this object (dtor)
+    // --- end LG
+    // --- M2-I sub-agent UB / SQ / BW: SGameLogic functions the units need (one line each, tagged).
+    // --- end units
 
     // Triggers (triggers.cpp).
     void DispatchEverySecond();           // 0x570cc0 event 0 (and Value += Step of every variable)
@@ -115,11 +128,11 @@ struct SGameLogic {
     int  GetMovementGroupBossUnit(int group);             // 0x56adc0 (unit index; HD returns the pointer)
     int  GetMovementGroupBiggestUnit(int group);          // 0x56acf0 (unit index; HD returns the pointer)
     int  GetMovementGroupSquadsGlobalState(int unit);     // 0x56b090 (HD takes the unit pointer)
-    void GetMovementGroupUnitFormationPos(int unit, float* out);   // 0x56b240 (HD takes the unit pointer)
+    void GetMovementGroupUnitFormationPos(float* out, SIUnit* unit);   // 0x56b240
     void SetMovementGroupBiggestUnit(int group);          // 0x57faf0
     void SetMovementGroupBossUnit(int group, int p2, float x, float z);   // 0x57fcb0
     void SetMovementGroupFormationDir(int group, int p2); // 0x57ff40
-    void SetMovementGroupFormationDir2(int group, int p2);// 0x57ffc0 (same symbol in HD)
+    void SetMovementGroupFormationDir2(int group, float dir);// 0x57ffc0 (same symbol in HD)
     void RefreshMovementGroup(int p3, int group);         // 0x5800d0
     void UpdateMovementGroupSlowestMoveSpeed(int group);  // 0x5824b0
 
@@ -149,9 +162,14 @@ struct SGameLogic {
     int           MessageTimer;      // +0x07c ctor 400
     unsigned char _080[0x17c - 0x080];
     int           MinimapFrame;      // +0x17c ctor p3 (menu -1: no minimap)
-    unsigned char _180[0x234 - 0x180];
-    int           PlayerTable[12];   // +0x234 ctor -1, then 0x565e10 per player
-    unsigned char _264[0x268 - 0x264];
+    unsigned char _180[0x1c8 - 0x180];
+    int           VisW;              // +0x1c8 TerrainW * 2 + 2 (half-tile cells per row, 0x564fb0)
+    int           VisH;              // +0x1cc TerrainH * 2 + 2
+    float*        VisHeights;        // +0x1d0 VisW * VisH eye heights (0x576a70)
+    unsigned char* VisMap[12];       // +0x1d4 per player (allies share one); bits 1|2 sight, 4 mines, 8 half sight, 0x10 hearing
+    unsigned char* VisMapOwned[12];  // +0x204 the maps a player allocated (0 when shared / none)
+    int           PlayerTable[12];   // +0x234 ctor -1; 0x565e10 stores the frame of the last rebuild
+    int           VisOverlayMode;    // +0x264 1 (0x564fb0); terrain +0x1c SetOverlay(map, mode)
     SRunningTrigger* RunningTriggers;// +0x268 SDArray<SRunningTrigger> (0x34 each)
     int           RunningTriggerCount; // +0x26c
     int           RunningTriggerMax; // +0x270
@@ -186,6 +204,10 @@ static_assert(offsetof(SGameLogic, Flag2b8) == 0x2b8, "0x56e150 +0x2b8");
 static_assert(offsetof(SGameLogic, CrcBottom) == 0x040, "0x5610a0 param_1[5]");
 static_assert(offsetof(SGameLogic, MessageTimer) == 0x07c, "0x578a70 +0x7c");
 static_assert(offsetof(SGameLogic, PlayerTable) == 0x234, "ctor param_1 + 0x8d");
+static_assert(offsetof(SGameLogic, VisW) == 0x1c8, "0x564fb0 +0x1c8");
+static_assert(offsetof(SGameLogic, VisMap) == 0x1d4, "0x565530 +0x1d4");
+static_assert(offsetof(SGameLogic, VisMapOwned) == 0x204, "0x565e10 +0x204");
+static_assert(offsetof(SGameLogic, VisOverlayMode) == 0x264, "0x565e10 +0x264");
 static_assert(offsetof(SGameLogic, MovementGroups) == 0x2dc, "0x579510 +0x2dc");
 static_assert(offsetof(SGameLogic, ActiveLocations) == 0x2f0, "0x582080 +0x2f0");
 static_assert(offsetof(SGameLogic, AnimatedModels) == 0x2fc, "0x5822a0 +0x2fc");

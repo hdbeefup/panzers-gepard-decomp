@@ -3,7 +3,7 @@
 // frame stream with the world CRC, animated one-shot models and the per-frame
 // unit visuals. OWNER: agent L. Lifted from the HD exe.
 //
-// The default (M1) Refresh path is unchanged; -m2 / PZ_M2=1 runs RefreshM2,
+// With M2 off (-nom2 / PZ_M2=0) the M1 Refresh path runs unchanged; by default RefreshM2 runs
 // the single-player tick of 0x576d80 (see gamelogic.h for the order). The
 // per-unit loops call SIUnit only when the unit heap holds agent U's units
 // (triggersunits.h); with the M1 stand-ins SWorld::RefreshModels keeps the
@@ -24,6 +24,9 @@
 #include "stream.h"
 #include "logger.h"
 #include "stub_log.h"
+#include "unit.h"
+#include "unitextern.h"
+#include "driverunit.h"
 
 namespace pz {
 
@@ -184,7 +187,7 @@ SGameLogic::SGameLogic(int p1, int p2, int p3)
     InFrameSync = false;
     FramesSent = 0;
     if (g_M2.Enabled && Logger.g)
-        Logger.g->Log(0, "PZM2: -m2 on, SGameLogic::Refresh runs the M2 path (trace %s, crc %s, %s units)",
+        Logger.g->Log(0, "PZM2: M2 on, SGameLogic::Refresh runs the M2 path (trace %s, crc %s, %s units)",
                       g_M2.Trace ? "on" : "off", g_M2.Crc ? "on" : "off", UV::kReal ? "HD" : "M1 stand-in");
     if (getenv("PZ_M2_CRCTEST"))
         CrcSelfTest();
@@ -235,11 +238,12 @@ SGameLogic::SGameLogic(int p1, int p2, int p3)
         for (int i = 0; i < 12; ++i)
             *(int*)(g_World->Players[i] + 0x1c) = 0;              // World+0x18c + i*0x48
     // HD: the multiplayer player setup (DAT_008f1a74) is skipped in the menu.
-    // HD 0x564fb0: per-player visibility maps (+0x1c8..+0x264). Not lifted;
-    // CanSeeGroundUnit falls back to "visible" while they are missing.
+    if (g_World)
+        BuildVisMaps();                                           // 0x564fb0 (logicextra.cpp)
     for (int i = 0; i < 12; ++i) {
         PlayerTable[i] = -1;
-        Tick_565e10(i);                                           // 0x565e10
+        if (g_World)
+            Tick_565e10(i);                                       // 0x565e10
     }
     // HD: air start positions of the 12 players from the "start %d"
     // locations (World players +0x194/+0x198, log "Air start position for
@@ -313,6 +317,7 @@ SGameLogic::~SGameLogic()
     }
     free(AnimatedModels);
     free(CrcHistory);
+    FreeVisMaps();
     if (FrameObject)
         delete (SStreamBuffer*)FrameObject;
     if (g_Pixie) {
@@ -355,7 +360,7 @@ int SGameLogic::Refresh()
 // HD checks the FPU control word first (0x7f, logs "SGameLogic::Refresh:
 // Invalid FPU control word (0x%04X)."). The multiplayer frame sync, the
 // "has left/lost the game" checks, AI groups 0x5f5c70 (every 20th frame),
-// 0x605930 and 0x6090e0 are not on the menu path.
+// 0x605930 and 0x6090e0 (STUB_LOG in worldunits.cpp) are not on the menu path.
 void SGameLogic::RefreshM2()
 {
     PZ_M2_TRACE("SGameLogic::RefreshM2 (0x576d80 single-player path)");
@@ -386,7 +391,7 @@ void SGameLogic::RefreshM2()
             DispatchEverySecond();                                // 0x570cc0
         RunTriggers();                                            // 0x579ab0
         Tick_568af0();
-        static const int kPlayerCycle[12] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };   // HD table 0x7f6220
+        static const int kPlayerCycle[12] = { 0, 4, 8, 2, 6, 10, 1, 5, 9, 3, 7, 11 };   // HD table 0x7f6220
         int pl = kPlayerCycle[Frame % 12];
         if (w && *(int*)(w->Players[pl] + 0x08) != 2)             // World+0x178 + pl*0x48
             Tick_565e10(pl);
@@ -401,7 +406,8 @@ void SGameLogic::RefreshM2()
                 // squads (class 5) without members.
                 UV::Iface(i)->ServerRefresh(Frame);               // +0x2c
             }
-            // HD: SWorld::RefreshFlyingFox 0x5f6bf0 (no flying fox in the menu).
+            if (w)
+                w->RefreshFlyingFox();                            // 0x5f6bf0 (no flying fox in the menu)
             PZ_FOR_EACH_UNIT(i)
                 UV::Iface(i)->RefreshModel();                     // +0x3c
         } else if (w) {
@@ -409,13 +415,86 @@ void SGameLogic::RefreshM2()
             w->RefreshModels();                                   // M1 visuals (stand-in units, doodads)
         }
         Tick_5822a0();
-        // HD: the World+0x158 doodad animations (falling trees, M1 visuals
-        // in SWorld::RefreshModels) and 0x605930 per World+0x7454 entry.
+        if (w) {
+            w->RefreshDoodadAnims();                              // inline 0x577a10: World+0x158
+            w->RefreshWires();                                    // inline 0x577a47: 0x605930 per World+0x7454 entry
+        }
         ++Frame;
     }
     if (w)
         w->RefreshBlockMapDirtyRect();                            // 0x604620
     M2NextTick();
+}
+
+// Recompile-only per-tick unit trace next to the CRC line, in the format of
+// the original's DynamoRIO trace (m2crc): PZ_M2_UNITDUMP=<n> (n > 1) logs
+// "PZM2 U <frame> <idx> <player> <x> <y> <z> <dir> <+0x114> <+0x108> <+0x1dc>"
+// (raw bits) for every live unit on frames 0..n.
+void SGameLogic::DumpUnitsForCrc()
+{
+    static int s_Max = -2;
+    if (s_Max == -2) {
+        const char* e = getenv("PZ_M2_UNITDUMP");
+        s_Max = e ? atoi(e) : -1;
+    }
+    // PZ_M2_DRVDUMP=<u>,<u>,... (active driver, 0xe8 bytes) or
+    // PZ_M2_UNITRAW=<u>,... (the unit, 0x3a8 bytes): raw dwords in lines of
+    // 16, "PZM2 D <frame> <unit> @<offset> ...", as scratch peekdrv.py dumps
+    // the original.
+    static char s_Drv[256] = { 1 };
+    static bool s_Raw;
+    if (s_Drv[0] == 1) {
+        const char* e = getenv("PZ_M2_DRVDUMP");
+        const char* r = getenv("PZ_M2_UNITRAW");
+        s_Raw = !e && r;
+        strncpy(s_Drv, e ? e : (r ? r : ""), sizeof(s_Drv) - 1);
+    }
+    if (s_Drv[0] && g_World && UV::kReal) {
+        char tmp[256];
+        strcpy(tmp, s_Drv);
+        for (char* t = strtok(tmp, ","); t; t = strtok(nullptr, ",")) {
+            int ui = atoi(t);
+            if (!g_World->Units.IsLive(ui))
+                continue;
+            const unsigned char* u = (const unsigned char*)(const void*)g_World->Units.Array[ui].Unit;
+            const unsigned* d = (const unsigned*)u;
+            int size = 0x3a8;
+            if (!s_Raw) {
+                int ad = *(const int*)(u + 0x28);
+                if (ad < 0)
+                    continue;
+                d = (*(const unsigned* const* const*)(u + 0x38))[ad];
+                size = 0xe8;
+            }
+            for (int off = 0; off < size; off += 0x40) {
+                char line[16 * 9 + 64];
+                int n = sprintf(line, "PZM2 D %d %d @%x", Frame, ui, off);
+                for (int k = off / 4; k < off / 4 + 16 && k < size / 4; ++k)
+                    n += sprintf(line + n, " %08x", d[k]);
+                Logger.g->Log(0, "%s", line);
+            }
+        }
+    }
+    if (s_Max <= 1 || Frame > s_Max || !UV::kReal || !g_World)
+        return;
+    SUnitHeap& h = g_World->Units;
+    for (int i = 0; i < h.Size; ++i) {
+        if (h.Array[i].Next != kHeapLive)
+            continue;
+        const unsigned* u = (const unsigned*)(const void*)h.Array[i].Unit;
+        const unsigned* t = (const unsigned*)(size_t)u[0x1f4 / 4];
+        char tb[96];
+        if (t)
+            sprintf(tb, "%d %d %d %08x %08x %d %d", (int)t[0x24 / 4], (int)t[1], (int)t[2], t[0x10 / 4], t[0x18 / 4],
+                    (int)t[0x30 / 4], (int)t[0x34 / 4]);
+        else
+            strcpy(tb, "-");
+        // Same fields as the scratch DynamoRIO client m2crc2 (U line).
+        Logger.g->Log(0, "PZM2 U %d %d %u %08x %08x %08x %08x %08x %08x %08x | %08x %d %d %d %u | tgt %s", Frame, i,
+                      u[0xfc / 4], u[0x8c / 4], u[0x90 / 4], u[0x94 / 4], u[0xb0 / 4], u[0x114 / 4], u[0x108 / 4],
+                      u[0x1dc / 4], u[0xc8 / 4], (int)u[0x28 / 4], (int)u[0x254 / 4], (int)u[0x78 / 4],
+                      (unsigned)((const unsigned char*)u)[0x168], tb);
+    }
 }
 
 // PANZERS 0x571840
@@ -434,6 +513,7 @@ void SGameLogic::BeginFrame()
         int units = 0;
         PZ_FOR_EACH_UNIT(i) { (void)i; ++units; }
         Logger.g->Log(0, "PZM2 CRC %d %08x %08x %d", Frame, crc, g_World ? g_World->RandomSeed : 0u, units);
+        DumpUnitsForCrc();
     }
     // PANZERS 0x5610a0 (SDEQueue<unsigned>::AddTop, inline)
     if (CrcCount == CrcMax) {
@@ -544,13 +624,6 @@ void SGameLogic::Tick_568af0()
     STUB_LOG("SGameLogic::Tick_568af0 scripted sequence (0x568bc0 / 0x5826c0 / 0x565390)");
 }
 
-void SGameLogic::Tick_565e10(int player)
-{
-    STUB_LOG("SGameLogic::Tick_565e10 (0x565e10)");
-    PZ_M2_TRACE("SGameLogic::Tick_565e10 (0x565e10)");
-    (void)player;
-}
-
 // PANZERS 0x5649e0
 void SGameLogic::CreateAnimatedModel(const char* file, float x, float y, float z, float dir)
 {
@@ -579,11 +652,7 @@ void SGameLogic::CreateAnimatedModel(const char* file, float x, float y, float z
     a.Model->SetPosition(a.Pos[0], a.Pos[1], a.Pos[2]);           // +0x18
     a.Model->SetRotation(a.Dir, 0.0f, 0.0f);                      // +0x1c
     a.Model->StoreInterpolationState();                           // +0x3c
-    {
-        // model +0x80(0): length of sequence 0 (imodel.h Slot_80, unnamed there).
-        typedef float(__thiscall * SeqLenFn)(SIModel*, int);
-        a.Duration = (*(SeqLenFn*)(*(void***)a.Model + 0x80 / 4))(a.Model, 0);
-    }
+    a.Duration = a.Model->GetSequenceLengthAt(0);                 // +0x80 0x6d7f00
     a.Time = 0.0f;
     PzGepard()->ReleaseModelPrototype(proto);                     // Gepard +0x24
 }
@@ -652,42 +721,94 @@ static bool SameSide(int a, int b)
     return a == b;
 }
 
+// PANZERS 0x562650
+// Own units (not +0x110) are always in vision; others by bit 0x10 (hearing)
+// of the player's VisMap at the half-tile cell (fistp with control word
+// 0xc7f: truncation). A player without a map (World+0x178 type 2 or 3)
+// hears nothing.
+bool SGameLogic::IsInPlayerVision(int player, SIUnit* unit)
+{
+    const SUnit* u = static_cast<const SUnit*>(unit);
+    if (u->Player == player && !u->_110)
+        return true;
+    float x = u->Pos[0];
+    if (0.0f > x || x > (float)g_World->TerrainW)
+        return false;
+    float z = u->Pos[2];
+    if (0.0f > z || z > (float)g_World->TerrainH)
+        return false;
+    const unsigned char* map = VisMap[player];
+    if (!map)
+        return false;
+    int cx = (int)(x * 2.0f);                                     // DAT_007f4558
+    int cz = (int)(u->Pos[2] * 2.0f);
+    return (map[VisW * cz + cx] >> 4) & 1;
+}
+
 // PANZERS 0x562760
-// Per-player visibility maps (+0x1d4, built by 0x564fb0 / 0x565e10) are not
-// lifted: where HD reads them, the recompile answers "visible" (HD would
-// panic "SGameLogic::CanSeeGroundUnit: Player[%d] (editor: %d) has no
-// VisMap" if the map were missing). Real units only.
 bool SGameLogic::CanSeeGroundUnit(int player, SIUnit* unit)
 {
     PZ_M2_TRACE("SGameLogic::CanSeeGroundUnit (0x562760)");
-    const unsigned char* u = (const unsigned char*)(void*)unit;
-    if (!u || !UV::kReal)
+    SUnit* u = static_cast<SUnit*>(unit);
+    if (u->Proto->AlwaysVisible)                                  // SPUnit +0x8a
         return true;
-    const unsigned char* pu = *(unsigned char* const*)(u + 0x04);
-    if (pu[0x8a])
-        return true;
-    if (u[0x168])
+    if (u->Unplaced)                                              // +0x168
         return false;
-    // HD 0x5bb5c0: unit +0x1a8 TestBlockMap(+0x8c, +0x94, +0xb0, max(+0x58, 1), 1)
-    // unless +0xd8 bit 0 is set: hidden units are not seen.
-    if (!(*(const unsigned char*)(u + 0xd8) & 1)) {
-        int size = *(const int*)(u + 0x58);
-        if (size < 1)
-            size = 1;
-        if (unit->TestBlockMap(*(const int*)(u + 0x8c), *(const int*)(u + 0x94), *(const int*)(u + 0xb0), size, 1))
+    if (DrvUnit_IsOffStaticMap(unit))                             // 0x5bb5c0
+        return false;
+    if (SameSide(player, u->Player) && !u->_110)                  // 0x549ab0
+        return true;
+    float x = u->Pos[0];
+    if (0.0f > x || x > (float)g_World->TerrainW)
+        return false;
+    float z = u->Pos[2];
+    if (0.0f > z || z > (float)g_World->TerrainH)
+        return false;
+    int ct = u->Proto->ClassType;
+    if (ct == 9) {
+        if (!VisMap[player])
+            Logger.g->Panic("SGameLogic::CanSeeGroundUnit: Player[%d] (editor: %d) has no VisMap", player, player + 1);
+        if (!u->Model)                                            // +0x08
             return false;
-    }
-    if (SameSide(player, *(const int*)(u + 0xfc)) && !u[0x110])
-        return true;
-    float x = *(const float*)(u + 0x8c), z = *(const float*)(u + 0x94);
-    if (!(x >= 0.0f && x <= (float)g_World->TerrainW && z >= 0.0f && z <= (float)g_World->TerrainH))
+        // A building is seen with its occupants' side, or when one of its
+        // cells (SBuildingUnit +0x458 SDArray<int>, 0x560540) has bit 2.
+        if (u->Stored.Size != 0) {
+            if (u->Stored.Size < 1)
+                Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "SUnitStored", 0);
+            if (SameSide(player, WorldUnit(u->Stored.Array[0].Unit)->Player))
+                return true;
+        }
+        const unsigned char* b = (const unsigned char*)u;
+        const int* cells = *(const int* const*)(b + 0x458);
+        int count = *(const int*)(b + 0x45c);
+        for (int k = 0; k < count; ++k)
+            if (VisMap[player][cells[k]] & 2)
+                return true;
         return false;
-    static bool once;
-    if (!once && Logger.g) {
-        once = true;
-        Logger.g->Warning("SGameLogic::CanSeeGroundUnit: no VisMap (0x564fb0 not lifted), units count as visible");
     }
-    return true;
+    if (ct == 7) {
+        int cx = (int)(x * 2.0f);
+        int cz = (int)(u->Pos[2] * 2.0f);
+        return (VisMap[player][VisW * cz + cx] >> 2) & 1;
+    }
+    if (!VisMap[player])
+        Logger.g->Panic("SGameLogic::CanSeeGroundUnit: Player[%d] (editor: %d) has no VisMap", player, player + 1);
+    // Firing (gunner 0 aims at a unit target with +0x20 == 1, or the current
+    // target is of kind 8) shows the unit at full range; a unit in global
+    // state 2 is otherwise only seen within half range (bit 8).
+    bool firing = false;
+    if (u->Gunners.Size > 0) {
+        STarget* t = *(STarget* const*)((const unsigned char*)u->Gunners.Array[0] + 0x14);   // 0x55cc40(0) +0x14
+        if (t && tgt::I(t, tgt::kType) == 0)
+            firing = tgt::I(t, tgt::kP20) == 1;
+    }
+    if (u->CurrentTarget && tgt::I(u->CurrentTarget, tgt::kKind) == 8)   // +0x1f4 +0x24
+        firing = true;
+    int cx = (int)(u->Pos[0] * 2.0f);
+    int cz = (int)(u->Pos[2] * 2.0f);
+    if (u->GlobalState == 2 && !firing)                           // +0xe0
+        return (VisMap[player][VisW * cz + cx] >> 3) & 1;
+    return (VisMap[player][VisW * cz + cx] >> 1) & 1;
 }
 
 } // namespace pz

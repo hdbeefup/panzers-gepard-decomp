@@ -158,6 +158,7 @@ struct SUnitAnimEnv {
     SIUnit*   (*GetUnit)(int index);                     // World+0x4d4 SHeapTRB
     int       (*GameLogicInt)(unsigned offset);          // an int field of SGameLogic (DAT_008f2078)
     SIPixie*  (*Pixie)();                                // DAT_00929f14
+    bool      (*BuildingOccupiedByTeam)(SIUnit* b, int player); // SBuildingUnit 0x5468e0
 };
 extern SUnitAnimEnv g_UnitAnimEnv;
 
