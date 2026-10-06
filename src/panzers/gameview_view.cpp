@@ -148,6 +148,8 @@ SGameView::~SGameView()
         Board->DestroyFrame(LoadingFrame);
         LoadingFrame = -1;
     }
+    if (Board)
+        ReleaseLoadingBackdrop();                                  // gameview_loading.cpp
     SWidget** boxes[6] = { &EndBox, &ModalBox, &Box3e8c, &Box3e90, &NetBox, &this->SGameViewData::MessageBox };
     for (SWidget** b : boxes) {
         if (*b) {

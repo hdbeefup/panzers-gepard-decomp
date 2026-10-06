@@ -186,6 +186,8 @@ struct SGameView : SDXWidget, SIGameViewCallback, SGameViewData {
     void CreateSubViewports();                                       // 0x61e500
     void DestroySubViewports();                                      // 0x61e680
     void SetPanelMode(int mode);                                     // 0x625d80
+    void ShowLoadingBackdrop(bool plain);                            // 0x61f460 (gameview_loading.cpp)
+    void ReleaseLoadingBackdrop();                                   // board +0x0c / +0x80 on +0x3898 / +0x3894 (0x6281a0)
     int  GetPanelMode();                                             // 0x61f450 (+0x3e80; SSuperWindow 0x65b410)
     void IssueOrder(int p1, int p2, int p3, int p4, int p5);         // 0x61e740 (agent O; name guessed) packets.h builders
     void OpenInGameMenu();                                           // (recompile) Esc in OnKeyDown 0x622f50 -> SInGameMenu

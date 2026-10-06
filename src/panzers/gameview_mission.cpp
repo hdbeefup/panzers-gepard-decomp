@@ -39,8 +39,7 @@ void PzGameViewEndCheck(SGameView* view);
 void SGameView::LoadMap()
 {
     PZ_M3_TRACE("SGameView::LoadMap (0x6201c0)");
-    // HD 0x61f460(0): the "menu/loading_hq.tga" backdrop (+0x3894 / +0x3898)
-    // over the view, and a frame through the viewport. Not lifted (visual).
+    ShowLoadingBackdrop(false);                                   // 0x61f460(0): menu/loading_hq.tga (gameview_loading.cpp)
     if (!pz::g_Campaign) {
         Logger.g->Warning("SGameView::LoadMap() Campaing == NULL");   // 0x65cac0
         pz::g_Campaign = new pz::SPanzersCampaign();             // new 0xb8c, 0x590ec0
@@ -54,8 +53,8 @@ void SGameView::LoadMap()
         Logger.g->Log(0, "PZM3: PZ_M3_LOADMAP=0, map not loaded");
         pz::FreeSString(&map);
         LoadingScreen = true;
-        LoadingFrame = Board->CreateFrame(FT_TEXT, GetFrame(), 0x200, 0x2e0, 0, 1);
-        Board->SetText(LoadingFrame, g_PzFont[PZF_SANS14], 2, GetText("panzers/GameView.cpp", "Click to continue"));
+        LoadingFrame = Board->CreateFrame(FT_TEXT, GetFrame(), 0x200, 0x2e2, 0, 1);   // Create 0x61de35: board +0x08(2, +0x48, 0x200, 0x2e2, 0, 1)
+        Board->SetText(LoadingFrame, g_PzFont[PZF_SANS21_SHADOW], 2, GetText("panzers/GameView.cpp", "Click to continue"));   // 0x61de85: +0x34(f, font 3, 2, s)
         Board->ShowFrame(LoadingFrame, true);
         return;
     }
@@ -99,8 +98,8 @@ void SGameView::LoadMap()
         // HD: board +0x18(+0x388c, 1) shows the "Click to continue" frame
         // that Create made; the recompile makes it here.
         LoadingScreen = true;                                     // +0x3890
-        LoadingFrame = Board->CreateFrame(FT_TEXT, GetFrame(), 0x200, 0x2e0, 0, 1);
-        Board->SetText(LoadingFrame, g_PzFont[PZF_SANS14], 2, GetText("panzers/GameView.cpp", "Click to continue"));
+        LoadingFrame = Board->CreateFrame(FT_TEXT, GetFrame(), 0x200, 0x2e2, 0, 1);   // Create 0x61de35: board +0x08(2, +0x48, 0x200, 0x2e2, 0, 1)
+        Board->SetText(LoadingFrame, g_PzFont[PZF_SANS21_SHADOW], 2, GetText("panzers/GameView.cpp", "Click to continue"));   // 0x61de85: +0x34(f, font 3, 2, s)
         Board->ShowFrame(LoadingFrame, true);
         Cursor = 0;                                               // 0x543970(0, -1)
     }
@@ -120,11 +119,7 @@ void SGameView::MissionStart()
         pz::g_Scene->AddRef();                                    // vtbl +0
     pz::g_WindowScene = pz::g_Scene;
     CreateSubViewports();                                         // 0x61e500
-    if (SoundHandle3898 >= 0) {                                   // board +0x0c / +0x80: the 0x61f460 backdrop
-        Board->DestroyFrame(SoundHandle3898);
-        SoundHandle3898 = -1;
-    }
-    SoundHandle3894 = -1;
+    ReleaseLoadingBackdrop();                                     // board +0x0c(+0x3898), +0x80(+0x3894): the 0x61f460 backdrop
     unsigned now = NowMs();                                       // ftol(0x661800() * 1000.0)
     ClockNextTick = now;                                          // +0x460
     ClockStart = now;                                             // +0x45c
