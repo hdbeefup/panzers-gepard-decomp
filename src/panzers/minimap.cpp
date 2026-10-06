@@ -123,46 +123,6 @@ SHdBitmap* CopyBitmap(const SHdBitmap* src)
     return b;
 }
 
-// Recompile: the map's MINI chunk (an SBitmap, 0x66ea40: width, height,
-// format, pixels). HD's SWorld::LoadMap 0x5f1990 loads it into World
-// +0x74bc; the recompile's loader keeps the chunk raw, so the map file is
-// read again here (render side only) when World +0x74bc is empty.
-SHdBitmap* LoadMapMinimap()
-{
-    if (!pz::g_Campaign)
-        return nullptr;
-    const char* name = pz::g_Campaign->GetMapName();             // 0x592040
-    if (!name || !*name)
-        return nullptr;
-    SStream* s = FileSystem.OpenRead(name, nullptr);
-    if (!s)
-        return nullptr;
-    SHdBitmap* b = nullptr;
-    s->ReadSignature();
-    if (s->ReadChunkHeader() == 0x4650414d) {                      // MAPF
-        s->ReadInt();                                              // version
-        while (!s->ReadChunkIsEnd()) {
-            int tag = s->ReadChunkHeader();
-            if (tag == 0x494e494d) {                               // MINI
-                int w = s->ReadInt(), h = s->ReadInt(), format = s->ReadInt();
-                b = NewBitmap(w, h, format);
-                if (b && b->Size <= s->ReadChunkRemain())
-                    s->Read(b->Data, b->Size);
-                else if (b) {
-                    Logger.g->Log(0, "minimap: MINI %dx%d format %d not read", w, h, format);
-                    FreeBitmap(b);
-                    b = nullptr;
-                }
-                break;
-            }
-            s->ReadChunkSkip();
-            s->ReadChunkValidate(0);                               // pops the chunk
-        }
-    }
-    s->Release();
-    return b;
-}
-
 void ReleaseMinimap()
 {
     FreeBitmap(s_Mm.Map);
@@ -198,16 +158,12 @@ void PzMinimapCreate(pz::SGameLogic* gl)
     s_Mm.Logic = gl;
     s_Mm.Font = Board->LoadSingleFont("menu/minimap_hq.tga", Default);   // board +0x7c(0x7f6148)
     GlInt(gl, 0x180) = s_Mm.Font;
-    const SHdBitmap* src = (const SHdBitmap*)pz::g_World->Minimap;  // World +0x74bc
-    SHdBitmap* loaded = nullptr;
-    if (!src)
-        src = loaded = LoadMapMinimap();
+    const SHdBitmap* src = (const SHdBitmap*)pz::g_World->Minimap;  // World +0x74bc (MINI chunk)
     if (!src) {
         Logger.g->Log(0, "minimap: no MINI chunk; the scene render 0x6b0000 is not lifted");
         return;
     }
     s_Mm.Map = CopyBitmap(src);                                    // 0x669be0(src, src +8)
-    FreeBitmap(loaded);
     if (!s_Mm.Map)
         return;
     s_Mm.Fogged = CopyBitmap(s_Mm.Map);                            // 0x669be0(+0x18c, +0x18c +8)

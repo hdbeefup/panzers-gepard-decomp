@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "buildingunit.h"
+#include "packets.h"
 #include "squadunit.h"
 #include "unitanim.h"
 #include "target.h"
@@ -576,9 +577,17 @@ void SBuildingUnit::SetOnBlockMap(bool on)
 }
 
 // PANZERS 0x549b20
+// The "Block" footprint of the model's current pose, with the caller's mask
+// plus bit 4 (the block-map rebuild 0x604620 passes mask & 0x44, so a
+// rebuild keeps bit 4 and sets the 0x40 that clears road bit 0x2000 around
+// the building). The position / direction arguments are not used.
 void SBuildingUnit::MarkBlockMap(bool on, int p2, int p3, int p4, short p5)
 {
-    (void)on; (void)p2; (void)p3; (void)p4; (void)p5;
+    (void)p2; (void)p3; (void)p4;
+    SBlockBitmap* bm = Model->BuildNodeBlockBitmap(4, "Block");   // +0xa8
+    BlockMap_ApplyBitmap(g_World, bm, on, (unsigned)(unsigned short)p5 | 4u);   // 0x5f4910
+    if (bm)
+        FreeBuildingBitmap(bm);                                   // 0x661b30, delete(0x1c)
 }
 
 // PANZERS 0x546ad0
@@ -912,13 +921,89 @@ void SBuildingUnit::UpdateVisuals(SIViewport* vp)
     // recompile creates no board elements (Board350 / Board354 stay 0).
 }
 
-// HD 0x549b70: an occupant died: RemoveStoredMember 0x5be140, its window
-// slot goes, an empty building unloads (0x5c51d0). Not lifted yet.
+// SDArray<T>::Remove (inline in HD): memmove the tail down, clear the freed
+// last element.
+template <typename T>
+static void BuildingArrayRemove(SUnitArray<T>* a, int i, const char* type)
+{
+    if (i >= a->Size)
+        Logger.g->Panic("SDArray<%s>::Remove: invalid index (%d) size = %d", type, i, a->Size);
+    --a->Size;
+    if (a->Size - i != 0)
+        memmove(a->Array + i, a->Array + i + 1, (a->Size - i) * sizeof(T));   // 0x76bb40
+    memset(&a->Array[a->Size], 0, sizeof(T));
+}
+
+// The building takes main gunner / player (and behaviour) from its first
+// stored squad again (0x549d62..0x549e48 / 0x54a03f..0x54a0e1).
+static SUnit* FirstStoredSquad(SBuildingUnit* b)
+{
+    if (b->Stored.Size < 1)
+        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "struct SUnitStored", 0);
+    return BuildingUnitAt(b->Stored.Array[0].Unit);
+}
+
+// PANZERS 0x549b70
+// An occupant died. A member of the first squad (+0x178 / windows +0x3fc):
+// it leaves the list (0x5be140) with its window slot; when none is left the
+// squad gets out (0x5c51d0) and dies (+0x124), the second squad (+0x408 /
+// +0x414) becomes the first, the guns stop (+0xec) and the building takes
+// main gunner, player and behaviour from the remaining stored squad, or
+// becomes neutral (+0x110, 0x5ef760) when none is left. A member of the
+// second squad: as above without the move; when it is empty every stored
+// unit gets out (+0x68). Either way the dead unit goes on the +0x420 list;
+// a unit in neither list is ignored.
 void SBuildingUnit::OnMemberDied(int unit)
 {
-    (void)unit;
-    STUB_LOG("SBuildingUnit::OnMemberDied (0x549b70) occupant died");
     PZ_M3_TRACE("SBuildingUnit::OnMemberDied (0x549b70)");
+    for (int i = 0; i < Members.Size; ++i) {
+        if (Members.Array[i].Unit != unit)
+            continue;
+        int squad = Members.Array[i].Owner;
+        RemoveStoredMember(i);                                    // 0x5be140
+        BuildingArrayRemove(&WindowSlots, i, "int");
+        if (Members.Size == 0) {
+            SUnit::UnloadUnit(squad);                             // 0x5c51d0 (direct call)
+            BuildingUnitAt(squad)->EC_Die();                      // +0x124
+            BuildingArraySetSize(&Members, Members2.Size);        // 0x546ca0
+            for (int k = 0; k < Members.Size; ++k)
+                Members.Array[k] = Members2.Array[k];
+            BuildingArraySetSize(&WindowSlots, WindowSlots2.Size); // 0x546af0
+            for (int k = 0; k < WindowSlots.Size; ++k)
+                WindowSlots.Array[k] = WindowSlots2.Array[k];
+            BuildingArraySetSize(&WindowSlots2, 0);               // 0x546af0(0)
+            BuildingArraySetSize(&Members2, 0);                   // 0x546ca0(0)
+            StopGunners();                                        // +0xec
+            if (Stored.Size == 0) {
+                _110 = true;
+                g_World->UnitStored(WorldIndex, -1);              // 0x5ef760
+            } else {
+                MainGunner = FirstStoredSquad(this)->MainGunner;  // +0x44
+                Player = FirstStoredSquad(this)->Player;          // +0xfc
+                Behavior = FirstStoredSquad(this)->Behavior;      // +0x250
+            }
+        }
+        int k = BuildingArrayAdd(&Inside);                        // +0x420
+        Inside.Array[k] = unit;
+        return;
+    }
+    for (int i = 0; i < Members2.Size; ++i) {
+        if (Members2.Array[i].Unit != unit)
+            continue;
+        int squad = Members2.Array[i].Owner;
+        BuildingArrayRemove(&Members2, i, "struct SUnitMember");
+        BuildingArrayRemove(&WindowSlots2, i, "int");
+        if (Members2.Size == 0) {
+            UnloadAll();                                          // +0x68
+            BuildingUnitAt(squad)->EC_Die();                      // +0x124
+            StopGunners();                                        // +0xec
+            MainGunner = FirstStoredSquad(this)->MainGunner;
+            Player = FirstStoredSquad(this)->Player;
+        }
+        int k = BuildingArrayAdd(&Inside);
+        Inside.Array[k] = unit;
+        return;
+    }
 }
 
 // PANZERS 0x548d30
@@ -953,6 +1038,28 @@ void SBuildingUnit::AddXP(int victim, float xp, int p3)
         BuildingUnitAt(owner)->AddXP(victim, xp, p3);
         return;
     }
+}
+
+// PANZERS 0x548c10 (SBuildingUnit +0xa8)
+// Attack (3) an enemy; heal (9) a squad with wounded members, repair (7) /
+// supply (8) with cargo left; else nothing.
+int SBuildingUnit::ActionOn(int target)
+{
+    if (!IsTargetable(target, true) || target == WorldIndex)
+        return 0;
+    if (GetUnitRelation(target, Player) == -1)
+        return 3;
+    const unsigned char* p = (const unsigned char*)P;
+    if (!g_World->Units.IsLive(target))
+        Logger.g->Panic("SHeapTRB::operator[]: invalid index (%d)", target);
+    SUnit* t = g_World->Units.Array[target].Unit;
+    if (p[0xde] && t->HasWoundedMember())                         // target +0x80
+        return 9;
+    if (p[0xdf] && t->NeedsRepair() && 0.0f < Cargo)
+        return 7;
+    if (p[0xe0] && t->NeedsSupply(1.0f) && 0.0f < Cargo)
+        return 8;
+    return 0;
 }
 
 } // namespace pz

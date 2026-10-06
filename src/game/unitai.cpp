@@ -1396,15 +1396,32 @@ void SUnit::ExecuteCommand(const SOrder& o)
     case 0x2e:
         Slot_164(o.Param);                                    // +0x164
         return;
-    case 3: case 4:                                           // +0xb0 (X, Z, queue, 0 / 1, 0 / Param2)
-    case 5:                                                   // +0xbc (Param2)
-    case 0xb:                                                 // +0xdc (Unit)
-    case 0x1c: case 0x1d:                                     // 0x5b88f0(0 / 1, Param != 0)
-    case 0x27:                                                // +0x128
-    case 0x2c:                                                // +0xd8 (Unit)
-    case 0x2f:                                                // +0x168 (Param != 0)
-        STUB_LOG("SUnit::ExecuteCommand (0x5b95a0) command with an untyped EC_ slot");
-        PZ_M2_TRACE("SUnit::ExecuteCommand (0x5b95a0) untyped command");
+    case 3:
+        EC_MoveReverse(FBits(o.X), FBits(o.Z), q, false, 0);  // +0xb0 (p5 = 0.0f)
+        return;
+    case 4:
+        EC_MoveReverse(FBits(o.X), FBits(o.Z), q, true, o.Param2);   // +0xb0
+        return;
+    case 5:
+        EC_TurnTo(o.Param2);                                  // +0xbc (Param2 float bits)
+        return;
+    case 0xb:
+        EC_AttackMoveUnit(o.Unit);                            // +0xdc
+        return;
+    case 0x1c:
+        SetItemAutoUse(0, o.Param != 0);                      // 0x5b88f0(0, ..)
+        return;
+    case 0x1d:
+        SetItemAutoUse(1, o.Param != 0);                      // 0x5b88f0(1, ..)
+        return;
+    case 0x27:
+        EC_Destroy();                                         // +0x128
+        return;
+    case 0x2c:
+        EC_Tow(o.Unit);                                       // +0xd8
+        return;
+    case 0x2f:
+        Slot_168(o.Param != 0);                               // +0x168
         return;
     default:
         return;

@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "squadunit.h"
+#include "packets.h"
 #include "unitanim.h"
 #include "gunner.h"
 #include "idriver.h"
@@ -590,6 +591,53 @@ void SPanzersSquadMemberUnit::EC_Die()
     if (g_World->Units.IsLive(Parent))
         WorldUnit(Parent)->OnMemberDied(WorldIndex);          // +0x1b4
     SUnit::EC_Die();                                          // 0x5b8b10
+}
+
+// PANZERS 0x59c0d0 (SPanzersSquadUnit +0xa8)
+// A building 10; attack (3) an enemy; enter (4); heal (9) wounded members of
+// a squad (medics); else 2.
+int SPanzersSquadUnit::ActionOn(int target)
+{
+    if (!IsTargetable(target, true) || target == WorldIndex)
+        return 0;
+    if (!g_World->Units.IsLive(target))
+        Logger.g->Panic("SHeapTRB::operator[]: invalid index (%d)", target);
+    SUnit* t = g_World->Units.Array[target].Unit;
+    if (t->Proto->ClassType == 9)
+        return 10;
+    if (GetUnitRelation(target, Player) == -1)
+        return 3;
+    if (t->CanStoreUnit(WorldIndex))
+        return 4;
+    if (((const unsigned char*)P)[0xde] && t->HasWoundedMember())
+        return 9;
+    return 2;
+}
+
+// PANZERS 0x59aea0
+// A squad cannot reverse: the move (+0xac, the squad's 0x59af20), the members'
+// relative positions (0x5a0d30) and +0x1ac.
+void SPanzersSquadUnit::EC_MoveReverse(int xBits, int zBits, int p3, bool p4, int p5)
+{
+    EC_Move(xBits, zBits, p3, p4, p5);                        // +0xac
+    UpdateMovingMembersRelPos();                              // 0x5a0d30
+    RestoreBehavior();                                        // +0x1ac
+}
+
+// PANZERS 0x59a730
+// Unless invulnerable (+0x111): every member is destroyed first (member 0
+// until none is left; each removes itself), then the squad (0x5b88d0).
+void SPanzersSquadUnit::EC_Destroy()
+{
+    if (Invulnerable)                                         // +0x111
+        return;
+    while (Members.Size > 0) {
+        int m = Members.Array[0].Unit;
+        if (!g_World->Units.IsLive(m))
+            Logger.g->Panic("SHeapTRB::operator[]: invalid index (%d)", m);
+        g_World->Units.Array[m].Unit->EC_Destroy();           // +0x128
+    }
+    SUnit::EC_Destroy();                                      // 0x5b88d0
 }
 
 } // namespace pz

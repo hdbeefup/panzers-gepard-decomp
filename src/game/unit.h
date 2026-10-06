@@ -113,20 +113,20 @@ struct SUnit : SIUnit {
     void Slot_9C() override;
     void SetCurrentTarget(STarget* target, int p2) override;     // 0x5c0d10
     void EC_Default(int p1, int p2) override;
-    void Slot_A8() override;
+    int ActionOn(int target) override;                           // 0x5ba3e0
     void EC_Move(int xBits, int zBits, int p3, bool p4, int p5) override;   // 0x5b8ea0
-    void Slot_B0() override;
+    void EC_MoveReverse(int xBits, int zBits, int p3, bool p4, int p5) override;   // 0x5b8d20
     void EC_MoveAlongPath(int path, int p2, int p3) override;    // 0x5b8e20
     void EC_Follow(int unit, int p2) override;                   // 0x5b8ba0
-    void Slot_BC() override;
+    void EC_TurnTo(int dirBits) override;                        // 0x5b9370
     void Stop() override;                                        // 0x5b91b0
     void ClearTargets() override;                                // 0x5b90b0
     void Slot_C8() override;
     void EC_AttackMove(float x, float z, int queue) override;   // 0x5b8660
     void EC_AttackAlongPath(int path, int node, int queue) override;   // 0x5b8740
     void EC_AssaultBuilding(int p1, int p2) override;
-    void Slot_D8() override;
-    void Slot_DC() override;
+    void EC_Tow(int unit) override;                              // 0x5b8fa0
+    void EC_AttackMoveUnit(int unit) override;                   // 0x5b8c90
     void Slot_E0(int p1, int p2) override;                        // 0x547b90
     void EC_AttackPos(int xBits, int zBits, int p3) override;    // 0x5b8570
     void EC_Attack(int unit, int queue) override;                // 0x5b8440
@@ -145,7 +145,7 @@ struct SUnit : SIUnit {
     void Slot_11C() override;                                     // 0x547b60
     void Slot_120(int p1) override;                               // 0x547b70
     void EC_Die() override;
-    void Slot_128() override;
+    void EC_Destroy() override;                                  // 0x5b88d0
     void SetBehavior(int behavior) override;                     // 0x5b8960
     void SetHealthPercent(float percent) override;                // 0x54cd50
     void Slot_134(int p1) override;                              // 0x55cdf0
@@ -161,7 +161,7 @@ struct SUnit : SIUnit {
     void Slot_15C(int p1) override;                               // 0x547e60
     void Slot_160(int p1) override;                               // 0x5478b0
     void Slot_164(int p1) override;                              // 0x55ce40
-    void Slot_168() override;
+    void Slot_168(bool on) override;                             // 0x5b9360 (empty)
     void StoreInterpolationState() override;                     // 0x5b5ad0
     float GetHealth() override;                                  // 0x5b9e30
     float GetHitPoints() override;                               // 0x5b9ec0
@@ -288,6 +288,7 @@ struct SUnit : SIUnit {
     void EnterVehicle(int unit);                                 // 0x5b5810 STarget kind 9, +0x18c / vehicle +0x190
     // --- end C4
     // --- C5 (squads / buildings / drivers)
+    void SetItemAutoUse(int slot, bool on);                      // 0x5b88f0 (+0x140 / +0x14c when the slot holds an item)
     void RemoveStoredMember(int i);                              // 0x5be140 SUnit::RemoveStoredMember (seat cleanup, +0x178 Remove)
     void LeaveDriverSeat();                                      // 0x5c1d50 (name guessed) stop, park the active driver, leave the movement group
     void TransferSelection(SUnit* to);                           // 0x5c50c0 (name guessed) selected bit +0x104 and +0x108 move to `to`

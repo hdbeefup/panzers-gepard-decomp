@@ -85,6 +85,7 @@ struct SGameLogic {
     void ProcessPacket(int player, SStream** frame);   // 0x5737c0 per frame and player (packets.cpp, agent O)
     void BeginFrame();                    // 0x571840 new frame stream, world CRC into CrcHistory
     unsigned ComputeWorldCRC();           // 0x56aa10 rotl-xor over the live units (see iunit.h) ^ World+0x7518
+    void ComputeAirStartPositions();      // 0x55e440 inline 0x55f2c2 (World player +0x24 / +0x28)
     void DumpUnitsForCrc();               // recompile only: PZ_M2_UNITDUMP=<n> per-tick unit trace
     void Tick_579390();                   // 0x579390 CrcHistory.RemoveBottom
     void Tick_57dfe0();                   // per tick

@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "pz/hdbitmap.h"
 #include "world.h"
 #include "worldapi.h"
 #include "pzunitregistry.h"
@@ -212,6 +213,10 @@ SWorld::~SWorld()
     // Rivers, wires, locations and paths are kept as raw chunks in M1
     // (mapload.cpp).
     FreeMapRawChunks();
+    if (Minimap) {                                                // 0x5d59f5: 0x669cc0 + delete 0x20
+        HdBitmapDelete((SHdBitmap*)Minimap);
+        Minimap = nullptr;
+    }
     if (g_Pixie) {
         g_Pixie->ReleaseEffectPrototype(WireTearFx);              // pixie +0x20 (+0x7428)
         g_Pixie->ReleaseEffectPrototype(SnowFx);                  // +0x644 (no snow effect playing)

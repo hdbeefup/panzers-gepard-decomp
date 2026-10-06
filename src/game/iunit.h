@@ -92,20 +92,20 @@ struct SIUnit {
     virtual void Slot_9C() = 0;                                  // +0x9c HD 0x5c1d40 (1 arg dwords)
     virtual void SetCurrentTarget(STarget* target, int p2) = 0;  // +0xa0 HD 0x5c0d10 (2 arg dwords) [menu: periodic<1/s] SPanzersSquadUnit::SetCurrentTarget (0x59f580); takes a reference into +0x1f4
     virtual void EC_Default(int p1, int p2) = 0;                 // +0xa4 HD 0x5b8ab0 (2 arg dwords) symbol: SSingleUnit::EC_Default
-    virtual void Slot_A8() = 0;                                  // +0xa8 HD 0x5ba3e0 (1 arg dwords)
+    virtual int ActionOn(int target) = 0;                        // +0xa8 HD 0x5ba3e0 (1 arg dword) the order this unit would take on `target` (cursor glyph: 0 none, 2 move / follow, 3 attack, 4 enter, 5 tow, 6 unhook, 7 repair, 8 supply, 9 heal, 10 a building, 0x5ba2b0)
     virtual void EC_Move(int xBits, int zBits, int p3, bool p4, int p5) = 0; // +0xac HD 0x5b8ea0 (5 arg dwords) [menu: periodic<1/s] (name guessed) new STarget (0x38) type 2 at (x, z) (type 3 + p5 when p4) into +0x1f8, then +0xa0(target, p3)
-    virtual void Slot_B0() = 0;                                  // +0xb0 HD 0x5b8d20 (5 arg dwords)
+    virtual void EC_MoveReverse(int xBits, int zBits, int p3, bool p4, int p5) = 0; // +0xb0 HD 0x5b8d20 (5 arg dwords) (name guessed, M3-I2) EC_Move with the target's reverse byte (+0x2c) set; commands 3 / 4; squads 0x59aea0 move forward
     virtual void EC_MoveAlongPath(int path, int p2, int p3) = 0; // +0xb4 HD 0x5b8e20 (3 arg dwords) [menu: periodic<1/s] (name guessed) new STarget type 2 (+0x30 path, +0x34), STarget::ConsumePath; convoy
     virtual void EC_Follow(int unit, int p2) = 0;                // +0xb8 HD 0x5b8ba0 (2 arg dwords) [menu: periodic<1/s] SUnit::EC_Follow
-    virtual void Slot_BC() = 0;                                  // +0xbc HD 0x5b9370 (1 arg dwords)
+    virtual void EC_TurnTo(int dirBits) = 0;                     // +0xbc HD 0x5b9370 (1 arg dword) (name guessed, M3-I2) STarget type 4 with dir +0x1c; command 5
     virtual void Stop() = 0;                                     // +0xc0 HD 0x5b91b0 (0 arg dwords) [menu: periodic<1/s] (name guessed) drops +0x1f4, active driver 0x55bf50(1), STarget at own position
     virtual void ClearTargets() = 0;                             // +0xc4 HD 0x5b90b0 (? arg dwords) [menu: periodic<1/s] (name guessed) releases the STargets at +0x1f4/+0x1f8
     virtual void Slot_C8() = 0;                                  // +0xc8 HD 0x5b9170 (? arg dwords)
     virtual void EC_AttackMove(float x, float z, int queue) = 0; // +0xcc HD 0x5b8660 (3 arg dwords) symbol: SUnit::EC_AttackMove; primary target kind 4 at (x, z), +0xa0, +0x190
     virtual void EC_AttackAlongPath(int path, int node, int queue) = 0; // +0xd0 HD 0x5b8740 (3 arg dwords) (name guessed, M3-C) STarget kind 4 type 2 on the path from node (0x5b7c50), +0xa0, +0x190; AI groups 0x5d9750
     virtual void EC_AssaultBuilding(int p1, int p2) = 0;               // +0xd4 HD 0x5b82b0 (2 arg dwords) symbol: SUnit::EC_AssaultBuilding
-    virtual void Slot_D8() = 0;                                  // +0xd8 HD 0x5b8fa0 (1 arg dwords)
-    virtual void Slot_DC() = 0;                                  // +0xdc HD 0x5b8c90 (1 arg dwords)
+    virtual void EC_Tow(int unit) = 0;                           // +0xd8 HD 0x5b8fa0 (1 arg dword) (name guessed, M3-I2) hook up `unit` (target +0x58(this)): primary kind 0xd; command 0x2c
+    virtual void EC_AttackMoveUnit(int unit) = 0;                // +0xdc HD 0x5b8c90 (1 arg dword) (name guessed, M3-I2) primary kind 4 on a unit, +0xa0(t, 1), +0x190; command 0xb
     virtual void Slot_E0(int p1, int p2) = 0;                     // +0xe0 HD 0x547b90 (2 arg dwords) (M3-C5: empty in SUnit)
     virtual void EC_AttackPos(int xBits, int zBits, int p3) = 0; // +0xe4 HD 0x5b8570 (3 arg dwords) (name guessed, M3-C3) attack the ground at (x, z) (float bits): new STarget type 2 at the terrain height, Mode 1, into +0x1f8, then +0xa0(target, p3); members 0x597fa0, wasters 0x5d21a0
     virtual void EC_Attack(int unit, int queue) = 0;                  // +0xe8 HD 0x5b8440 (2 arg dwords) symbol: SUnit::EC_Attack
@@ -124,7 +124,7 @@ struct SIUnit {
     virtual void Slot_11C() = 0;                                  // +0x11c HD 0x547b60 (0 arg dwords) (M3-C5: empty in SUnit)
     virtual void Slot_120(int p1) = 0;                            // +0x120 HD 0x547b70 (1 arg dwords) (M3-C5: empty in SUnit)
     virtual void EC_Die() = 0;                                   // +0x124 HD 0x5b8b10 (0 arg dwords) symbol: SUnit::EC_Die
-    virtual void Slot_128() = 0;                                 // +0x128 HD 0x5b88d0 (0 arg dwords)
+    virtual void EC_Destroy() = 0;                               // +0x128 HD 0x5b88d0 (0 arg dwords) (name guessed, M3-I2) +0x124 EC_Die, then +0x151 = 1; squads 0x59a730 every member first; command 0x27
     virtual void SetBehavior(int behavior) = 0;                  // +0x12c HD 0x5b8960 (1 arg dwords) [menu: periodic<1/s] (name guessed) +0xe8 = behavior
     virtual void SetHealthPercent(float percent) = 0;             // +0x130 HD 0x54cd50 (1 arg dwords) (M3-C5: (name guessed) +0x114 = percent / 100)
     virtual void Slot_134(int p1) = 0;                           // +0x134 HD 0x55cdf0 (1 arg dwords) (M3-C3) empty in SUnit; SSingleUnit 0x5ac180, buildings 0x547a70, members 0x598250
@@ -140,7 +140,7 @@ struct SIUnit {
     virtual void Slot_15C(int p1) = 0;                            // +0x15c HD 0x547e60 (1 arg dwords) (M3-C5: empty in SUnit)
     virtual void Slot_160(int p1) = 0;                            // +0x160 HD 0x5478b0 (1 arg dwords) (M3-C5: empty in SUnit)
     virtual void Slot_164(int p1) = 0;                           // +0x164 HD 0x55ce40 (1 arg dwords) (M3-C3) empty in SUnit; buildings 0x547bb0
-    virtual void Slot_168() = 0;                                 // +0x168 HD 0x5b9360 (1 arg dwords)
+    virtual void Slot_168(bool on) = 0;                          // +0x168 HD 0x5b9360 (1 arg dword) empty in every class; command 0x2f (Param != 0)
     virtual void StoreInterpolationState() = 0;                  // +0x16c HD 0x5b5ad0 (0 arg dwords) [menu: >=20/s] pos +0x8c -> +0x98 -> +0xa4, dir +0xb0 -> +0xb4 -> +0xb8; models +0x08/+0x0c/+0x10 +0x3c; per tick
     virtual float GetHealth() = 0;                               // +0x170 HD 0x5b9e30 (0 arg dwords) +0x114 (M3-C)
     virtual float GetHitPoints() = 0;                            // +0x174 HD 0x5b9ec0 (0 arg dwords) prototype +0x98; TakeDamage divides the damage by it (M3-C)

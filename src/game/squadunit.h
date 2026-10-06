@@ -33,6 +33,9 @@ struct SSquadRelPos {
 };
 
 struct SPanzersSquadUnit : SUnit {
+    void EC_MoveReverse(int xBits, int zBits, int p3, bool p4, int p5) override;   // +0xb0 0x59aea0
+    void EC_Destroy() override;                                  // +0x128 0x59a730
+    int ActionOn(int target) override;                           // +0xa8 0x59c0d0
     SPanzersSquadUnit(SPPanzersSquadUnit* proto, int worldIndex);   // 0x598ff0
     ~SPanzersSquadUnit() override;                               // 0x599230 / 0x599110
     void Uninit() override;                                      // 0x599c70

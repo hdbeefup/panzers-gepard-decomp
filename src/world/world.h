@@ -375,7 +375,7 @@ struct SWorld {
     SHeap<SLocation> Locations;          // +0x7480 LOCS (0x5f0690, element 0x28)
     SHeap<SPath>     Paths;              // +0x7494 PATH (0x5f07b0, element 0x20)
     SHeap<STriggerVariable> TriggerVariables; // +0x74a8 TVAR (0x56e440, element 0x14)
-    void*         Minimap;               // +0x74bc MINI bitmap (not decoded in M1)
+    void*         Minimap;               // +0x74bc MINI bitmap (SHdBitmap, pz/hdbitmap.h; 0x66ea40)
     int           LoadParam3;            // +0x74c0
     int           LoadParam4;            // +0x74c4
     unsigned char _74c8[0x74d4 - 0x74c8]; // class-name remap table (0x5f4a70)

@@ -10,6 +10,7 @@
 namespace pz {
 
 struct SSingleUnit : SUnit {
+    int ActionOn(int target) override;                           // +0xa8 0x5ace90 (STrainUnit too)
     SSingleUnit(SPSingleUnit* proto, int worldIndex);            // 0x5aa7b0
     ~SSingleUnit() override;                                     // 0x5aaa00
     void Init(SUnitDef* def) override;                           // 0x5ad150

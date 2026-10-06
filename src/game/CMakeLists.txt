@@ -9,6 +9,7 @@ add_library(pzgame STATIC
     # M3-P0 (shared): docs/M3_INTERFACES.md
     m3common.h
     m3trace.cpp
+    m3deepcap.cpp
     # M3 F: campaign, save; O: packets
     campaign.h
     campaign.cpp

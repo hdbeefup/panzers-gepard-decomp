@@ -4,6 +4,8 @@
 #ifndef PZ_HDBITMAP_H
 #define PZ_HDBITMAP_H
 
+struct SStream;
+
 namespace pz {
 
 // HD SBitmap (0x20 bytes; ctor 0x669ca0, load 0x66ea40, copy 0x669be0,
@@ -23,6 +25,9 @@ struct SHdBitmap {
 };
 static_assert(sizeof(void*) != 4 || sizeof(SHdBitmap) == 0x20, "HD SBitmap 0x20");
 int HdBitmapBpp(int format);                                  // 0x66e990 (low byte; 0 = unsupported here)
+void HdBitmapInitPixelFormat(SHdBitmap* b);                   // 0x66e990 (Bpp / Compressed; panics on an unknown format)
+SHdBitmap* HdBitmapLoad(::SStream* s);                  // new 0x20 + 0x669ca0 + 0x66ea40 (width, height, format, pixels)
+void HdBitmapDelete(SHdBitmap* b);                            // 0x669cc0 + delete 0x20
 
 } // namespace pz
 

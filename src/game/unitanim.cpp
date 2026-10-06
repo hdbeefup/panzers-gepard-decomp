@@ -1023,11 +1023,15 @@ void SWalkerAnimation::InitModel(SIModel* model)
     if (guns != 0) {
         UnitAnimLoadGuns(Guns, Unit, model, false);
         if (1 < guns) {
-            // The second gun of a walker is held in the right hand.
-            free(Guns[1].S);
-            Guns[1].S = (int*)malloc(4);
-            Guns[1].S[0] = model->FindNode("R Arm03");
-            Guns[1].SCount = 1;
+            // The second gun of a walker (grenades and the other thrown
+            // items) fires from the right arm: HD 0x5ca594..0x5ca5d8 replace
+            // the gun's muzzle list (+0x24 = Guns[1].M, +0x2c = MCount).
+            // (HD quirk not kept: its "gun%ds%d" loop stores every gun's
+            // recoil nodes into Guns[0].S, 0x5ca43d; walkers never read S.)
+            free(Guns[1].M);
+            Guns[1].M = (int*)malloc(4);
+            Guns[1].M[0] = model->FindNode("R Arm03");            // +0x40
+            Guns[1].MCount = 1;
         }
     }
 }

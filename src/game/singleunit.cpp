@@ -21,6 +21,7 @@
 #include "m3common.h"
 #include "gamelogic.h"
 #include "target.h"
+#include "packets.h"
 
 namespace pz {
 
@@ -550,6 +551,35 @@ void SSingleUnit::AddXP(int victim, float xp, int p3)
         Player = g_World->LocalPlayer;                            // World+0x16c
     for (int i = 0; i < Stored.Size; ++i)
         WorldUnit(Stored.Array[i].Unit)->AddXP(victim, xp, p3);   // +0x8c
+}
+
+// PANZERS 0x5ace90 (SSingleUnit / STrainUnit +0xa8)
+// Unhook (6) the towed unit; a building 10; an enemy 3; tow (5) when this
+// can tow (+0x54) and the target can be towed by it (+0x58); enter (4);
+// repair (7) / supply (8) with cargo left; else 2.
+int SSingleUnit::ActionOn(int target)
+{
+    if (!IsTargetable(target, true) || target == WorldIndex)
+        return 0;
+    const unsigned char* p = *(const unsigned char* const*)((const unsigned char*)this + 0x340);
+    if (target == Towed && *(const int*)(p + 0x40) != 10)         // +0x2d8, P +0x40
+        return 6;
+    if (!g_World->Units.IsLive(target))
+        Logger.g->Panic("SHeapTRB::operator[]: invalid index (%d)", target);
+    SUnit* t = g_World->Units.Array[target].Unit;
+    if (t->Proto->ClassType == 9)
+        return 10;
+    if (GetUnitRelation(target, Player) == -1)                    // 0x56d2a0
+        return 3;
+    if (Slot_54() && t->Slot_58((int)(size_t)this))               // +0x54, target +0x58(this)
+        return 5;
+    if (t->CanStoreUnit(WorldIndex))                              // 0x5b7040
+        return 4;
+    if (p[0xdf] && t->NeedsRepair() && 0.0f < Cargo)              // 0x5bc840, +0x2ec
+        return 7;
+    if (p[0xe0] && t->NeedsSupply(1.0f) && 0.0f < Cargo)          // 0x5bc700
+        return 8;
+    return 2;
 }
 
 } // namespace pz

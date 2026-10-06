@@ -168,6 +168,68 @@ static bool CrcSelfTest()
 // ---------------------------------------------------------------------------
 // Construction
 
+// PANZERS 0x55e440 (inline part 0x55f2c2..0x55f3c6)
+// The air start position of every player (World player +0x24 / +0x28, read
+// by the support planes 0x567760 / 0x567d40 / 0x568300 / 0x568740): the map
+// edge point in the direction of the centre of the player's "start <n>"
+// location (n = player +0x18 + 1) as seen from the map centre; (1, 1)
+// without that location. SSE single precision, as HD.
+void SGameLogic::ComputeAirStartPositions()
+{
+    SWorld* w = g_World;
+    for (int i = 0; i < 12; ++i) {
+        char name[32];
+        sprintf(name, "start %d", *(int*)(w->Players[i] + 0x18) + 1);   // 0x51ee20 "start %d"
+        float* ax = (float*)(w->Players[i] + 0x24);               // World+0x194 + i*0x48
+        float* az = (float*)(w->Players[i] + 0x28);               // World+0x198
+        int li = -1;
+        for (int k = 0; k < w->Locations.Size; ++k) {
+            if (w->Locations.Array[k].Next != kHeapLive)
+                continue;
+            if (_stricmp(SStr(w->Locations.Array[k].Data.Name), name) == 0) {   // 0x7856a9
+                li = k;
+                break;
+            }
+        }
+        if (li < 0) {
+            *ax = 1.0f;
+            *az = 1.0f;
+        } else {
+            const SLocation& l = w->Locations.Array[li].Data;
+            int tw = w->TerrainW, th = w->TerrainH;
+            float a = (float)(l.X2 - tw + l.X1) / (float)tw;      // +0x0c - W + +0x04
+            float b = (float)(l.Z2 + l.Z1 - th) / (float)th;      // +0x10 + +0x08 - H
+            if (fabsf(b) > fabsf(a)) {
+                int hw = tw / 2;
+                float r = a / b;
+                if (b > 0.0f) {
+                    float t = (float)(hw - 1) * r;
+                    *ax = t + (float)hw;
+                    *az = (float)(th - 1);
+                } else {
+                    float t = (float)(hw - 1) * r;
+                    *ax = (float)hw - t;
+                    *az = 1.0f;
+                }
+            } else {
+                int hh = th / 2;
+                float r = b / a;
+                if (a > 0.0f) {
+                    *ax = (float)(tw - 1);
+                    float t = (float)(hh - 1) * r;
+                    *az = t + (float)hh;
+                } else {
+                    *ax = 1.0f;
+                    float t = (float)(hh - 1) * r;
+                    *az = (float)hh - t;
+                }
+            }
+        }
+        if (Logger.g)
+            Logger.g->Log(1, "Air start position for player %d is X:%f Z:%f", i + 1, (double)*ax, (double)*az);
+    }
+}
+
 // PANZERS 0x55e440 (single-player path; see the notes on the parts left out)
 SGameLogic::SGameLogic(int p1, int p2, int p3)
 {
@@ -247,9 +309,8 @@ SGameLogic::SGameLogic(int p1, int p2, int p3)
         if (g_World)
             Tick_565e10(i);                                       // 0x565e10
     }
-    // HD: air start positions of the 12 players from the "start %d"
-    // locations (World players +0x194/+0x198, log "Air start position for
-    // player %d is X:%f Z:%f"). Not used by the menu; not lifted.
+    if (g_World)
+        ComputeAirStartPositions();                               // inline 0x55f2c2..0x55f3c6
     CollectActiveLocations();                                     // 0x5640b0
     PZ_FOR_EACH_UNIT(i) {
         int ct = UV::ClassType(i);
@@ -453,8 +514,11 @@ void SGameLogic::RefreshM2()
 // the original's DynamoRIO trace (m2crc): PZ_M2_UNITDUMP=<n> (n > 1) logs
 // "PZM2 U <frame> <idx> <player> <x> <y> <z> <dir> <+0x114> <+0x108> <+0x1dc>"
 // (raw bits) for every live unit on frames 0..n.
+void M3DeepCapture(SGameLogic* gl, int frame);   // m3deepcap.cpp (PZ_M3_DEEPCAP)
+
 void SGameLogic::DumpUnitsForCrc()
 {
+    M3DeepCapture(this, Frame);
     static int s_Max = -2;
     if (s_Max == -2) {
         const char* e = getenv("PZ_M2_UNITDUMP");

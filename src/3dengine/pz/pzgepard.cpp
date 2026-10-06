@@ -1235,6 +1235,64 @@ int HdBitmapBpp(int format)
     }
 }
 
+// PANZERS 0x66e990 SBitmap::InitPixelFormat
+// The word +0x18: bytes a pixel (or a 4 x 4 block, high byte 1 = compressed).
+void HdBitmapInitPixelFormat(SHdBitmap* b)
+{
+    unsigned short w;
+    switch (b->Format) {
+    case 1: w = 3; break;
+    case 2: case 3: case 0x21: case 0x23: w = 4; break;
+    case 4: case 5: case 6: case 7: case 10: case 0xb: case 0xf: case 0x1d: case 0x20: w = 2; break;
+    case 8: case 9: case 0xe: case 0x10: w = 1; break;
+    case 0x18: w = 0x108; break;
+    case 0x19: case 0x1a: case 0x1b: case 0x1c: w = 0x110; break;
+    case 0x22: case 0x24: w = 8; break;
+    case 0x25: w = 0x10; break;
+    default:
+        Logger.g->Panic("SBitmap::InitPixelFormat: Bitmap format unsupported");
+        return;
+    }
+    b->Bpp = (unsigned char)w;
+    b->Compressed = (unsigned char)(w >> 8);
+}
+
+// PANZERS 0x66ea40 SBitmap::Load (with the new 0x20 + ctor 0x669ca0 of the caller)
+// Width, height, format, then the pixels: Pitch = Bpp * Width rows of Height,
+// or for the compressed formats Bpp per 4 x 4 block, (Width + 3) / 4 blocks a
+// row and (Height + 3) / 4 rows.
+SHdBitmap* HdBitmapLoad(::SStream* s)
+{
+    SHdBitmap* b = (SHdBitmap*)calloc(1, sizeof(SHdBitmap));    // 0x669ca0 clears +0x14 / +0x1c
+    b->Width = s->ReadInt();                                      // 0x65d4d0
+    b->Height = s->ReadInt();
+    b->Format = s->ReadInt();
+    HdBitmapInitPixelFormat(b);                                   // 0x66e990
+    b->Start = 0;
+    int rows;
+    if (!b->Compressed) {
+        b->Pitch = b->Bpp * b->Width;
+        rows = b->Height;
+    } else {
+        b->Pitch = ((b->Width + 3) >> 2) * b->Bpp;
+        rows = (b->Height + 3) >> 2;
+    }
+    b->Size = rows * b->Pitch;
+    b->Data = (unsigned char*)malloc(b->Size > 0 ? b->Size : 1);  // 0x766b87
+    s->Read(b->Data, b->Size);                                    // stream +0x04
+    return b;
+}
+
+// PANZERS 0x669cc0 (+ operator delete 0x20 of the callers)
+void HdBitmapDelete(SHdBitmap* b)
+{
+    if (!b)
+        return;
+    free(b->Data);
+    b->Data = nullptr;
+    free(b);
+}
+
 // PANZERS 0x681540
 // Blits the bitmap into the texture at (x, y): HD locks the texture as an
 // SBitmap (0x6c0f20), BitBlt 0x669d60 converts, unlock 0x6c1080. The

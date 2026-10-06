@@ -50,98 +50,12 @@ pz::SUnit* Target(int unit)
     return w && w->Units.IsLive(unit) ? w->Units.Array[unit].Unit : nullptr;
 }
 
-const unsigned char* Proto340(const pz::SUnit* u)
-{
-    return *(const unsigned char* const*)((const unsigned char*)u + 0x340);   // the subclass prototype
-}
-
-// PANZERS 0x5ba3e0 (SUnit vtbl +0xa8, read for the cursor)
-int ActionOnBase(pz::SUnit* u, int target)
-{
-    if (u->IsTargetable(target, true) && target != u->WorldIndex)  // 0x5bb6b0
-        return 3 - (pz::GetUnitRelation(target, u->Player) != -1); // 0x56d2a0
-    return 0;
-}
-
-// PANZERS 0x5ace90 (SSingleUnit / STrainUnit vtbl +0xa8, read for the cursor)
-int ActionOnSingle(pz::SUnit* u, int target)
-{
-    if (!u->IsTargetable(target, true) || target == u->WorldIndex)
-        return 0;
-    const unsigned char* p = Proto340(u);
-    if (target == u->Towed && *(const int*)(p + 0x40) != 10)      // +0x2d8, P +0x40
-        return 6;
-    pz::SUnit* t = Target(target);
-    if (!t)
-        return 0;                                                  // HD panics
-    if (t->Proto->ClassType == 9)
-        return 10;
-    if (pz::GetUnitRelation(target, u->Player) == -1)
-        return 3;
-    if (u->Slot_54() && t->Slot_58((int)(size_t)u))                // vtbl +0x54, target +0x58(this)
-        return 5;
-    if (t->CanStoreUnit(u->WorldIndex))                            // 0x5b7040
-        return 4;
-    if (p[0xdf] && t->NeedsRepair() && 0.0f < u->Cargo)            // 0x5bc840, +0x2ec
-        return 7;
-    if (p[0xe0] && t->NeedsSupply(1.0f) && 0.0f < u->Cargo)        // 0x5bc700
-        return 8;
-    return 2;
-}
-
-// PANZERS 0x548c10 (SBuildingUnit vtbl +0xa8, read for the cursor)
-int ActionOnBuilding(pz::SUnit* u, int target)
-{
-    if (!u->IsTargetable(target, true) || target == u->WorldIndex)
-        return 0;
-    if (pz::GetUnitRelation(target, u->Player) == -1)
-        return 3;
-    const unsigned char* p = Proto340(u);
-    pz::SUnit* t = Target(target);
-    if (!t)
-        return 0;
-    if (p[0xde] && t->HasWoundedMember())                          // target +0x80
-        return 9;
-    if (p[0xdf] && t->NeedsRepair() && 0.0f < u->Cargo)
-        return 7;
-    if (p[0xe0] && t->NeedsSupply(1.0f) && 0.0f < u->Cargo)
-        return 8;
-    return 0;
-}
-
-// PANZERS 0x59c0d0 (SPanzersSquadUnit vtbl +0xa8, read for the cursor)
-int ActionOnSquad(pz::SUnit* u, int target)
-{
-    if (!u->IsTargetable(target, true) || target == u->WorldIndex)
-        return 0;
-    pz::SUnit* t = Target(target);
-    if (!t)
-        return 0;                                                  // HD panics
-    if (t->Proto->ClassType == 9)
-        return 10;
-    if (pz::GetUnitRelation(target, u->Player) == -1)
-        return 3;
-    if (t->CanStoreUnit(u->WorldIndex))
-        return 4;
-    if (Proto340(u)[0xde] && t->HasWoundedMember())
-        return 9;
-    return 2;
-}
-
 // PANZERS 0x5ba280
 // The order a unit would take on the target (vtbl +0xa8); 10 (a building)
 // becomes the building action 0x5ba2b0.
 int ActionOn(pz::SUnit* u, int target)
 {
-    int k;
-    if (dynamic_cast<pz::SBuildingUnit*>(u))
-        k = ActionOnBuilding(u, target);
-    else if (dynamic_cast<pz::SPanzersSquadUnit*>(u))
-        k = ActionOnSquad(u, target);
-    else if (dynamic_cast<pz::SSingleUnit*>(u))
-        k = ActionOnSingle(u, target);
-    else
-        k = ActionOnBase(u, target);
+    int k = u->ActionOn(target);                                   // vtbl +0xa8
     if (k == 10)
         k = u->GetBuildingAction(target);                          // 0x5ba2b0
     return k;

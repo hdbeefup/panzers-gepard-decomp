@@ -1516,6 +1516,104 @@ void SUnit::EC_AttackAlongPath(int path, int node, int queue)
     AI_Heartbeat();
 }
 
+// PANZERS 0x5b8d20
+// EC_Move 0x5b8ea0 with the target's reverse byte (+0x2c) set (commands 3 / 4).
+void SUnit::EC_MoveReverse(int xBits, int zBits, int p3, bool p4, int p5)
+{
+    float x, z;
+    memcpy(&x, &xBits, 4);
+    memcpy(&z, &zBits, 4);
+    if (ActiveDriver < 0)
+        return;
+    STarget* t = PzTargetNew(0);                              // new 0x38, 0x5b27c0(0)
+    tgt::I(t, tgt::kType) = p4 ? 3 : 2;
+    tgt::F(t, tgt::kPos) = x;
+    tgt::F(t, tgt::kPos + 4) = g_World->GetTerrainHeight(x, z);   // 0x5e7730
+    if (p4)
+        tgt::I(t, tgt::kP1C) = p5;
+    tgt::F(t, tgt::kPos + 8) = z;
+    *((unsigned char*)t + tgt::kFlag2C) = 1;
+    SetTarget(&PrimaryTarget, t);
+    SetCurrentTarget(t, p3);                                  // +0xa0
+}
+
+// PANZERS 0x5b9370
+// Turn to a direction (command 5): type 4, dir +0x1c.
+void SUnit::EC_TurnTo(int dirBits)
+{
+    if (ActiveDriver < 0)
+        return;
+    STarget* t = PzTargetNew(0);
+    tgt::I(t, tgt::kType) = 4;
+    tgt::I(t, tgt::kP1C) = dirBits;
+    SetTarget(&PrimaryTarget, t);
+    SetCurrentTarget(t, 0);                                   // +0xa0
+}
+
+// PANZERS 0x5b8c90
+// Attack-move with a unit (command 0xb): kind 4 on the unit, +0xa0(t, 1),
+// then the AI heartbeat.
+void SUnit::EC_AttackMoveUnit(int unit)
+{
+    if (!IsTargetable(unit, true) || ActiveDriver < 0)        // 0x5bb6b0(unit, 1)
+        return;
+    STarget* t = PzTargetNew(4);
+    tgt::I(t, tgt::kType) = 0;
+    tgt::I(t, tgt::kUnit) = unit;
+    SetTarget(&PrimaryTarget, t);
+    SetCurrentTarget(t, 1);                                   // +0xa0
+    AI_Heartbeat();                                           // +0x190
+}
+
+// PANZERS 0x5b8fa0
+// Hook up a unit for towing (command 0x2c): when `unit` can be towed by this
+// one (its +0x58(this)) the primary order is kind 0xd on it and the current
+// one a plain follow (kind 0); then +0x34. Without SGameLogic: +0x150(unit).
+void SUnit::EC_Tow(int unit)
+{
+    if (!g_GameLogic) {
+        Slot_150(unit);                                       // +0x150
+        return;
+    }
+    if (PlayerKind(Player) == 2 || !IsTargetable(unit, true) || unit == WorldIndex)
+        return;
+    if (!WorldUnit(unit)->Slot_58((int)(size_t)this))         // target +0x58(this)
+        return;
+    STarget* p = PzTargetNew(0xd);
+    tgt::I(p, tgt::kType) = 0;
+    tgt::I(p, tgt::kUnit) = unit;
+    SetTarget(&PrimaryTarget, p);
+    STarget* t = PzTargetNew(0);
+    tgt::I(t, tgt::kType) = 0;
+    tgt::I(t, tgt::kUnit) = unit;
+    SetCurrentTarget(t, 0);                                   // +0xa0
+    RefreshTargeting();                                       // +0x34
+}
+
+// PANZERS 0x5b88d0
+// Command 0x27: die (+0x124) and mark +0x151.
+void SUnit::EC_Destroy()
+{
+    EC_Die();                                                 // +0x124
+    _151[0] = 1;                                              // +0x151
+}
+
+// PANZERS 0x5b9360
+void SUnit::Slot_168(bool on)
+{
+    (void)on;
+}
+
+// PANZERS 0x5b88f0
+// Commands 0x1c / 0x1d: the auto-use flag (+0x140 / +0x14c) of item slot 0 /
+// 1, only when the slot holds an item (+0x138 / +0x144).
+void SUnit::SetItemAutoUse(int slot, bool on)
+{
+    unsigned char* b = (unsigned char*)this;
+    if (*(int*)(b + 0x138 + slot * 0xc) != 0)
+        b[0x140 + slot * 0xc] = on;
+}
+
 // ---------------------------------------------------------------------------
 // M3-C2: the death effects of the prototype (visual only)
 

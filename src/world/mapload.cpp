@@ -23,6 +23,7 @@
 #include "pz/ipixie.h"
 #include "pz/iterrain.h"
 #include "pz/imodel.h"
+#include "pz/hdbitmap.h"
 #include "stream.h"
 #include "properties.h"
 #include "logger.h"
@@ -1115,7 +1116,10 @@ bool SWorld::LoadMap(SStream* stream, bool p2, int p3, int p4)
     LoadParam4 = p4;
     // HD 0x65d8f0(0): stream string format flag; the world reads its strings
     // with 0x56e7d0, which ignores it.
-    Minimap = nullptr;
+    if (Minimap) {                                                // 0x5f1a2c: 0x669cc0 + delete 0x20
+        HdBitmapDelete((SHdBitmap*)Minimap);
+        Minimap = nullptr;
+    }
     SString skybox;
     s->ReadSignature();                                           // 0x65d6a0
     if (s->ReadChunkHeader() != kTagMAPF)
@@ -1210,8 +1214,8 @@ bool SWorld::LoadMap(SStream* stream, bool p2, int p3, int p4)
         case 0x48544150:     // PATH
             LoadPaths(s);                                         // 0x5f07b0 (trigger.cpp, L)
             break;
-        case 0x494e494d:     // MINI (0x669ca0 bitmap, 0x66ea40 load)
-            KeepRawChunk(s, tag, "minimap bitmap");
+        case 0x494e494d:     // MINI: World +0x74bc (new 0x20, 0x669ca0, 0x66ea40)
+            Minimap = HdBitmapLoad(s);
             break;
         case 0x52415654:     // TVAR
             LoadTriggerVariables(s);                              // 0x56e440 (trigger.cpp, L)

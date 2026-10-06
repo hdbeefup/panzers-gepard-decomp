@@ -209,18 +209,35 @@ Still hit or reachable in combat (logged): ~~the building / doodad hit tests (SI
 0x6db7c0 / 0x6db550; the doodad grid 0x564c20)~~ (M3-I: lifted; BuildingBetween 0x5630c0,
 ProjectileHitTest 0x562c20, DamageArea 0x576490 / CrushDoodad, the eye heights 0x546f70 / 0x57f6a0);
 `SWorld 0x5d68e0` (an AI group answers an attack:
-support calls, help from other groups; 7.5 KB, not lifted); `SBuildingUnit::OnMemberDied (0x549b70)`;
+support calls, help from other groups; 7.5 KB, not lifted); ~~`SBuildingUnit::OnMemberDied (0x549b70)`~~ (M3-I2: lifted);
 pixie +0x58 / model +0xbc effect hooks (E); repair / supply orders (0x5c01e0 / 0x5bf280 / 0x5bd610);
 the capture flag (0x5471d0).
 
 ## M3-I: the tc1 replay (frames 0..654 equal to the original)
 
 Replaced: `SUnit::ServerRefreshMedic (0x5bfa50)` heal target (lifted whole), `SUnit::ExecuteCommand
-(0x5b95a0)` untyped EC_ slots (every typed slot dispatched; +0xb0 / +0xbc / +0xdc / +0xd8 / +0x128 /
-+0x168 / 0x5b88f0 still log), `SModel::Slot_AC / Slot_B0 / Slot_D0 / Slot_D8 / Slot_100` (0x6d8090 /
+(0x5b95a0)` untyped EC_ slots (every typed slot dispatched; ~~+0xb0 / +0xbc / +0xdc / +0xd8 / +0x128 /
++0x168 / 0x5b88f0 still log~~ M3-I2: typed and lifted), `SModel::Slot_AC / Slot_B0 / Slot_D0 / Slot_D8 / Slot_100` (0x6d8090 /
 0x6d6700 / 0x6db7c0 / 0x6db550 / 0x6d7150), `SWorld::FixBridges` height patches (0x5e65f0),
 `SBuildingUnit 0x546f70` eye heights, `SGameLogic 0x576a70` doodad heights (0x57f6a0), the
 minimap STUB_LOGs of 0x570f30 / 0x5638f0 / 0x565f1d (HUD path, M3-P). New lifts without a former
 stub: `SBuildingUnit::GetSightRange 0x548b40 / GetMinRange 0x5482e0`, `SPanzersSquadUnit::RefreshDead
 0x59dfe0`, the SGameLogic ctor's 0x5497a0 loop.
 
+## M3-I2: the whole tc1 replay (frames 0..3900 equal to the original)
+
+Replaced: `SBuildingUnit::MarkBlockMap (0x549b20)` (was an empty body: the block-map rebuild lost the
+building footprints; the tc1 frame-655 divergence), `SUnit::Slot_A8 (0x5ba3e0)` (now `ActionOn`, with
+the overrides 0x5ace90 / 0x548c10 / 0x59c0d0), `SUnit::Slot_B0 / Slot_BC / Slot_D8 / Slot_DC /
+Slot_128 / Slot_168` (0x5b8d20 / 0x5b9370 / 0x5b8fa0 / 0x5b8c90 / 0x5b88d0 / 0x5b9360, now
+`EC_MoveReverse` / `EC_TurnTo` / `EC_Tow` / `EC_AttackMoveUnit` / `EC_Destroy` / `Slot_168(bool)`; squad
+overrides 0x59aea0 / 0x59a730) and the ExecuteCommand "untyped EC_ slot" log, `SBuildingUnit::
+OnMemberDied (0x549b70)`, the MINI chunk kept raw (now World +0x74bc, 0x66ea40). New lifts without a
+former stub: the SGameLogic ctor's air start positions (0x55f2c2), `SWalkerAnimation::InitModel`
+gun 1 muzzle (0x5ca594). Census `2238 lifted + 1317 SWINE-shared + 189 stubs; 79 lifted bodies still
+contain a STUB_LOG`.
+
+Hit in tc1 and still logged (visual / audio only, no CRC effect): `SWorld::UnitSpeech` queue and
+playback, `SUnit::TakeDamage` combat music, `SSingleUnit::UpdateVisuals` glows and decals,
+`SScene::ReplaceModel / DrawLines / DrawLakes`, rain / snow effects, `SModel::Slot_BC / Slot_CC`,
+`SGameLogic::SaveGameState (0x57e110)`. Still not lifted and not reached by tc1: `SWorld 0x5d68e0`.

@@ -143,8 +143,7 @@ Deviation: HD's StartReplay reads the map name right after `v4pa` and so misread
 3 of every file -packetrec writes (and reads the player records one dword short); the recompile
 skips the version dword. `PZ_M3_REPLAY_HD=1` keeps HD's read (which fails on tc1.rec).
 
-Status: frame 0 equal at map load (`6365f6b2 09e7b075 346`) and at mission start (`737376f6
-141334d6 358`); frame 1 differs (docs/M3_STATUS.md).
+Status: every frame 0..3900 equal to the original (M3-I2, docs/M3_STATUS.md).
 
 ## How our build uses the oracle
 
@@ -177,7 +176,8 @@ Status: frame 0 equal at map load (`6365f6b2 09e7b075 346`) and at mission start
 
 ## Not verified
 
-- Replay B was compared up to frame 2198 of 3902 (stopped by the trace's time limit), not to the end.
+- ~~Replay B was compared up to frame 2198 of 3902~~ M3-I2's deep capture (recipe B, Space pressed once
+  per paused record after 2198) matched the recording on every frame 0..3900 (`m3ref	c1_crc_bf_full.txt`).
 - One recording, one nation (German), one army. Other nations and longer sessions are untested.
 - What SGameLogic+0x04 does on playback beyond the game speed, and the meaning of SWorld +0x50 in
   the camera block.

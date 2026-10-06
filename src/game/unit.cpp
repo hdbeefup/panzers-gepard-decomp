@@ -9,6 +9,7 @@
 #include "world.h"
 #include "worldapi.h"
 #include "stub_log.h"
+#include "packets.h"
 
 namespace pz {
 
@@ -118,24 +119,6 @@ void SUnit::EC_Default(int p1, int p2)
     PZ_M2_TRACE("SUnit::EC_Default (0x5b8ab0)");
 }
 
-void SUnit::Slot_A8()
-{
-    STUB_LOG("SUnit::Slot_A8 (0x5ba3e0)");
-    PZ_M2_TRACE("SUnit::Slot_A8 (0x5ba3e0)");
-}
-
-void SUnit::Slot_B0()
-{
-    STUB_LOG("SUnit::Slot_B0 (0x5b8d20)");
-    PZ_M2_TRACE("SUnit::Slot_B0 (0x5b8d20)");
-}
-
-void SUnit::Slot_BC()
-{
-    STUB_LOG("SUnit::Slot_BC (0x5b9370)");
-    PZ_M2_TRACE("SUnit::Slot_BC (0x5b9370)");
-}
-
 void SUnit::Slot_C8()
 {
     STUB_LOG("SUnit::Slot_C8 (0x5b9170)");
@@ -146,18 +129,6 @@ void SUnit::EC_AssaultBuilding(int p1, int p2)
 {
     STUB_LOG("SUnit::EC_AssaultBuilding (0x5b82b0)");
     PZ_M2_TRACE("SUnit::EC_AssaultBuilding (0x5b82b0)");
-}
-
-void SUnit::Slot_D8()
-{
-    STUB_LOG("SUnit::Slot_D8 (0x5b8fa0)");
-    PZ_M2_TRACE("SUnit::Slot_D8 (0x5b8fa0)");
-}
-
-void SUnit::Slot_DC()
-{
-    STUB_LOG("SUnit::Slot_DC (0x5b8c90)");
-    PZ_M2_TRACE("SUnit::Slot_DC (0x5b8c90)");
 }
 
 // PANZERS 0x547b90
@@ -272,12 +243,6 @@ void SUnit::Slot_120(int p1)
     (void)p1;
 }
 
-void SUnit::Slot_128()
-{
-    STUB_LOG("SUnit::Slot_128 (0x5b88d0)");
-    PZ_M2_TRACE("SUnit::Slot_128 (0x5b88d0)");
-}
-
 // PANZERS 0x54cd50
 void SUnit::SetHealthPercent(float percent)
 {
@@ -343,12 +308,6 @@ void SUnit::Slot_164(int p1)
     (void)p1;
 }
 
-void SUnit::Slot_168()
-{
-    STUB_LOG("SUnit::Slot_168 (0x5b9360)");
-    PZ_M2_TRACE("SUnit::Slot_168 (0x5b9360)");
-}
-
 // PANZERS 0x5b9e30
 float SUnit::GetHealth()
 {
@@ -405,6 +364,16 @@ void SUnit::SetSpecialAnimation(const char* name)
 bool SUnit::IsCapturable()
 {
     return false;
+}
+
+// PANZERS 0x5ba3e0
+// An enemy of this unit's player (relation -1) gives 3 (attack), any other
+// targetable unit 2 (follow); itself or an untargetable unit 0.
+int SUnit::ActionOn(int target)
+{
+    if (IsTargetable(target, true) && target != WorldIndex)       // 0x5bb6b0
+        return 3 - (GetUnitRelation(target, Player) != -1);       // 0x56d2a0
+    return 0;
 }
 
 } // namespace pz
