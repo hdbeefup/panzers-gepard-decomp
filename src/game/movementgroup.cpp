@@ -24,6 +24,7 @@
 #include "world.h"
 #include "logger.h"
 #include "pz/imodel.h"
+#include "pz/ipixie.h"
 #include <math.h>
 #include "stub_log.h"
 #include "unit.h"
@@ -251,9 +252,12 @@ void SGameLogic::MoveFoundUnitsToLocation(SFoundUnits* g, int command, const flo
         dest[1] = target[1] + (UV::Z(u) - g->Z);
         const float* p = UV::MovementGroup(u) < 0 ? dest : target;
         UnitOrder(u, kOrderAt, command, p[0], p[1], 0, 0, p4, queue);   // 0x5bb980(command, p, p4, queue)
-        if (marker) {
-            // HD: pixie +0x24 PlayEffect(scene, TargetRingFx, (dest x, 0, dest z), (0, 1, 0), 0).
-            Logger.g->Log(1, "STUB: MoveFoundUnitsToLocation target marker (0x57efd0)");
+        if (marker && g_Pixie) {
+            // The target ring at the unit's own destination (dest, not p), for
+            // the local player's orders (ProcessPacket passes player == local).
+            float pos[3] = { dest[0], 0.0f, dest[1] };
+            float up[3] = { 0.0f, 1.0f, 0.0f };
+            g_Pixie->PlayEffect(g_Scene, TargetRingFx, pos, up, 0);   // pixie +0x24
         }
     }
 }

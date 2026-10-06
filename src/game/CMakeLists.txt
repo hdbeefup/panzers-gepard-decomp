@@ -14,6 +14,8 @@ add_library(pzgame STATIC
     campaign.cpp
     packets.h
     packets.cpp
+    packets_rec.h
+    packets_rec.cpp
     unitsave.h
     unitsave.cpp
     iunit.h

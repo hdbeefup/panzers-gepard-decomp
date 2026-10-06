@@ -84,7 +84,10 @@ struct SIGameViewCallback {
 // Offsets in the comments are HD object offsets.
 struct SGameViewData {
     unsigned      KeyDownTime[256];  // +0x05c ms time a key went down (OnKeyDown 0x622f50 sets it, OnKeyUp 0x6246d0
-                                     //        clears it); Update 0x628430 calls KeyScroll 0x62c470 for each held key
+                                     //        clears it); Update 0x628430 calls KeyScroll 0x62c470 for each held key.
+                                     //        +0x420 is KeyDownTime[0xf1], not a field: the "+0x420" written by
+                                     //        ShowMessageBox 0x622b30 is relative to its callback `this` (+0x58), so
+                                     //        it is MouseMode +0x478 (== 1 -> HideSelectionBox 0x5ddb60, then 0).
     unsigned      ClockStart;        // +0x45c ms clock of the last Update (0x628430; mission start 0x6281a0 and
                                      //        ResetClock 0x624730 set it to now)
     unsigned      ClockNextTick;     // +0x460 next 50 ms logic tick (Update 0x628430 adds 0x32)
@@ -99,7 +102,8 @@ struct SGameViewData {
     unsigned char _490[0x49c - 0x490];
     bool          Dragging;          // +0x49c
     unsigned char _49d[0x4a0 - 0x49d];
-    int           ClickTime[2];      // +0x4a0 / +0x4a4 double-click times
+    float         ClickTime[2];      // +0x4a0 / +0x4a4 left / right press time (s, Timer 0x661800) for double clicks
+                                     //        (0.75 s, 4 px; OnMouseDown 0x624a70 stores the float seconds)
     int           DoubleClickPick;   // +0x4a8
     int           MouseX;            // +0x4ac OnMouseMove 0x6250e0 (ctor 50); Update passes it to 0x620bc0
     int           MouseY;            // +0x4b0
@@ -136,7 +140,8 @@ struct SGameViewData {
     unsigned char _3e34[0x3e40 - 0x3e34];
     pz::SWorld*   World;             // +0x3e40 new 0x7538 in LoadMap
     pz::SGameLogic* Logic;           // +0x3e44 new 0x318 in LoadMap
-    unsigned char _3e48[0x3e74 - 0x3e48];
+    unsigned char _3e48[0x3e70 - 0x3e48]; // +0x3e48..+0x3e68 open dialogs (OnKeyDown Esc closes them)
+    int           RotateUnit;        // +0x3e70 the unit of MouseMode 6
     void*         Widgets;           // +0x3e74 widget list
     int           WidgetCount;       // +0x3e78
     unsigned char _3e7c[0x3e80 - 0x3e7c];
@@ -156,6 +161,14 @@ static_assert(offsetof(SGameViewData, LogicFrame828) == 0x828 - 0x5c, "SGameView
 static_assert(offsetof(SGameViewData, LoadingScreen) == 0x3890 - 0x5c, "SGameView layout");
 static_assert(offsetof(SGameViewData, World) == 0x3e40 - 0x5c, "SGameView layout");
 static_assert(offsetof(SGameViewData, ViewState) == 0x3e80 - 0x5c, "SGameView layout");
+static_assert(offsetof(SGameViewData, Viewport) == 0x468 - 0x5c, "SGameView layout");
+static_assert(offsetof(SGameViewData, PressWorld) == 0x484 - 0x5c, "SGameView layout");
+static_assert(offsetof(SGameViewData, Dragging) == 0x49c - 0x5c, "SGameView layout");
+static_assert(offsetof(SGameViewData, ClickTime) == 0x4a0 - 0x5c, "SGameView layout");
+static_assert(offsetof(SGameViewData, DoubleClickPick) == 0x4a8 - 0x5c, "SGameView layout");
+static_assert(offsetof(SGameViewData, MouseInside) == 0x4b4 - 0x5c, "SGameView layout");
+static_assert(sizeof(((SGameViewData*)0)->ClickTime[0]) == 4, "SGameView: ClickTime is a float");
+static_assert(offsetof(SGameViewData, RotateUnit) == 0x3e70 - 0x5c, "SGameView layout");
 
 struct SGameView : SDXWidget, SIGameViewCallback, SGameViewData {
     SGameView();                                                     // 0x6181f0
@@ -189,7 +202,8 @@ struct SGameView : SDXWidget, SIGameViewCallback, SGameViewData {
     void ShowLoadingBackdrop(bool plain);                            // 0x61f460 (gameview_loading.cpp)
     void ReleaseLoadingBackdrop();                                   // board +0x0c / +0x80 on +0x3898 / +0x3894 (0x6281a0)
     int  GetPanelMode();                                             // 0x61f450 (+0x3e80; SSuperWindow 0x65b410)
-    void IssueOrder(int p1, int p2, int p3, int p4, int p5);         // 0x61e740 (agent O; name guessed) packets.h builders
+    void IssueOrder(int x, int y, int p3, int force, int command);   // 0x61e740 (agent O; name guessed) the order at a screen point -> packets.h builders
+    void OnHotkey(int key);                                          // 0x6195b0 (agent O; name guessed) Settings.Hotkeys: pause, speed, command keys
     void OpenInGameMenu();                                           // (recompile) Esc in OnKeyDown 0x622f50 -> SInGameMenu
     // Camera input (agent V, gameview_view.cpp). OnKeyDown (O) stores
     // KeyDownTime[key] = NowMs() when it is 0; OnKeyUp 0x6246d0 (O) calls

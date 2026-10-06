@@ -21,6 +21,7 @@ struct SProperties;
 namespace pz {
 
 struct SIViewport;
+struct SPzSelectRect;   // selection.h
 struct SITerrain;
 struct SUnit;         // src/game/unit.h (agent U)
 struct SUnitDef;
@@ -223,17 +224,28 @@ struct SWorld {
     // --- end LG
     // --- M3 (docs/M3_INTERFACES.md). Placeholders with the HD dword counts
     // (RET n); the owner fixes the parameter types when lifting.
-    // Selection and picking: agent V, src/world/selection.cpp. A unit is
-    // selected when unit +0x104 bit 0 is set (the packet builders send
-    // exactly those units, 0x576130); pick filters on player == LocalPlayer
-    // (+0x16c), allies, unit +0x112 (selectable) and +0x150 (hidden).
-    int  PickUnitAt(int p1, int p2);                           // 0x5fc050 (2) (name guessed) click pick
-    void SelectUnitsInBox(int p1, int p2);                     // 0x5fc5b0 (2) (name guessed) drag box
-    void Select_5fc860(int p1);                                // 0x5fc860 (1)
-    void Select_5fcb10(int p1, int p2);                        // 0x5fcb10 (2)
-    void SelectSameType(int p1, int p2, int p3);               // 0x5fcd10 (3) (name guessed) double click
-    void Select_5fd630(int p1, int p2, int p3, int p4);        // 0x5fd630 (4)
-    void Select_5ddb60();                                      // 0x5ddb60 (0)
+    // Selection and picking: agent O, src/world/selection.cpp (selection.h).
+    // A unit is selected when unit +0x104 bit 0 is set (the packet builders
+    // send exactly those units, 0x576130); every change of that bit also
+    // sends packet 0x32 / 0x33 (select / deselect). `mode` (names guessed):
+    // bits 0-1 keep the old selection bit (& mode & 3), bits 2-3 are or-ed
+    // into the hit units, bit 4 toggles them; 0x10 = select only the hit,
+    // 0x11 / 5 = add (Shift), 0 = clear all. A ray is 6 floats (origin,
+    // direction) as viewport +0x34 (0x689c20) returns it.
+    int  PickUnitAt(float* ray, unsigned mode);                // 0x5fc050 (2) click: own / allied unit under the ray; returns it (-1)
+    void SelectUnitsInBox(const struct SPzSelectRect* box, unsigned mode);   // 0x5fc5b0 (2) drag box (HD: frustum of viewport +0x38)
+    void ApplySelectionToAll(unsigned mode);                   // 0x5fc860 (1) (name guessed) mode 0 deselects everything
+    void SelectUnit(int unit, unsigned mode);                  // 0x5fcb10 (2) (name guessed)
+    void SelectSameType(const struct SPzSelectRect* box, int unit, unsigned mode);   // 0x5fcd10 (3) (name guessed) double click: same prototype in view
+    void DrawSelectionBox(int x0, int y0, int x1, int y1);     // 0x5fd630 (4) the 4 board frames +0x114..+0x120
+    void HideSelectionBox();                                   // 0x5ddb60 (0)
+    void SelectGroup(int group);                               // 0x5fd2f0 (1) (name guessed) key n: units with +0x10c == n; World+0xa0 = n
+    void AssignGroup(int group);                               // 0x5e3660 (1) (name guessed) Ctrl+n
+    void SelectByClass(unsigned mode, bool vehicles, bool classB, bool squads);   // 0x5fd030 (4) (name guessed) Ctrl+A / S / T
+    bool IsUnitSelected(int unit);                             // 0x5ef660 (1)
+    int  CountSelectedUnits();                                 // 0x5e0d70 (0)
+    int  PickAnyUnitAt(float* ray);                            // 0x5ebac0 (1) (name guessed) any visible unit under the ray (order target)
+    void RayTerrain(const float* ray, float* x, float* y, float* z);   // 0x5ea910 (4) (name guessed) first terrain / water hit; x = z = -1 when none
     void ShowUnitRange(int unit);                              // 0x5fee00 (1) SWorld::ShowUnitRange (visual; agent V, worldcamera.cpp)
     void GetCameraState(unsigned* out5);                       // 0x5e6a70 (1) CamTarget x/z, yaw, +0x50, CamDist (replay records it)
     // AI and mission start / load extras: agent L, src/world/ai.cpp.

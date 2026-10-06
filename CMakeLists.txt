@@ -153,6 +153,7 @@ add_subdirectory(src/tools/rendertest)
 add_subdirectory(src/tools/terrainview)
 add_subdirectory(src/tools/fxview)
 add_subdirectory(src/tools/modelview)
+add_subdirectory(src/tools/recdump)
 
 if(Python3_Interpreter_FOUND)
     execute_process(

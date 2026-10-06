@@ -31,6 +31,7 @@
 #include "pz/iviewport.h"
 #include "worldapi.h"
 #include "world.h"
+#include "selection.h"
 #include "unit.h"
 #include "gamelogic.h"
 
@@ -273,7 +274,7 @@ void SGameView::MouseCamera(int x, int y, int ms)
         return;
     // HD first casts a ray through (x, y) (viewport +0x34, world 0x5ea910)
     // for the terrain point under the cursor; only modes 4 / 5 / 6 and the
-    // hover cursor 0x621540 use it. Viewport +0x34 is a stub slot (agent E).
+    // hover cursor 0x621540 use it (case 4 casts its own ray below).
     int cursor = -1;
     switch (MouseMode) {
     case 1: {
@@ -284,9 +285,14 @@ void SGameView::MouseCamera(int x, int y, int ms)
             HoverCursor(x, y, ms);                                 // 0x621540
             break;
         }
-        World->Select_5fd630(PressX, PressY, x, y);                // drag box (agent O)
-        // HD: viewport +0x38 (box frustum) -> 0x5fc5b0(frustum, 0x21):
-        // pending the viewport slot (agent E) and O's selection.
+        World->DrawSelectionBox(PressX, PressY, x, y);             // 0x5fd630 (agent O)
+        {
+            // HD: viewport +0x38 (box frustum) -> 0x5fc5b0(frustum, 0x21):
+            // mode 0x21 keeps bit 0 and marks the units in the box with
+            // bit 1 (the highlight). O's SPzSelectRect stands in for the frustum.
+            pz::SPzSelectRect box = { Viewport, PressX, PressY, x, y };
+            World->SelectUnitsInBox(&box, 0x21);
+        }
         cursor = 0xb;
         break;
     }
@@ -299,11 +305,16 @@ void SGameView::MouseCamera(int x, int y, int ms)
         }
         cursor = 10;
         break;
-    case 4:
+    case 4: {
         // HD: pick 0x5ebac0 + highlight 0x5fcb10(unit, 0x21), cursor 0x14
-        // coloured by the relation 0x56d280. The pick needs the ray.
+        // coloured by the relation 0x56d280 (the colour is not lifted).
+        float ray[6] = { 0, 0, 0, 0, -1.0f, 0 };
+        if (Viewport)
+            Viewport->ScreenToRay(ray, x, y);                      // viewport +0x34
+        World->SelectUnit(World->PickAnyUnitAt(ray), 0x21);
         cursor = 0x14;
         break;
+    }
     case 5:
     case 6:
         // HD: placement preview (air support target, flak) with terrain
@@ -321,7 +332,7 @@ void SGameView::MouseCamera(int x, int y, int ms)
             HoverCursor(x, y, ms);
             break;
         }
-        World->Select_5fc860(1);
+        World->ApplySelectionToAll(1);                             // 0x5fc860(1): clear the highlight
         cursor = 0;
         break;
     }
@@ -568,7 +579,7 @@ void SGameView::ShowMessageBox(const char* text)
     PZ_M3_TRACE("SGameView::ShowMessageBox (0x622b30)");
     Logger.g->Log(1, "PZM3: message box: %s", text ? text : "");
     if (MouseMode == 1)
-        World->Select_5ddb60();
+        World->HideSelectionBox();                             // 0x5ddb60
     MouseMode = 0;
 }
 

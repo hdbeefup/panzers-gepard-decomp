@@ -320,6 +320,14 @@ SGameLogic::~SGameLogic()
     FreeVisMaps();
     if (FrameObject)
         delete (SStreamBuffer*)FrameObject;
+    if (RecordStream) {                                           // +0x1b0 vtbl +0 (1): closes the -packetrec file
+        RecordStream->Release();
+        RecordStream = nullptr;
+    }
+    if (PlaybackStream) {                                             // +0x1b4
+        PlaybackStream->Release();
+        PlaybackStream = nullptr;
+    }
     if (g_Pixie) {
         if (TargetRingFx >= 0 && TargetRingFx) g_Pixie->ReleaseEffectPrototype(TargetRingFx);
         if (TankDustFx >= 0 && TankDustFx) g_Pixie->ReleaseEffectPrototype(TankDustFx);
@@ -369,9 +377,15 @@ void SGameLogic::RefreshM2()
         w->UpdateSpeech();                                        // 0x607f50
     Tick_578b00();
     Tick_578a70();
-    if ((((const int*)this)[0x6d] == 0 || Running != 0) && FrameObject) {   // +0x1b4, +0x04, +0x20
-        // HD 0x65daf0(0): FrameObject->Seek(0, 0) to read it back.
-        ProcessPacket(w ? w->LocalPlayer : 0, 0);                 // 0x5737c0(World+0x16c, &FrameObject)
+    // HD stops reading a recording at its first paused frame: the record
+    // restores Running = 0 and this test then skips ProcessPacket until the
+    // player unpauses (each unpause replays one recorded paused frame).
+    // PZ_M3_REPLAY_PAUSED=1 (recompile test hook, off by default) keeps
+    // reading through the recorded pauses, as the recording session did.
+    static const bool s_replayPaused = getenv("PZ_M3_REPLAY_PAUSED") != nullptr;
+    if ((PlaybackStream == nullptr || Running != 0 || s_replayPaused) && FrameObject) { // +0x1b4, +0x04, +0x20
+        ((SStream*)FrameObject)->WriteByte(0);                    // 0x65daf0(0): ends the frame's packet records
+        ProcessPacket(w ? w->LocalPlayer : 0, (SStream**)&FrameObject);   // 0x5737c0(World+0x16c, &FrameObject)
         BeginFrame();                                             // 0x571840
         ++FramesSent;
         Tick_579390();
@@ -598,14 +612,7 @@ void SGameLogic::Tick_578a70()
     MessageTimer = 400;
 }
 
-// PANZERS 0x5737c0 (single-player: no SMulti, the local frame stream only)
-// HD decodes the packets of the frame stream (player orders). The menu has
-// none; the stream holds only the CRC that BeginFrame wrote.
-void SGameLogic::ProcessPacket(int frame, int p2)
-{
-    PZ_M2_TRACE("SGameLogic::ProcessPacket (0x5737c0)");
-    (void)frame; (void)p2;
-}
+// SGameLogic::ProcessPacket 0x5737c0: packets.cpp (agent O).
 
 // PANZERS 0x57dfe0 (menu path)
 // Autosave every 5/15/30 minutes (DAT_00929dd8) when a campaign exists

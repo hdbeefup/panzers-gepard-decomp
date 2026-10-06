@@ -82,7 +82,7 @@ struct SGameLogic {
     void RefreshM2();                     // the 0x576d80 single-player path (recompile split)
     void Tick_578b00();                   // per tick, before the frame loop
     void Tick_578a70();                   // per tick: message lines (+0x5c/+0x78/+0x7c)
-    void ProcessPacket(int frame, int p2);// 0x5737c0 per frame (SMulti absent: local frame)
+    void ProcessPacket(int player, SStream** frame);   // 0x5737c0 per frame and player (packets.cpp, agent O)
     void BeginFrame();                    // 0x571840 new frame stream, world CRC into CrcHistory
     unsigned ComputeWorldCRC();           // 0x56aa10 rotl-xor over the live units (see iunit.h) ^ World+0x7518
     void DumpUnitsForCrc();               // recompile only: PZ_M2_UNITDUMP=<n> per-tick unit trace
@@ -105,6 +105,17 @@ struct SGameLogic {
     void FillVisOctant(int player, int cell, int radius, int outer, int inner, unsigned char bits);   // 0x567180
     void FreeVisMaps();                   // recompile: the maps owned by this object (dtor)
     // --- end LG
+    // --- M3 agent O (packets.cpp): recording / playback and the order handlers.
+    void CheckSendQSize();                         // 0x562fb0 (multiplayer send-queue warning only)
+    void OrderPlain(SFoundUnits* g, int command, bool p3, bool queue);              // 0x564440 SUnit 0x5bb7b0 per unit
+    void OrderAtPoint(SFoundUnits* g, int command, const float* xz, bool p4, bool queue);   // 0x564660 SUnit 0x5bb980 per unit
+    void OrderAtUnit(SFoundUnits* g, int command, int unit, bool p4, bool queue);   // 0x564720 SUnit 0x5bb8a0 per unit
+    void OrderValue(SFoundUnits* g, int command, int value, bool p4, bool queue);   // 0x564870 SUnit 0x5bbb60 per unit
+    void OrderFloat(SFoundUnits* g, int command, float value, bool p4, bool queue); // 0x564910 SUnit 0x5bbc40 per unit
+    void MoveFoundUnitsNear(SFoundUnits* g, int command, const float* target, bool p4, bool queue, bool marker);   // 0x57e8b0
+    void MoveFoundUnitsToLocationDir(SFoundUnits* g, int command, const float* target, float dir, bool p4, bool queue, bool marker);   // 0x57f200
+    void ModifyMovementGroupUnitsFormationPos(int group, SFoundUnits* g, const float* offsets);   // 0x5708f0
+    // --- end O
     // --- M2-I sub-agent UB / SQ / BW: SGameLogic functions the units need (one line each, tagged).
     // --- end units
     // --- M3 agent F: mission start / end and the save (gamelogic_mission.cpp).

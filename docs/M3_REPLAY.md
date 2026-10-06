@@ -79,6 +79,48 @@ Saved: `m3ref\tc1.rec`, `m3ref\tc1_crc_ref.txt` (frames 0..3902), `m3ref\playB_c
   restored, and the switch at 0x5739b8 applies the records. The recorded CRC is compared with the
   local CrcHistory and every mismatch logs "Inconsistency in frame %d with player %d.".
 
+## The packets of tc1.rec (agent O)
+
+`recdump` (src/tools/recdump, built with the game) parses a recording with the game's own frame
+reader and the record table of `src/game/packets_rec.cpp`, prints every record and writes the file
+back field by field: `recdump m3ref\tc1.rec dump.txt out.rec`. tc1.rec comes back **byte-identical**
+(142,476 bytes), so the frame layout and the field layout of every op used are right.
+
+- Header: version byte 3, then the Stormregion signature and the 'SAVE' chunk (1,961 bytes).
+- 4,255 frame records: 3,902 with Running 1 and 353 paused ones (Running 0: records 2198..2258, the
+  Space pause, and 3963..4254 after Esc). Record 0 carries the map-load CRC (`6365f6b2`, 346 units);
+  record n (n >= 1, before the pause) carries the CRC of logic frame n - 1. A frame without orders is
+  5 bytes (CRC + end byte).
+- Only 8 records hold orders, 13 records in all; frame = SGameLogic +0x08 when they apply, i.e. the
+  first `PZM2 CRC <frame>` line that sees them:
+
+| Frame | Records |
+|---|---|
+| 402 | `32` select 346 (the Panzer III F) |
+| 416 | `02` move (B1 0, B2 0, 137.94, 151.47) units [346] |
+| 449 | `33` deselect 346, `32` select 352 (the riflemen squad) |
+| 462 | `02` move (0, 0, 141.80, 150.60) units [352] |
+| 642 | `32` select 346 |
+| 654 | `02` move (0, 0, 93.09, 86.00) units [346] (the minimap right click) |
+| 1391 | `20` support 0x567d40 (dir 0, flag 0, 121.26, 57.72): an aircraft call with a heading (the README names a recon plane and paratroopers) |
+| 2719 | `1c` support 0x5674c0 (121.47, 55.90): 16 "Projectile cannonade" units around the point (world RNG, 2 draws each) |
+
+  Selection itself is a packet: 0x32 / 0x33 set or clear unit +0x108 bit `player` (a world-CRC field)
+  and call unit +0x148 / +0x14c. Pause and speed are not packets (SetRunning, recorded as Running).
+  Note that 352 is never deselected by a packet although the move at 654 has only 346: its +0x108 bit
+  stays set in HD too.
+- **HD stops at the first paused record.** Playback restores Running = 0 from the record, and Refresh
+  0x576d80 calls ProcessPacket only when `PacketPlay == 0 || Running != 0`, so the replay freezes at
+  frame 2198 until the player unpauses, once per recorded paused frame (61 times here). That is why
+  Replay B of the original ends at frame 2198. Our build does the same; the recompile test hook
+  `PZ_M3_REPLAY_PAUSED=1` keeps reading through the paused records, as the recording session did.
+- HD quirks kept: op 0x22's builder 0x5759c0 writes (B, i32) but ProcessPacket reads (B, f32, f32);
+  op 0x30 has a builder (0x575d20) but no case (Panic "Invalid command packet"); ops 0x1f / 0x20 write
+  the flag as a float and read it as an int (then compare the converted value with 0.0).
+- Our own recording and playback (`-m3 -packetrec` / `-packetplay`, without F's replay header):
+  box select of 5 units, a right-click move and a deselect replayed with identical CRC / seed /
+  unit count on all 1,349 frames and no "Inconsistency" line.
+
 ## Our build: the command (agent F, works since 2026-10-06)
 
 ```
