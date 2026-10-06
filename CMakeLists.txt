@@ -132,6 +132,7 @@ add_subdirectory(src/main)
 # Test tools
 add_subdirectory(src/tools/paktest)
 add_subdirectory(src/tools/rendertest)
+add_subdirectory(src/tools/terrainview)
 
 if(Python3_Interpreter_FOUND)
     execute_process(

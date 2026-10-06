@@ -21,6 +21,10 @@ add_library(pz3d STATIC
     pzmodel.cpp
     pzterrain.h
     pzterrain.cpp
+    parcel.h
+    parcel.cpp
+    road.cpp
+    decal.cpp
     pzpixie.h
     pzpixie.cpp
 )
