@@ -58,6 +58,31 @@ struct SIBoard {
     // 0x6cb0c0). Children of the scaler are laid out in width x height
     // units and stretched to the scaler's frame size, separately in x and y.
     virtual void SetVirtualSize(int frame, int width, int height) = 0;
+    // Panzers HD minimap frame (type 6) and its overlay. HD SBoard slots:
+    //  +0x4c SetMinimapGlyph 0x6caca0: the frame's texture and glyph rect (size from the glyph);
+    //  +0x54 SetMinimapTerrain 0x6c4f50: frame +0x54, the map image (else drawn black);
+    //  +0xc0 SetMinimapCompass 0x6cac00: frame +0x58, the compass font drawn over the map;
+    //  +0xa4 AddMinimapDot 0x6c2e70 / +0xa8 ClearMinimapDots 0x6c3a90: unit dots
+    //        (minimap pixels from the centre, y up);
+    //  +0xac SetMinimapViewCorner 0x6cabd0: the camera's view on the ground (4 corners);
+    //  +0xb0 ClearMinimapBlinks 0x6c3a80 / +0xb4 AddMinimapBlink 0x6c2db0: "under attack"
+    //        triangles, 2 s each;
+    //  +0xb8 SetMinimapMarkCorner 0x6cae60 / +0xbc ClearMinimapMarkCorners 0x6c3aa0.
+    // The rotation +0x50 (0x6caea0) is SetMinimapRotation.
+    virtual void SetMinimapGlyph(int frame, int font, int glyph) = 0;
+    virtual void SetMinimapTerrain(int frame, bool on) = 0;
+    virtual void SetMinimapCompass(int frame, int font) = 0;
+    virtual void AddMinimapDot(float x, float y, unsigned int color) = 0;
+    virtual void ClearMinimapDots() = 0;
+    virtual void SetMinimapViewCorner(int corner, float x, float y) = 0;
+    virtual void ClearMinimapBlinks() = 0;
+    virtual void AddMinimapBlink(float x, float y, unsigned int color) = 0;
+    virtual void SetMinimapMarkCorner(int corner, float x, float y, unsigned int color) = 0;
+    virtual void ClearMinimapMarkCorners() = 0;
+    // Panzers: the cursor colour (HD board +0x9c 4th argument, the owning
+    // widget's SWidget +0x40). HD tints only the D3D hardware cursor (+0xc4
+    // 0x6ca4e0); the recompile's software cursor takes it (white = none).
+    virtual void SetCursorColor(unsigned int color) = 0;
 };
 
 #endif // DENGINE3_IBOARD_H

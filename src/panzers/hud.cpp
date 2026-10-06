@@ -600,6 +600,9 @@ void PzHudCreate(SGameView* v)
     h->Minimap.SetPosition(0xb, 0x24c, 0, 0);
     h->Minimap.Create(IF, 0, 0, 0xf0);                             // 0x64c2f0
     h->Minimap.Cursor = 0xb;
+    // HD keeps the SMinimap at view +0x7cc, so its frame (+0x5c) is view
+    // +0x828: the minimap frame LoadMap passes to the SGameLogic ctor.
+    v->LogicFrame828 = h->Minimap.Frame;
     // Minimap buttons on the panel.
     AddButton(&h->Panel, &h->MarkerButton, 0xcb, 0x2c, IF, 0x1a, 0x1b, 0x1c, -1);
     h->MarkerButton.SetVisible(false);
@@ -738,6 +741,8 @@ void PzHudDestroy(SGameView* v)
     int ifFont = h->InterfaceFont;
     delete h;                                                      // the members unlink themselves from the view
     s_Hud = nullptr;
+    PzMinimapRelease();
+    PzCursorColorReset();
     for (int f : fonts)
         if (f >= 0)
             Board->ReleaseFont(f);
@@ -775,6 +780,8 @@ void PzHudUpdate(SGameView* v)
     SGameHud* h = PzHud(v);
     if (!h || !pz::g_World)
         return;
+    PzMinimapUpdate(v);                                            // the minimap part of 0x5638f0
+    PzCursorColorUpdate(v);
     unsigned char* w = (unsigned char*)pz::g_World;
     int player = *(int*)(w + 0x16c);
     const int* support = (const int*)(w + 0x19c + player * 0x48);
@@ -884,7 +891,7 @@ bool PzHudAction(SGameView* v, SWidget* s, int action, int param)
         }
         if (s == &h->TerrainButton) {
             h->TerrainButton.SetChecked(!h->TerrainButton.Checked);
-            h->Minimap.SetRotation(h->TerrainButton.Checked ? 1.0f : 0.0f);   // 0x64c390(byte +0x1502)
+            h->Minimap.SetTerrain(h->TerrainButton.Checked);               // 0x64c390(byte +0x1502)
             return true;
         }
         if (s == &h->AllyColorsButton) {

@@ -39,6 +39,40 @@ struct TLVertBoard { float x, y, z, rhw; unsigned int color; float u, v; };
 // IDA decompiled these as individual dword_ globals at 0x58F3B0..0x58F580
 static TLVertBoard vert[4]; // primary quad (triangle strip)
 
+// Panzers HD minimap: the frame fields +0x54 / +0x58 and the board state
+// +0x5c..+0xd4 (the SWINE SFrame / SBoard sizes are asserted, so they live
+// here; one board).
+#include <map>
+struct SHdMinimapFrame { bool Terrain = true; bool Hd = false; int Compass = -1; };
+static std::map<int, SHdMinimapFrame> s_MmFrames;
+static void PzMinimapFrameInit(int idx) { s_MmFrames[idx] = SHdMinimapFrame(); }
+static int PzMinimapFrameRelease(int idx)
+{
+  auto it = s_MmFrames.find(idx);
+  if (it == s_MmFrames.end())
+    return -1;
+  int compass = it->second.Hd ? it->second.Compass : -1;
+  s_MmFrames.erase(it);
+  return compass;
+}
+static bool PzMinimapFrameHd(int idx)
+{
+  auto it = s_MmFrames.find(idx);
+  return it != s_MmFrames.end() && it->second.Hd;
+}
+struct SMinimapDot { float X, Y; unsigned int Color; };                          // HD +0x5c (0xc)
+struct SMinimapBlink { float X, Y; unsigned int Color; unsigned int Time; float Phase; };   // HD +0x98 (0x14)
+static SMinimapDot* MinimapDots = nullptr;      // HD board +0x5c / +0x60 count
+static int MinimapDotCount = 0;
+static int MinimapDotMax = 0;
+static float MinimapView[4][3] = {};            // HD board +0x68: the camera's ground corners
+static SMinimapBlink* MinimapBlinks = nullptr;  // HD board +0x98 / +0x9c count
+static int MinimapBlinkCount = 0;
+static int MinimapBlinkMax = 0;
+static float MinimapMark[4][3] = {};            // HD board +0xa4: a marked area (x, y, colour)
+static bool MinimapMarkOn = false;              // HD board +0xd4
+static unsigned int s_CursorColor = 0xFFFFFFFF;  // Panzers: board +0x9c colour (see SetCursorColor)
+
 // The render buffer is a large array of vertices for batched rendering
 // dword_58F3B0 is vert[0].x, stride 28 bytes
 // Additional vertices extend beyond the initial 4
@@ -338,6 +372,8 @@ int SBoard::CreateFrame(SFrameType type, int parent, int x, int y, int gravity, 
     case FT_SPRITE_9SLICE:
       array[v11].data.Sprite.Font = -1;
       p_Frames->array[v11].data.Sprite.SepiaColor = 0;
+      if (type == FT_MINIMAP)
+        PzMinimapFrameInit(v11);   // Panzers HD 0x6c3ab0 case 6: terrain on, no compass
       break;
     case FT_TEXT:
     case FT_FIXTEXT:
@@ -450,6 +486,8 @@ void SBoard::DestroyFrame(int idx)
     case FT_MINIMAP:        // 6
     case FT_SPRITE_9SLICE:  // 8
       this->ReleaseFont(array[idx].data.Sprite.Font);
+      if (array[idx].data.Type == FT_MINIMAP)
+        this->ReleaseFont(PzMinimapFrameRelease(idx));   // Panzers: frame +0x58
       break;
     case FT_TEXT:           // 2
     case FT_BOX:            // 3 — IDA grouped with TEXT; Text union members cleared
@@ -2057,6 +2095,10 @@ void SBoard::Render(float a2, int a3, int a4)
       }
 
       case FT_MINIMAP:
+      if (PzMinimapFrameHd(idx)) {
+        RenderHdMinimap(f, idx, fx, fy, curScaleX, curScaleY, lastTextureIdx);
+        break;
+      }
       {
         int fontIdx = f.Minimap.Font;
         if (fontIdx >= 0 && fontIdx < Fonts.size && Fonts.array[fontIdx].use == 0x7FFFFFFF)
@@ -2557,10 +2599,13 @@ void SBoard::Render(float a2, int a3, int a4)
       float cw = g.Dest.Right - g.Dest.Left;
       float ch = g.Dest.Bottom - g.Dest.Top;
 
-      vert[0].x = cx;      vert[0].y = cy;      vert[0].u = g.Src.Left;  vert[0].v = g.Src.Top;    vert[0].color = 0xFFFFFFFF;
-      vert[1].x = cx + cw; vert[1].y = cy;      vert[1].u = g.Src.Right; vert[1].v = g.Src.Top;    vert[1].color = 0xFFFFFFFF;
-      vert[2].x = cx;      vert[2].y = cy + ch; vert[2].u = g.Src.Left;  vert[2].v = g.Src.Bottom; vert[2].color = 0xFFFFFFFF;
-      vert[3].x = cx + cw; vert[3].y = cy + ch; vert[3].u = g.Src.Right; vert[3].v = g.Src.Bottom; vert[3].color = 0xFFFFFFFF;
+      // Panzers: the colour HD's hardware cursor 0x6ca4e0 multiplies the
+      // glyph with (glyphs 9 and 10 are always drawn plain in software).
+      unsigned int cc = (CursorGlyph == 9 || CursorGlyph == 10) ? 0xFFFFFFFF : s_CursorColor;
+      vert[0].x = cx;      vert[0].y = cy;      vert[0].u = g.Src.Left;  vert[0].v = g.Src.Top;    vert[0].color = cc;
+      vert[1].x = cx + cw; vert[1].y = cy;      vert[1].u = g.Src.Right; vert[1].v = g.Src.Top;    vert[1].color = cc;
+      vert[2].x = cx;      vert[2].y = cy + ch; vert[2].u = g.Src.Left;  vert[2].v = g.Src.Bottom; vert[2].color = cc;
+      vert[3].x = cx + cw; vert[3].y = cy + ch; vert[3].u = g.Src.Right; vert[3].v = g.Src.Bottom; vert[3].color = cc;
 
       lpD3DDev->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, vert, sizeof(TLVertBoard));
     }
@@ -5424,3 +5469,314 @@ PANZERS_LAYOUT_CHECK(SBoard, SBOARD);
 PANZERS_LAYOUT_CHECK(SFontProp, SFONTPROP);
 PANZERS_LAYOUT_CHECK(SFrame, SFRAME);
 
+
+
+// ===========================================================================
+// Panzers HD minimap (SBoard +0x4c, +0x54, +0xa4..+0xc0 and the frame-type-6
+// branch of the board render 0x6c7150). The frame shows the minimap texture
+// rotated with the camera, the unit dots, the camera's view on the ground,
+// the "under attack" triangles and the compass ring on top.
+// ===========================================================================
+
+// PANZERS 0x6caca0
+void SBoard::SetMinimapGlyph(int frame, int font, int glyph)
+{
+  if (frame < 0 || frame >= Frames.size || Frames.array[frame].use != 0x7FFFFFFF)
+    Logger.g->Panic("SHeap<%s>::operator[]: invalid index (%d)", "SBoard::SFrame", frame);
+  SFrame &f = Frames.array[frame].data;
+  if (f.Type != FT_MINIMAP)
+    Logger.g->Panic("SBoard::SetMinimapGlyph: Not a Minimap frame");
+  this->ReleaseFont(f.Minimap.Font);                              // +0x80
+  s_MmFrames[frame].Hd = true;
+  if (font < 0) {
+    f.Minimap.Font = -1;
+    f.Width = 0;
+    f.Height = 0;
+    return;
+  }
+  f.Minimap.Font = AddRefFont(font);                              // 0x6c2f00
+  if (font < Fonts.size && Fonts.array[font].use == 0x7FFFFFFF && glyph >= 0 && glyph < 256) {
+    f.Minimap.Glyph = Fonts.array[font].data.Glyphs[glyph];       // 0x6c2ac0: glyph record (glyph + 1) * 0x24
+    // ROUND (fistp, control word 0x7f: nearest) of the glyph's size.
+    f.Width = (int)floorf(f.Minimap.Glyph.Dest.Right - f.Minimap.Glyph.Dest.Left + 0.5f);
+    f.Height = (int)floorf(f.Minimap.Glyph.Dest.Bottom - f.Minimap.Glyph.Dest.Top + 0.5f);
+  }
+}
+
+// PANZERS 0x6c4f50
+void SBoard::SetMinimapTerrain(int frame, bool on)
+{
+  if (frame < 0 || frame >= Frames.size || Frames.array[frame].use != 0x7FFFFFFF)
+    Logger.g->Panic("SHeap<%s>::operator[]: invalid index (%d)", "SBoard::SFrame", frame);
+  s_MmFrames[frame].Terrain = on;
+}
+
+// PANZERS 0x6cac00
+void SBoard::SetMinimapCompass(int frame, int font)
+{
+  if (frame < 0 || frame >= Frames.size || Frames.array[frame].use != 0x7FFFFFFF)
+    Logger.g->Panic("SHeap<%s>::operator[]: invalid index (%d)", "SBoard::SFrame", frame);
+  SHdMinimapFrame &m = s_MmFrames[frame];
+  if (m.Hd)
+    this->ReleaseFont(m.Compass);                                 // +0x80
+  else
+    Frames.array[frame].data.Minimap.Font = -1;   // recompile: the HD draw needs a map font first
+  m.Hd = true;
+  m.Compass = font >= 0 ? AddRefFont(font) : -1;                  // 0x6c2f00
+}
+
+// PANZERS 0x6c2e70
+void SBoard::AddMinimapDot(float x, float y, unsigned int color)
+{
+  if (MinimapDotCount == MinimapDotMax) {                         // 0x6c2bd0
+    int max = MinimapDotMax < 0x10 ? 0x10 : (MinimapDotMax * 6) / 5;
+    MinimapDots = (SMinimapDot *)realloc(MinimapDots, max * sizeof(SMinimapDot));
+    MinimapDotMax = max;
+  }
+  SMinimapDot &d = MinimapDots[MinimapDotCount++];
+  d.X = x;
+  d.Y = y;
+  d.Color = color;
+}
+
+// PANZERS 0x6c3a90
+void SBoard::ClearMinimapDots()
+{
+  MinimapDotCount = 0;                                            // 0x6c3a00(0)
+}
+
+// PANZERS 0x6cabd0
+void SBoard::SetMinimapViewCorner(int corner, float x, float y)
+{
+  MinimapView[corner][0] = x;
+  MinimapView[corner][1] = y;
+}
+
+// PANZERS 0x6c3a80
+void SBoard::ClearMinimapBlinks()
+{
+  MinimapBlinkCount = 0;                                          // 0x6c3980(0)
+}
+
+// PANZERS 0x6c2db0
+// The blink starts at the board clock (+0x20) with a random phase (CRT rand
+// 0x78c846: rand() / 32768 * 2 pi; render only).
+void SBoard::AddMinimapBlink(float x, float y, unsigned int color)
+{
+  if (MinimapBlinkCount == MinimapBlinkMax) {                     // 0x6c2b60
+    int max = MinimapBlinkMax < 0x10 ? 0x10 : (MinimapBlinkMax * 6) / 5;
+    MinimapBlinks = (SMinimapBlink *)realloc(MinimapBlinks, max * sizeof(SMinimapBlink));
+    MinimapBlinkMax = max;
+  }
+  SMinimapBlink &b = MinimapBlinks[MinimapBlinkCount++];
+  b.X = x;
+  b.Y = y;
+  b.Color = color;
+  b.Time = GetTickCount();   // recompile: the SWINE board keeps no HD clock (+0x20, set by +0xa0)
+  int r = rand();                                                 // 0x78c846
+  b.Phase = (float)((double)r * 3.0517578125e-05 * 6.2831854820251465);   // 0x7f4540, 0x7f4570
+}
+
+// PANZERS 0x6cae60
+void SBoard::SetMinimapMarkCorner(int corner, float x, float y, unsigned int color)
+{
+  MinimapMark[corner][0] = x;
+  MinimapMark[corner][1] = y;
+  memcpy(&MinimapMark[corner][2], &color, 4);
+  MinimapMarkOn = true;
+}
+
+// PANZERS 0x6c3aa0
+void SBoard::ClearMinimapMarkCorners()
+{
+  MinimapMarkOn = false;
+}
+
+// Panzers: board +0x9c's colour argument (see iboard.h).
+void SBoard::SetCursorColor(unsigned int color)
+{
+  s_CursorColor = color;
+}
+
+// PANZERS 0x550b40
+// Clips the segment seg = {x0, y0, x1, y1} to the circle (centre, radius);
+// false when it lies outside.
+static bool ClipSegmentToCircle(float *seg, const float *c, float radius)
+{
+  float x0 = seg[0], y0 = seg[1];
+  float dy = seg[3] - y0;
+  float dx = seg[2] - x0;
+  float a = dy * dy + dx * dx;
+  float b = ((x0 - c[0]) * dx + (y0 - c[1]) * dy) * 2.0f;                 // 0x7f4558
+  float disc = b * b - (((y0 * y0 + x0 * x0 + c[0] * c[0] + c[1] * c[1]) -
+                         (x0 * c[0] + y0 * c[1]) * 2.0f) - radius * radius) * a * 4.0f;   // 0x7f4588
+  if (0.0f < disc) {
+    double root = sqrt((double)disc);
+    a = a * 2.0f;
+    float t0 = (-b - (float)root) / a;
+    float t1 = ((float)root - b) / a;
+    if (t0 < 1.0f && 0.0f < t1) {
+      if (t1 < 1.0f) {
+        seg[2] = seg[0] + t1 * dx;
+        seg[3] = seg[1] + t1 * dy;
+      }
+      if (0.0f < t0) {
+        seg[0] = t0 * dx + seg[0];
+        seg[1] = t0 * dy + seg[1];
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+static void MinimapLine(IDirect3DDevice9 *dev, const float *seg, const float *centre, float radius, unsigned int color)
+{
+  float s[4] = { seg[0], seg[1], seg[2], seg[3] };
+  if (!ClipSegmentToCircle(s, centre, radius))
+    return;
+  TLVertBoard v[2];
+  for (int i = 0; i < 2; ++i) {
+    v[i].x = s[i * 2];
+    v[i].y = s[i * 2 + 1];
+    v[i].z = 0.0f;
+    v[i].rhw = 1.0f;
+    v[i].color = color;
+    v[i].u = v[i].v = 0.0f;
+  }
+  dev->DrawPrimitiveUP(D3DPT_LINELIST, 1, v, sizeof(TLVertBoard));   // device +0x14c (2, 1)
+}
+
+// PANZERS 0x6c7150 (frame type 6)
+void SBoard::RenderHdMinimap(SFrame &f, int frame, float fx, float fy, float scaleX, float scaleY, int &lastTextureIdx)
+{
+  const SHdMinimapFrame &mf = s_MmFrames[frame];
+  int font = f.Minimap.Font;
+  if (font < 0 || font >= Fonts.size || Fonts.array[font].use != 0x7FFFFFFF)
+    return;
+  IDirect3DDevice9 *dev = lpD3DDev;
+  const double half = 0.5;                                         // 0x7ea760
+  const int w = f.Width, h = f.Height;
+  // The map: a quad over the frame, the texture coordinates turned by the
+  // rotation around the texture centre (172 / 256 of the texture across).
+  int tex = Fonts.array[font].data.TextureIndex;
+  Gepard->SetTexture(0, tex, 1);                                   // 0x688d80 / 0x688980
+  lastTextureIdx = tex;
+  float L = (float)((double)fx - half);
+  float T = (float)((double)fy - half);
+  float R = (float)((double)((float)w * scaleX + fx) - half);
+  float B = (float)((double)((float)h * scaleY + fy) - half);
+  float a = (float)((double)f.Minimap.Rotation + 0.7853981852531433);   // 0x7f7f50
+  double sqrt2 = sqrt(2.0);                                        // 0x78d090(0x7ea768)
+  float k = (float)(sqrt2 * 0.3359375);                            // 0x882fe8: 86 / 256
+  double ck = cos((double)a) * (double)k;                          // 0x78d480
+  double sk = sin((double)a) * (double)k;                          // 0x78d640
+  unsigned int color = mf.Terrain ? 0xFFFFFFFFu : 0xFF000000u;
+  TLVertBoard q[4];
+  q[0].x = L; q[0].y = T; q[0].u = (float)(half - ck); q[0].v = (float)(half - sk);
+  q[1].x = L; q[1].y = B; q[1].u = (float)(half - sk); q[1].v = (float)(half + ck);
+  q[2].x = R; q[2].y = T; q[2].u = (float)(half + sk); q[2].v = (float)(half - ck);
+  q[3].x = R; q[3].y = B; q[3].u = (float)(half + ck); q[3].v = (float)(half + sk);
+  for (int i = 0; i < 4; ++i) {
+    q[i].z = 0.0f;
+    q[i].rhw = 1.0f;
+    q[i].color = color;
+  }
+  dev->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, q, sizeof(TLVertBoard));   // device +0x14c (5, 2)
+
+  // The overlay is untextured (0x688d80(0, -1), 0x6887d0(2)).
+  Gepard->SetTexture(0, -1, 1);
+  lastTextureIdx = -2;
+  float r = -f.Minimap.Rotation;                                   // xorps 0x7f5ac0
+  double cr = cos((double)r), sr = sin((double)r);
+  double hw = (double)w * half, hh = (double)h * half;
+  for (int i = 0; i < MinimapDotCount; ++i) {
+    const SMinimapDot &d = MinimapDots[i];
+    float x = (float)((((double)d.X * cr - (double)d.Y * sr) + hw) * (double)scaleX + (double)fx);
+    float y = (float)((((double)d.Y * cr + (double)d.X * sr) + hh) * (double)scaleY + (double)fy);
+    q[0].x = x - 1.0f; q[0].y = y - 1.0f;
+    q[1].x = x - 1.0f; q[1].y = y + 1.0f;
+    q[2].x = x + 1.0f; q[2].y = y - 1.0f;
+    q[3].x = x + 1.0f; q[3].y = y + 1.0f;
+    for (int k2 = 0; k2 < 4; ++k2)
+      q[k2].color = d.Color;
+    dev->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, q, sizeof(TLVertBoard));
+  }
+  // Lines are clipped to the round map (radius 85 px).
+  float centre[2] = { (float)w * 0.5f * scaleX + fx, (float)h * 0.5f * scaleY + fy };   // 0x7f453c
+  float radius = scaleX * 85.0f;                                   // 0x883014
+  auto toScreen = [&](float px, float py, float *out) {
+    out[0] = (float)((((double)px * cr - (double)py * sr) + hw) * (double)scaleX + (double)fx);
+    out[1] = (float)((((double)py * cr + (double)px * sr) + hh) * (double)scaleY + (double)fy);
+  };
+  // The camera's view on the ground.
+  for (int i = 0; i < 4; ++i) {
+    int j = (i + 1) & 3;
+    float seg[4];
+    toScreen(MinimapView[i][0], MinimapView[i][1], seg);
+    toScreen(MinimapView[j][0], MinimapView[j][1], seg + 2);
+    MinimapLine(dev, seg, centre, radius, 0xC0FFFFC0u);           // -7.9999695f
+  }
+  // "Under attack": a turning triangle that shrinks over 2 s.
+  unsigned int now = GetTickCount();
+  for (int i = 0; i < MinimapBlinkCount;) {
+    SMinimapBlink &b = MinimapBlinks[i];
+    unsigned int age = now - b.Time;
+    if (age < 0x7d1) {
+      float a0 = (float)(double)age * 0.002094395225867629f + b.Phase;   // 0x882fd8
+      float a1 = a0 + 2.094395160675049f;                          // 0x883008
+      float a2 = a0 + 4.188790321350098f;                          // 0x88300c
+      float rad = (float)(double)(int)(b.Time - now + 2000) * 0.015f;   // 0x87c790
+      float p[3][2];
+      float angles[3] = { a0, a1, a2 };
+      for (int k2 = 0; k2 < 3; ++k2) {
+        double an = (double)angles[k2];
+        p[k2][0] = (float)((((cos(an) * (double)rad + (double)b.X * cr) - (double)b.Y * sr) + hw) * (double)scaleX + (double)fx);
+        p[k2][1] = (float)(((sin(an) * (double)rad + (double)b.X * sr + (double)b.Y * cr) + hh) * (double)scaleY + (double)fy);
+      }
+      for (int k2 = 0; k2 < 3; ++k2) {
+        int n = (k2 + 1) % 3;
+        float seg[4] = { p[k2][0], p[k2][1], p[n][0], p[n][1] };
+        MinimapLine(dev, seg, centre, radius, b.Color);
+      }
+      ++i;
+    } else {
+      memmove(&MinimapBlinks[i], &MinimapBlinks[i + 1], (MinimapBlinkCount - i - 1) * sizeof(SMinimapBlink));
+      --MinimapBlinkCount;
+    }
+  }
+  // A marked area.
+  if (MinimapMarkOn) {
+    for (int i = 0; i < 4; ++i) {
+      int j = (i + 1) & 3;
+      float seg[4];
+      toScreen(MinimapMark[i][0], MinimapMark[i][1], seg);
+      toScreen(MinimapMark[j][0], MinimapMark[j][1], seg + 2);
+      unsigned int c;
+      memcpy(&c, &MinimapMark[i][2], 4);
+      MinimapLine(dev, seg, centre, radius, c);
+    }
+  }
+  // The compass ring, 6.5 px larger on each side, turned with the map.
+  int compass = mf.Compass;
+  if (compass >= 0 && compass < Fonts.size && Fonts.array[compass].use == 0x7FFFFFFF) {
+    int ctex = Fonts.array[compass].data.TextureIndex;
+    Gepard->SetTexture(0, ctex, 1);
+    lastTextureIdx = ctex;
+    float L2 = (float)((double)(fx - scaleX * 6.5f) - half);       // 0x7f8410
+    float T2 = (float)((double)(fy - scaleY * 6.5f) - half);
+    float R2 = (float)((double)(((float)w + 6.5f) * scaleX + fx) - half);
+    float B2 = (float)((double)(((float)h + 6.5f) * scaleY + fy) - half);
+    float k3 = (float)(sqrt2 * 0.361328125);                       // 0x882ff0: 92.5 / 256
+    double ck3 = cos((double)a) * (double)k3;
+    double sk3 = sin((double)a) * (double)k3;
+    const double texel = 0.00390625;                               // 0x882fe0
+    q[0].x = L2; q[0].y = T2; q[0].u = (float)(half - ck3); q[0].v = (float)((half - sk3) - texel);
+    q[1].x = L2; q[1].y = B2; q[1].u = (float)(half - sk3); q[1].v = (float)((half + ck3) - texel);
+    q[2].x = R2; q[2].y = T2; q[2].u = (float)(half + sk3); q[2].v = (float)((half - ck3) - texel);
+    q[3].x = R2; q[3].y = B2; q[3].u = (float)(half + ck3); q[3].v = (float)((half + sk3) - texel);
+    for (int i = 0; i < 4; ++i)
+      q[i].color = 0xFFFFFFFFu;
+    dev->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, q, sizeof(TLVertBoard));
+  }
+}

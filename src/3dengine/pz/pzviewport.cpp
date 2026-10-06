@@ -54,6 +54,7 @@ extern SIBoard* Board;
 
 #if PANZERS_MOD_WIDESCREEN
 bool g_ModWidescreen = true;   // see mods.h
+bool (*g_ModWidescreenViewRect)(float* left, float* top, float* width, float* height) = nullptr;   // see mods.h
 #endif
 
 namespace pz {
@@ -318,6 +319,18 @@ void SViewport::UpdateScreenMatrix()
     double hh = (double)Height * 0.5;
     ScreenM[5] = (float)((double)Height * -0.5);
     ScreenM[13] = (float)((double)Top + hh);
+#if PANZERS_MOD_WIDESCREEN
+    // MOD_WIDESCREEN: the game view's sub viewport maps to the widget
+    // coordinates of the anchored (centred, 4:3-scaled) game view, so picks,
+    // the box select and projected positions match the UI as drawn.
+    float rl = (float)Left, rt = (float)Top, rw = (float)Width, rh = (float)Height;
+    if (Mode == 3 && g_ModWidescreenViewRect && g_ModWidescreenViewRect(&rl, &rt, &rw, &rh)) {
+        ScreenM[0] = rw * 0.5f;
+        ScreenM[12] = rl + rw * 0.5f;
+        ScreenM[5] = rh * -0.5f;
+        ScreenM[13] = rt + rh * 0.5f;
+    }
+#endif
     float v[16], vp[16];
     Mat34To44(v, View);
     Mul44(vp, v, Proj);

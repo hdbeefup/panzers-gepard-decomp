@@ -42,8 +42,48 @@ static int VirtualWidth(const SSuperWindow* w)
     return (w->Width * kDesignH + w->Height / 2) / w->Height;
 }
 
+// The window the game view lives in (for the viewport mapping below).
+static SSuperWindow* s_Window = nullptr;
+
+// Pixels -> the game view's widget coordinates: the uniform 4:3 scale
+// (height / 768) and the game view's anchored X.
+static bool ViewRect(float* left, float* top, float* width, float* height)
+{
+    SSuperWindow* w = s_Window;
+    if (!w || !w->GameView || w->Height <= 0)
+        return false;
+    int vw = VirtualWidth(w);
+    if (vw == kDesignW)
+        return false;
+    float s = (float)kDesignH / (float)w->Height;
+    *left = *left * s - (float)w->GameView->X;
+    *top = *top * s - (float)w->GameView->Y;
+    *width = *width * s;
+    *height = *height * s;
+    return true;
+}
+
+bool ModWidescreenDesignRect(SSuperWindow* w, int* x, int* y, int* width, int* height)
+{
+    int vw = VirtualWidth(w);
+    if (vw == kDesignW || w->Height <= 0)
+        return false;
+    int centre = (vw - kDesignW) / 2;
+    // virtual -> pixels: uniform scale height / 768.
+    int x0 = ((*x + centre) * w->Height + kDesignH / 2) / kDesignH;
+    int y0 = (*y * w->Height + kDesignH / 2) / kDesignH;
+    int x1 = ((*x + *width + centre) * w->Height + kDesignH / 2) / kDesignH;
+    int y1 = ((*y + *height) * w->Height + kDesignH / 2) / kDesignH;
+    *x = x0;
+    *y = y0;
+    *width = x1 - x0;
+    *height = y1 - y0;
+    return true;
+}
+
 void ModWidescreenInit(SProperties* ini)
 {
+    g_ModWidescreenViewRect = ViewRect;
     g_ModWidescreen = !ini || ini->GetInt("Mods", "Widescreen", 1) != 0;
     Logger.g->Log(0, "MOD_WIDESCREEN: %s (panzers.ini [Mods] Widescreen)", g_ModWidescreen ? "on" : "off");
 }
@@ -152,6 +192,7 @@ static void UpdateBar(SBarFill& b, int barFrame, int root, int centre, int y)
 
 void ModWidescreenFrame(SSuperWindow* w)
 {
+    s_Window = w;
     if (!Board || w->RootFrame < 0)
         return;
     int vw = VirtualWidth(w);
@@ -163,6 +204,7 @@ void ModWidescreenFrame(SSuperWindow* w)
 
 void ModWidescreenOnSize(SSuperWindow* w)
 {
+    s_Window = w;
     if (!Board || w->RootFrame < 0)
         return;
     Board->SetVirtualSize(w->RootFrame, VirtualWidth(w), kDesignH);
@@ -171,6 +213,7 @@ void ModWidescreenOnSize(SSuperWindow* w)
 
 void ModWidescreenShutdown()
 {
+    s_Window = nullptr;
     if (!Board)
         return;
     DestroyTiles(s_Top);

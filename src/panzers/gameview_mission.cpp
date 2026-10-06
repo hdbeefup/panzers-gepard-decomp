@@ -25,6 +25,7 @@
 #include "world.h"
 #include "gamelogic.h"
 #include "doodad.h"
+#include "results.h"
 
 // PANZERS 0x6201c0
 // HD order: loading backdrop 0x61f460(0); the map name; MissionResult = 0;
@@ -170,7 +171,8 @@ void SGameView::MissionStart()
 // (BackupCampaignUnits 0x561110) and stops the logic; defeat (3) stops it
 // too. The boxes (SMessageBox 0x53e0d0, "Mission accomplished" / "Mission
 // failed", OK -> 0x47562), the results menu (0x62cd50) and the music are
-// agent H's screens and are not made here: the recompile sends 0x47562.
+// PzShowMissionEnd (results.cpp); their OK goes to SGameView::OnAction,
+// which sends 0x47562.
 void PzGameViewEndCheck(SGameView* view)
 {
     if (Settings.CutsceneFile.size != 0) {                        // 0x929d90
@@ -184,12 +186,11 @@ void PzGameViewEndCheck(SGameView* view)
     int result = c->GetMissionResult();                           // 0x5920b0
     pz::SWorld* w = view->World;
     bool out = *(int*)(w->Players[w->LocalPlayer] + 0x1c) == 2;   // World+0x18c + local * 0x48
+    PzForcedMissionEnd(&result, &out);                            // recompile test switch PZ_M3_FORCE_END (off: no-op)
     if (result != 1 && result != 3 && !out)
         return;
     if ((result == 1 || out) && !c->_014)
         view->Logic->BackupCampaignUnits();                       // 0x561110
     view->Logic->SetRunning(0);                                   // 0x5802f0(0)
-    Logger.g->Log(0, "PZM3: mission result %d%s: end box / results menu not lifted (H), ending the mission",
-                  result, out ? " (local player out)" : "");
-    view->SendAction(PZA_GV_GAMEOVER, 0);
+    PzShowMissionEnd(view, result, out);                          // M3-P results.cpp: the box / results menu, music
 }

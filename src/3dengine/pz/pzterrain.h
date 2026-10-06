@@ -233,6 +233,7 @@ struct STerrain : SITerrain {
     void  SetEffectDecalScale(int decal, float scale);      // 0x6f89e0 (SDecalEffect render)
     void  RenderFlora(SViewport* vp);                               // 0x6f33c0 flora part
     void  UpdateDecal(int index);                           // 0x6f5cf0
+    void  UpdateLitDiffuse();                               // 0x6f9330 Buffer80 (SetCompactMode; name guessed)
     void  FreeRoadMeshes(SHdHeap<SRoadMesh>* heap);         // 0x6f1ec0
     void  RemoveRoad(int road);                             // 0x6f64c0
     void  RemoveJunction(int junction);                     // 0x6f6560

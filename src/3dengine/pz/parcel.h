@@ -219,16 +219,26 @@ struct SBlockMapParcel : SIMesh {
     unsigned short* Indices;
 };
 
-// SParcel2 (vftable 0x890558, 0x1c4 bytes, ctor 0x704fd0): a parcel with its
-// own prebuilt vertices, made per parcel only in compact mode
-// (SetCompactMode, a debug toggle). Kept minimal: it stores what the ctor
-// gets and draws the same passes as SParcel::DrawLayered.
+// SParcel2 (vftable 0x890558, 0x1c4 bytes, ctor 0x704fd0, dtor 0x708830):
+// one parcel of the compact terrain (STerrain::SetCompactMode 0x6f8680, on
+// in every mission: SGameView::LoadMap toggles it through 0x5e2d70). The
+// ctor bakes the whole parcel into one vertex / index list with a material
+// per draw:
+//  - the 17 texture layers, each in an opaque pass (the triangles whose
+//    first visible layer it is) and a blended pass (the rest); vertex alpha
+//    is the layer's visible weight after the layers above it;
+//  - the road junction meshes (terrain +0x30, material type 2) and the road
+//    meshes (terrain +0x1c, type 3) that lie in this parcel;
+//  - the map decals (DECS) over the parcel's cells (type 2; the layers skip
+//    the decal cells).
+// Vertices are kept as 8x8-grid positions (u8 x, z), so the position,
+// height and normal come from the terrain at draw time (DrawCompact 0x7089e0).
 struct SParcel2 : SIMesh {
     SParcel2(int x0, int z0, const float* heights, const unsigned char* blend,
              const float* normals, const unsigned* diffuse, int stride, int baseLayer,
              const int* textures, const int* layerFlags, void* overlays, int parcel,
              STerrain* terrain);   // 0x704fd0
-    ~SParcel2() override;
+    ~SParcel2() override;          // 0x708830
 
     void Draw(int p1) override;
     void DrawShadow(int p1) override;
@@ -245,14 +255,39 @@ struct SParcel2 : SIMesh {
     void Slot_34() override;
 
     void DrawCompact(bool shadowPass);   // 0x7089e0
+    // 0x70b240 (name guessed): the 81 vertex colours from the terrain diffuse
+    // and the fog-of-war overlay (mode 0 plain, 1 dimmed, 2 / 3 the overlay
+    // around each vertex; another mode white). Called before each DrawCompact.
+    void UpdateColors(const unsigned* diffuse, const unsigned char* overlay, int stride, int mode);
 
-    int                  X0, Z0, Stride, BaseLayer, Parcel;
-    const float*         Heights;
-    const unsigned char* BlendMap;
-    const float*         Normals;
-    const unsigned*      Diffuse;
-    const int*           Textures;
-    STerrain*            Terrain;
+    struct SVertex {               // +0x58 records (0xc bytes)
+        unsigned char X, Z;        // grid position in the parcel (0..8)
+        unsigned char Alpha;       // layer weight (0xff for roads and decals)
+        unsigned char _3;
+        float         U, V;
+    };
+    struct SMaterial {             // +0x5c records (0x18 bytes)
+        int Texture;               // +0x00 (AddRef'd)
+        int Type;                  // +0x04 0 opaque layer, 1 blended layer, 2 junction / decal, 3 road
+        int PrimCount;             // +0x08
+        int MinIndex;              // +0x0c first vertex
+        int NumVertices;           // +0x10
+        int PrimType;              // +0x14 D3DPT_TRIANGLELIST
+    };
+
+    int             VertexCount;   // HD +0x10
+    unsigned short* Indices;       // HD +0x44 index buffer (count +0x4c)
+    int             IndexCount;    // HD +0x4c
+    SVertex*        Vertices;      // HD +0x58
+    SMaterial*      Materials;     // HD +0x5c
+    int             MaterialCount; // HD +0x60
+    unsigned        DebugColor;    // HD +0x64 option 0x11: 4 layers green, 5 magenta, more red
+    unsigned        Colors[81];    // HD +0x68 RGB per grid vertex (UpdateColors)
+    int             Stride;        // HD +0x1ac
+    int             X0, Z0;        // HD +0x1b0 / +0x1b4
+    const float*    Heights;       // HD +0x1b8
+    const float*    Normals;       // HD +0x1bc
+    STerrain*       Terrain;       // HD +0x1c0
 };
 
 } // namespace pz

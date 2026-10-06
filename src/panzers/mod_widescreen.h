@@ -26,6 +26,9 @@ bool ModWidescreenEventPoint(SSuperWindow* w, int x, int y, int* vx, int* vy);
 void ModWidescreenFrame(SSuperWindow* w);
 // Before the board is destroyed.
 void ModWidescreenShutdown();
+// A rectangle of the 1024x768 design, on a centred screen (the HQ), in
+// window pixels: where the anchored layout draws it.
+bool ModWidescreenDesignRect(SSuperWindow* w, int* x, int* y, int* width, int* height);
 
 #endif
 

@@ -25,7 +25,7 @@
 //                    [m3: play] (LMB: camera jump; RMB: move order -> packets.h),
 //                    +0x28 OnMouseUp 0x64c510 (4), +0x2c OnMouseMove 0x64c4a0 (3),
 //                    +0x38 OnMouseOut 0x64c500 (0), +0x6c SetVisible 0x64c530 (1)
-//                    Create 0x64c2f0 (4), SetRotation 0x64c390 (1)
+//                    Create 0x64c2f0 (4), SetTerrain 0x64c390 (1)
 //   Also: STextBox (vftable 0x7f3664) for tooltips and the message lines;
 //   SMessageBox (0x7f312c, 0x3ec bytes, ctor 0x53e0d0): hudwidgets.h.
 //
@@ -138,7 +138,6 @@ struct SMinimap : SDXWidget {
     int  _58;                        // +0x58 Create p3
     int  Frame;                      // +0x5c board minimap frame (type 6), child of the parent's frame
     bool Dragging;                   // +0x60
-    int  CompassTex = -1;            // (recompile) the compass texture of the stand-in sprite
 
     SMinimap();
     ~SMinimap() override;                                            // 0x64c2c0
@@ -148,7 +147,7 @@ struct SMinimap : SDXWidget {
     void OnMouseOut() override;                                      // +0x38 0x64c500
     void SetVisible(bool visible) override;                          // +0x6c 0x64c530
     void Create(int p1, int p2, int p3, int p4);                     // 0x64c2f0 (4)
-    void SetRotation(float rotation);                                // 0x64c390
+    void SetTerrain(bool on);                                        // 0x64c390 board +0x54
 };
 
 // The minimap's calls into the game view (HD SGameView members, minimap
@@ -156,6 +155,22 @@ struct SMinimap : SDXWidget {
 bool PzViewMinimapClick(SGameView* view, float u, float v);          // 0x6206f0
 void PzViewMinimapDrag(SGameView* view, float u, float v);           // 0x620af0
 void PzViewMinimapOrder(SGameView* view, float u, float v);          // 0x620b40
+
+// The minimap image and overlay (minimap.cpp; the minimap parts of the HD
+// SGameLogic ctor 0x55e440, UpdateUnitVisuals 0x5638f0, the vision tick
+// 0x565e10 and PingAttackedUnit 0x570f30).
+namespace pz { struct SGameLogic; }
+void PzMinimapCreate(pz::SGameLogic* logic);                         // 0x55e440 (minimap part)
+void PzMinimapUpdate(SGameView* view);                               // 0x5638f0 / 0x565f1d (minimap parts)
+void PzMinimapPing(int unit);                                        // 0x570f30 (board +0xb4)
+void PzMinimapRelease();
+
+// The game view's cursor over the map (hudcursor.cpp).
+void PzHoverCursor(SGameView* view, int x, int y);                   // 0x621540
+void PzTargetCursor(SGameView* view, int unit);                      // 0x620bc0 case 4
+void PzViewSetCursor(SGameView* view, int cursor, unsigned color);   // 0x543970
+void PzCursorColorUpdate(SGameView* view);                           // board +0x9c colour
+void PzCursorColorReset();
 
 // The HUD of SGameView (HD widgets at the view offsets given in hud.cpp).
 struct SGameHud;

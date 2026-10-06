@@ -3,11 +3,13 @@
 // passes. OWNER: agent B. See parcel.h.
 
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 #include "parcel.h"
 #include "pzterrain.h"
 #include "igepardhd.h"
 #include "gepard.h"
+#include "pzgepard.h"
 #include "logger.h"
 #include "stub_log.h"
 
@@ -676,33 +678,486 @@ void SBlockMapParcel::Slot_30() {}
 void SBlockMapParcel::Slot_34() {}
 
 // ------------------------------------------------------------------------
-// SParcel2 (compact mode only)
+// SParcel2 (compact terrain)
 
+namespace {
+
+// The ctor's growing SDArrays (HD 0x78b864 realloc: 16, then * 6 / 5).
+template <class T> struct SGrowArray {
+    T*  Data = nullptr;
+    int Count = 0;
+    int Cap = 0;
+    ~SGrowArray() { free(Data); }
+    T& Add()
+    {
+        if (Count == Cap) {
+            int cap = Cap < 0x10 ? 0x10 : (Cap * 6) / 5;
+            Data = (T*)realloc(Data, cap * sizeof(T));
+            memset(Data + Cap, 0, (cap - Cap) * sizeof(T));
+            Cap = cap;
+        }
+        return Data[Count++];
+    }
+};
+
+typedef SParcel2::SVertex   SCompactVertex;
+typedef SParcel2::SMaterial SCompactMaterial;
+
+// The layer weight of each grid vertex (HD static table 0x956550, 17 floats
+// per vertex, filled through the work rows 0x9564c0 (A) / 0x956508 (B)).
+float s_LayerWeights[81][17];
+
+// fistp / cvtss2si: round to nearest (DAT_0092e350 = ROUND(x)).
+inline int RoundInt(float x)
+{
+    return (int)lrintf(x);
+}
+
+} // namespace
+
+// PANZERS 0x704fd0
+// Bakes the parcel (see parcel.h). Steps in HD order:
+//  1. per grid vertex the 17 layer weights: A[k] = blend byte k-1 / 255 (0
+//     for layers with flag 0x80, 1 above 0.9), B[k] = A's visible part
+//     under the layers above; then from the top down a layer whose visible
+//     part is below 1e-4 is dropped, and one below 0.1 too, giving its share
+//     back to the layers below. The vertex alpha of layer k is A[k].
+//  2. the cells under opaque map decals (texture alpha class 0) are masked;
+//  3. per layer k = 0..16 and pass 0 (opaque) / 1 (blended): the two
+//     triangles of each unmasked cell where layer k is visible (>= 1e-4 at a
+//     corner); a triangle's first visible layer draws in pass 0, the others
+//     in pass 1; one material per (k, pass) that got triangles;
+//  4. the junction meshes (terrain +0x30), then the road meshes (+0x1c) of
+//     this parcel, one material each (types 2 / 3);
+//  5. the map decals over the parcel: two triangles per covered cell, the UV
+//     by the decal rotation (0..7); consecutive decals with the same texture
+//     share a material.
+// The vertex positions are grid positions (road vertices truncated to the
+// grid); heights and normals are read at draw time.
 SParcel2::SParcel2(int x0, int z0, const float* heights, const unsigned char* blend,
                    const float* normals, const unsigned* diffuse, int stride, int baseLayer,
                    const int* textures, const int* layerFlags, void* overlays, int parcel,
                    STerrain* terrain)
-    : X0(x0), Z0(z0), Stride(stride), BaseLayer(baseLayer), Parcel(parcel), Heights(heights),
-      BlendMap(blend), Normals(normals), Diffuse(diffuse), Textures(textures), Terrain(terrain)
+    : VertexCount(0), Indices(nullptr), IndexCount(0), Vertices(nullptr), Materials(nullptr),
+      MaterialCount(0), DebugColor(0), Stride(stride), X0(x0), Z0(z0), Heights(heights),
+      Normals(normals), Terrain(terrain)
 {
-    STUB_LOG("SParcel2::SParcel2 (0x704fd0)");
     PZ_TRACE("SParcel2::SParcel2 (0x704fd0)");
-    (void)layerFlags; (void)overlays;
+    (void)diffuse;   // HD reads the diffuse per frame (UpdateColors 0x70b240)
+    for (int i = 0; i < 81; ++i)
+        Colors[i] = 0xffffff;
+
+    // 1. Layer weights.
+    for (int r = 0; r < 9; ++r) {
+        for (int c = 0; c < 9; ++c) {
+            const unsigned char* bl = blend + (r * stride + c) * 0x10;
+            float A[17], B[17];
+            for (int j = baseLayer - 1; j >= 0; --j) {
+                A[j] = 0.0f;
+                B[j] = 0.0f;
+            }
+            A[baseLayer] = 1.0f;
+            B[baseLayer] = 1.0f;
+            for (int k = baseLayer + 1; k < 0x11; ++k) {
+                float w = (float)((double)bl[k - 1] * (1.0 / 255.0));   // 0x80ca20
+                A[k] = w;
+                B[k] = w;
+                if (k != 0 && (layerFlags[k - 1] & 0x80) != 0)
+                    A[k] = 0.0f;
+                if ((double)A[k] > 0.9)                                 // 0x7fe0c0
+                    A[k] = 1.0f;
+                float keep = 1.0f - A[k];
+                for (int j = k - 1; j >= 0; --j)                        // HD: 4 wide, then scalar
+                    B[j] = B[j] * keep;
+            }
+            for (int k = 16; k >= 0; --k) {
+                if ((double)B[k] < 0.0001) {                            // 0x7f1b50
+                    A[k] = 0.0f;
+                } else if ((double)B[k] < 0.1) {                        // 0x7f83e0
+                    float keep = 1.0f - A[k];
+                    for (int j = k - 1; j >= 0; --j)                    // HD: divps, then divss
+                        B[j] = B[j] / keep;
+                    A[k] = 0.0f;
+                }
+            }
+            memcpy(s_LayerWeights[r * 9 + c], A, sizeof(A));
+        }
+    }
+
+    // 2. Cells under opaque map decals (HD 0x957e20).
+    const SMapDecal* decals = *(SMapDecal* const*)overlays;            // SDArray {data, count}
+    const int decalCount = ((const int*)overlays)[1];
+    unsigned char masked[8][8];
+    memset(masked, 0, sizeof(masked));
+    for (int i = 0; i < decalCount; ++i) {
+        const SMapDecal& d = decals[i];
+        int dx0 = d.X0 - x0, dz0 = d.Z0 - z0, dx1 = d.X1 - x0, dz1 = d.Z1 - z0;
+        if (dx0 < 8 && dx1 > 0 && dz0 < 8 && dz1 > 0 && TerrainTextureAlpha(d.Texture) == 0) {   // 0x67d8a0
+            if (dx0 < 0) dx0 = 0;
+            if (dx1 > 8) dx1 = 8;
+            if (dz0 < 0) dz0 = 0;
+            if (dz1 > 8) dz1 = 8;
+            for (int z = dz0; z < dz1; ++z)
+                for (int x = dx0; x < dx1; ++x)
+                    masked[z][x] = 1;
+        }
+    }
+
+    SGrowArray<SCompactVertex>   verts;
+    SGrowArray<unsigned short>   idx;
+    SGrowArray<SCompactMaterial> mats;
+    auto addMaterial = [&](int texture, int type, int firstIndex, int firstVertex) -> int {
+        SCompactMaterial& m = mats.Add();
+        m.Texture = TerrainAddRefTexture(texture);   // 0x677f20
+        m.Type = type;
+        m.PrimCount = (idx.Count - firstIndex) / 3;
+        m.MinIndex = firstVertex;
+        m.NumVertices = verts.Count - firstVertex;
+        m.PrimType = D3DPT_TRIANGLELIST;
+        return mats.Count - 1;
+    };
+
+    // 3. Layers.
+    int firstLayer[64][2];                                // HD 0x957c20: per cell and triangle
+    memset(firstLayer, 0xff, sizeof(firstLayer));
+    int layersUsed = 0, lastLayer = -1;
+    for (int k = 0; k <= 0x10; ++k) {
+        for (int pass = 0; pass < 2; ++pass) {
+            int cache[81];                                // HD 0x957ad8
+            memset(cache, 0xff, sizeof(cache));
+            const int groupVertex = verts.Count;
+            const int groupIndex = idx.Count;
+            auto vertex = [&](int x, int z) {
+                int v = z * 9 + x;
+                if (cache[v] == -1) {
+                    SCompactVertex& o = verts.Add();
+                    o.X = (unsigned char)x;
+                    o.Z = (unsigned char)z;
+                    o.U = (float)((double)x * 0.125);         // 0x7fe0b0
+                    o.V = (float)((double)z * 0.125);
+                    o.Alpha = (unsigned char)RoundInt(s_LayerWeights[v][k] * 255.0f);   // 0x7fb6c8
+                    cache[v] = verts.Count - 1 - groupVertex;
+                }
+                idx.Add() = (unsigned short)(cache[v] + groupVertex);
+            };
+            auto visible = [&](int x, int z) { return 0.0001 <= (double)s_LayerWeights[z * 9 + x][k]; };
+            for (int z = 0; z < 8; ++z) {
+                for (int x = 0; x < 8; ++x) {
+                    if (masked[z][x])
+                        continue;
+                    int* first = firstLayer[z * 8 + x];
+                    if (visible(x, z) || visible(x + 1, z) || visible(x, z + 1)) {
+                        if (first[0] == -1)
+                            first[0] = k;
+                        if ((first[0] == k) == (pass == 0)) {
+                            vertex(x, z);
+                            vertex(x + 1, z);
+                            vertex(x, z + 1);
+                        }
+                    }
+                    if (visible(x + 1, z) || visible(x, z + 1) || visible(x + 1, z + 1)) {
+                        if (first[1] == -1)
+                            first[1] = k;
+                        if ((first[1] == k) == (pass == 0)) {
+                            vertex(x, z + 1);
+                            vertex(x + 1, z);
+                            vertex(x + 1, z + 1);
+                        }
+                    }
+                }
+            }
+            if (idx.Count != groupIndex) {
+                addMaterial(textures[k], pass, groupIndex, groupVertex);
+                if (lastLayer != k) {
+                    ++layersUsed;
+                    lastLayer = k;
+                }
+            }
+        }
+    }
+    if (TerrainOption(0x11) != 0 && layersUsed >= 4)
+        DebugColor = layersUsed < 6 ? (layersUsed > 4 ? 0xff00ffu : 0xff00u) : 0xff0000u;
+
+    // 4. Junctions (+0x30, type 2), then roads (+0x1c, type 3).
+    auto addMeshes = [&](const SHdHeap<SRoadMesh>& meshes, int texture, int type) {
+        for (int i = 0; i < meshes.Size; ++i) {
+            const SRoadMesh& m = meshes.Data[i];
+            if (m.Use != kHeapLive || m.Parcel != parcel)
+                continue;
+            const int groupVertex = verts.Count;
+            const int groupIndex = idx.Count;
+            for (int v = 0; v < m.NVerts; ++v) {
+                SCompactVertex& o = verts.Add();
+                o.X = (unsigned char)(int)(m.Verts[v].X - (float)x0);
+                o.Z = (unsigned char)(int)(m.Verts[v].Z - (float)z0);
+                o.U = m.Verts[v].U;
+                o.V = m.Verts[v].V;
+                o.Alpha = 0xff;
+            }
+            for (int n = 0; n < m.NIndices; ++n)
+                idx.Add() = (unsigned short)(m.Indices[n] + groupVertex);
+            addMaterial(texture, type, groupIndex, groupVertex);
+        }
+    };
+    for (int j = 0; j < terrain->Junctions.Size; ++j) {
+        const SRoadJunction& jn = terrain->Junctions.Data[j];
+        if (jn.Use == kHeapLive)
+            addMeshes(jn.Meshes, jn.Texture, 2);
+    }
+    for (int j = 0; j < terrain->Roads.Size; ++j) {
+        const SRoad& rd = terrain->Roads.Data[j];
+        if (rd.Use == kHeapLive)
+            addMeshes(rd.Meshes, rd.Texture, 3);
+    }
+
+    // 5. Map decals.
+    int lastTexture = -1, lastMaterial = -1;
+    for (int i = 0; i < decalCount; ++i) {
+        const SMapDecal& d = decals[i];
+        int cx0 = d.X0 - x0, cx1 = d.X1 - x0, cz0 = d.Z0 - z0, cz1 = d.Z1 - z0;
+        if (cx0 > 7 || cx1 < 1 || cz0 > 7 || cz1 < 1)
+            continue;
+        if (cx0 < 0) cx0 = 0;
+        if (cx1 > 8) cx1 = 8;
+        if (cz0 < 0) cz0 = 0;
+        if (cz1 > 8) cz1 = 8;
+        int cache[81];
+        memset(cache, 0xff, sizeof(cache));
+        // u = dx * ua + ub + dz * uc, v = dx * vd + ve + dz * vf (dx, dz from
+        // the decal corner, in tiles; 0x7eed98 = 1, 0x7ea780 = -1).
+        float ua = 0.0f, ub = 0.0f, uc = 0.0f, vd = 0.0f, ve = 0.0f, vf = 0.0f;
+        const int w = d.X1 - d.X0, h = d.Z1 - d.Z0;
+        switch (d.Rotation) {
+        case 0: ub = 0.0f; ve = 1.0f; ua = (float)(1.0 / w);  vf = (float)(-1.0 / h); break;
+        case 1: ve = 0.0f; ub = 0.0f; vd = (float)(1.0 / w);  uc = (float)(1.0 / h);  break;
+        case 2: ub = 1.0f; ve = 0.0f; ua = (float)(-1.0 / w); vf = (float)(1.0 / h);  break;
+        case 3: ve = 1.0f; ub = 1.0f; vd = (float)(-1.0 / w); uc = (float)(-1.0 / h); break;
+        case 4: ub = 1.0f; ve = 1.0f; ua = (float)(-1.0 / w); vf = (float)(-1.0 / h); break;
+        case 5: ve = 0.0f; ub = 1.0f; vd = (float)(1.0 / w);  uc = (float)(-1.0 / h); break;
+        case 6: ub = 0.0f; ve = 0.0f; ua = (float)(1.0 / w);  vf = (float)(1.0 / h);  break;
+        case 7: ve = 1.0f; ub = 0.0f; vd = (float)(-1.0 / w); uc = (float)(1.0 / h);  break;
+        default: break;
+        }
+        const int groupVertex = verts.Count;
+        const int groupIndex = idx.Count;
+        auto vertex = [&](int x, int z) {
+            int v = z * 9 + x;
+            if (cache[v] == -1) {
+                SCompactVertex& o = verts.Add();
+                o.X = (unsigned char)x;
+                o.Z = (unsigned char)z;
+                float fx = (float)(x - d.X0 + x0), fz = (float)(z - d.Z0 + z0);
+                o.U = fx * ua + ub + fz * uc;
+                o.V = fx * vd + ve + fz * vf;
+                o.Alpha = 0xff;
+                cache[v] = verts.Count - 1 - groupVertex;
+            }
+            idx.Add() = (unsigned short)(cache[v] + groupVertex);
+        };
+        for (int z = cz0; z < cz1; ++z)
+            for (int x = cx0; x < cx1; ++x) {
+                vertex(x, z);
+                vertex(x + 1, z);
+                vertex(x, z + 1);
+                vertex(x, z + 1);
+                vertex(x + 1, z);
+                vertex(x + 1, z + 1);
+            }
+        if (lastTexture == d.Texture && lastMaterial >= 0) {
+            mats.Data[lastMaterial].PrimCount += (idx.Count - groupIndex) / 3;
+            mats.Data[lastMaterial].NumVertices += verts.Count - groupVertex;
+        } else {
+            lastMaterial = addMaterial(d.Texture, 2, groupIndex, groupVertex);
+            lastTexture = d.Texture;
+        }
+    }
+
+    if (verts.Count < 1 || idx.Count < 1 || mats.Count < 1) {
+        // HD panics here (SDArray operator[] on an empty array).
+        Logger.g->Log(1, "SParcel2::SParcel2: parcel %d is empty", parcel);
+    }
+    VertexCount = verts.Count;
+    Vertices = (SCompactVertex*)malloc((verts.Count ? verts.Count : 1) * sizeof(SCompactVertex));
+    memcpy(Vertices, verts.Data, verts.Count * sizeof(SCompactVertex));
+    IndexCount = idx.Count;                                   // SMesh::CreateIndexBuffer 0x6cd070
+    Indices = (unsigned short*)malloc((idx.Count ? idx.Count : 1) * sizeof(unsigned short));
+    memcpy(Indices, idx.Data, idx.Count * sizeof(unsigned short));
+    MaterialCount = mats.Count;
+    Materials = (SCompactMaterial*)malloc((mats.Count ? mats.Count : 1) * sizeof(SCompactMaterial));
+    memcpy(Materials, mats.Data, mats.Count * sizeof(SCompactMaterial));
 }
 
+// PANZERS 0x708830
 SParcel2::~SParcel2()
 {
+    for (int i = 0; i < MaterialCount; ++i)
+        TerrainReleaseTexture(Materials[i].Texture);   // Gepard +0x48
+    free(Materials);
+    Materials = nullptr;
+    free(Vertices);
+    Vertices = nullptr;
+    free(Indices);                                     // SMesh dtor 0x6ccdc0: the index buffer
+    Indices = nullptr;
 }
 
+// PANZERS 0x70b240
+void SParcel2::UpdateColors(const unsigned* diffuse, const unsigned char* overlay, int stride, int mode)
+{
+    if (DebugColor != 0) {
+        for (int i = 0; i < 81; ++i)
+            Colors[i] = DebugColor;
+        return;
+    }
+    if (mode == 0) {
+        for (int r = 0; r < 9; ++r)
+            for (int c = 0; c < 9; ++c)
+                Colors[r * 9 + c] = diffuse[r * stride + c] & 0xffffff;
+        return;
+    }
+    if (mode == 1) {
+        for (int r = 0; r < 9; ++r)
+            for (int c = 0; c < 9; ++c) {
+                const unsigned char* b = (const unsigned char*)&diffuse[r * stride + c];
+                Colors[r * 9 + c] = ((unsigned)b[2] * 0xa000 & 0xffff00ff) |
+                                    (((unsigned)b[1] * 5 & 0x7fffff8) << 5) |
+                                    ((unsigned)b[0] * 0x50 >> 7);
+            }
+        return;
+    }
+    if (mode == 2 || mode == 3) {
+        // The overlay has two cells per tile (row pitch 2 * stride); the
+        // pointer is the cell above-left of the parcel's first vertex.
+        for (int r = 0; r < 9; ++r) {
+            const unsigned char* R0 = overlay + r * stride * 4;
+            const unsigned char* R1 = R0 + stride * 2;
+            const unsigned char* R2 = R0 + stride * 4;
+            const unsigned char* Rm = R0 - stride * 2;
+            for (int c = 0; c < 9; ++c) {
+                const int k = c * 2;
+                int centre = (R1[k + 1] & 1) + (R1[k] & 1) + (R0[k] & 1) + (R0[k + 1] & 1);
+                int around = (Rm[k + 1] & 1) + (R0[k + 2] & 1) + (R0[k - 1] & 1) + (R2[k] & 1) +
+                             (Rm[k] & 1) + (R1[k + 2] & 1) + (R1[k - 1] & 1) + (R2[k + 2] & 1);
+                const unsigned char* b = (const unsigned char*)&diffuse[r * stride + c];
+                unsigned R = b[2], G = b[1], B = b[0];
+                if (mode == 2) {
+                    unsigned f = (unsigned)((centre + 10) * 4 + around) * 2;
+                    Colors[r * 9 + c] = ((((R * f) & 0xffffff80) << 8 | ((G * f) & 0xffffff80)) * 2) |
+                                        ((B * f) >> 7);
+                } else {
+                    unsigned f = (unsigned)(0x80 - ((int)((centre * 4 + around) * 3) >> 1));
+                    Colors[r * 9 + c] = (((f * R) & 0xffffff80) * 2 | G) << 8 | B;
+                }
+            }
+        }
+        return;
+    }
+    for (int i = 0; i < 81; ++i)
+        Colors[i] = 0xffffff;
+}
+
+// PANZERS 0x7089e0
+// The parcel's vertices go to the Gepard dynamic VB (0x67f150 / 0x681440;
+// here a user-pointer draw); per material the texture (0x680c90), the
+// address mode and the blend / alpha test / z-write states, then
+// DrawIndexedPrimitive (0x67a650). Types: 0 opaque layer, 1 blended layer
+// (SRCALPHA, alpha > 4), 2 junction / decal (clamped), 3 road (U wrapped,
+// V clamped); 2 and 3 take the alpha class of the texture (1 test > 0x80,
+// 2 blend) and the texture's alpha.
 void SParcel2::DrawCompact(bool shadowPass)
 {
-    STUB_LOG("SParcel2::DrawCompact (0x7089e0)");
     PZ_TRACE("SParcel2::DrawCompact (0x7089e0)");
-    // Compact mode is a debug toggle; draw the parcel the layered way.
-    if (Terrain && Terrain->ParcelRenderer && Parcel >= 0 && Parcel < Terrain->ParcelCount)
-        Terrain->ParcelRenderer->DrawLayered(X0, Z0, Heights, Diffuse, BlendMap, Normals, Stride,
-                                             BaseLayer, Textures, Terrain->Parcels[Parcel].Layers,
-                                             shadowPass);
+    IDirect3DDevice9* dev = TerrainDevice();
+    if (!dev || VertexCount <= 0 || !Indices || !Materials)
+        return;
+    STerrainVertex* v = (STerrainVertex*)malloc(VertexCount * sizeof(STerrainVertex));
+    for (int i = 0; i < VertexCount; ++i) {
+        const SVertex& s = Vertices[i];
+        int g = s.Z * Stride + s.X;
+        STerrainVertex& o = v[i];
+        o.X = (float)(int)(X0 + s.X);
+        o.Y = Heights[g];
+        o.Z = (float)(int)(s.Z + Z0);
+        o.NX = Normals[g * 3 + 0];
+        o.NY = Normals[g * 3 + 1];
+        o.NZ = Normals[g * 3 + 2];
+        o.Color = ((unsigned)s.Alpha << 24) + Colors[s.Z * 9 + s.X];
+        o.U = s.U;
+        o.V = s.V;
+    }
+    if (!shadowPass && TerrainOption(0x10) != 0)
+        dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE2X);
+    if (!g_TerrainDrawKeepShaders) {
+        dev->SetVertexShader(nullptr);
+        dev->SetPixelShader(nullptr);
+    }
+    dev->SetFVF(kTerrainFVF);
+    int start = 0;
+    for (int i = 0; i < MaterialCount; ++i) {
+        const SMaterial& m = Materials[i];
+        bool states = true;
+        DWORD alphaOp = D3DTOP_SELECTARG2;
+        switch (m.Type) {
+        case 0:
+            GepardSetTexture(0, m.Texture);
+            dev->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_WRAP);
+            dev->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_WRAP);
+            dev->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
+            dev->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
+            dev->SetRenderState(D3DRS_ZWRITEENABLE, TRUE);
+            break;
+        case 1:
+            GepardSetTexture(0, m.Texture);
+            dev->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_WRAP);
+            dev->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_WRAP);
+            dev->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+            dev->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+            dev->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+            dev->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
+            dev->SetRenderState(D3DRS_ALPHAREF, 4);
+            dev->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER);
+            dev->SetRenderState(D3DRS_ZWRITEENABLE, FALSE);
+            break;
+        case 2:
+        case 3: {
+            GepardSetTexture(0, m.Texture);
+            dev->SetSamplerState(0, D3DSAMP_ADDRESSU, m.Type == 2 ? D3DTADDRESS_CLAMP : D3DTADDRESS_WRAP);
+            dev->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+            int alpha = TerrainTextureAlpha(m.Texture);   // 0x67c9e0
+            if (alpha == 1) {
+                dev->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
+                dev->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
+                dev->SetRenderState(D3DRS_ALPHAREF, 0x80);
+                dev->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER);
+                dev->SetRenderState(D3DRS_ZWRITEENABLE, TRUE);
+            } else if (alpha == 2) {
+                dev->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+                dev->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+                dev->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+                dev->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
+                dev->SetRenderState(D3DRS_ALPHAREF, 4);
+                dev->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER);
+                dev->SetRenderState(D3DRS_ZWRITEENABLE, FALSE);
+            } else {
+                dev->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
+                dev->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
+                dev->SetRenderState(D3DRS_ZWRITEENABLE, TRUE);
+            }
+            alphaOp = D3DTOP_SELECTARG1;
+            break;
+        }
+        default:
+            states = false;   // HD sets nothing and still draws
+            break;
+        }
+        if (states)
+            dev->SetTextureStageState(0, D3DTSS_ALPHAOP, alphaOp);
+        if (m.PrimCount > 0)
+            dev->DrawIndexedPrimitiveUP((D3DPRIMITIVETYPE)m.PrimType, m.MinIndex, m.NumVertices,
+                                        m.PrimCount, Indices + start, D3DFMT_INDEX16, v,
+                                        sizeof(STerrainVertex));
+        start += m.PrimType == D3DPT_TRIANGLELIST ? m.PrimCount * 3 : m.PrimCount + 2;
+    }
+    free(v);
 }
 
 void SParcel2::Draw(int p1) { (void)p1; }

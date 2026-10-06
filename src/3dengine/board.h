@@ -71,6 +71,8 @@ struct SFrameMinimap {
     int Font;
     SGlyph Glyph;
     float Rotation;
+    // Panzers: the HD frame fields +0x54 (terrain) / +0x58 (compass) live
+    // in a side table in board.cpp (the SWINE SFrame size is asserted).
 };
 
 struct SFrameScaler {
@@ -207,6 +209,22 @@ struct SBoard : SIBoard {
     void StartAnim(int idx, const char *filename, int flags, int duration, int frameRate);
     void StopAnim(int idx);
     void UnloadCursorSet();
+
+    // Panzers HD minimap (SBoard +0x4c, +0x54, +0xa4..+0xc0; see iboard.h).
+    void SetMinimapGlyph(int frame, int font, int glyph);
+    void SetMinimapTerrain(int frame, bool on);
+    void SetMinimapCompass(int frame, int font);
+    void AddMinimapDot(float x, float y, unsigned int color);
+    void ClearMinimapDots();
+    void SetMinimapViewCorner(int corner, float x, float y);
+    void ClearMinimapBlinks();
+    void AddMinimapBlink(float x, float y, unsigned int color);
+    void SetMinimapMarkCorner(int corner, float x, float y, unsigned int color);
+    void ClearMinimapMarkCorners();
+    void SetCursorColor(unsigned int color);
+    void RenderHdMinimap(SFrame& f, int frame, float fx, float fy, float scaleX, float scaleY, int& lastTextureIdx);
+    // (The HD board minimap state, +0x5c..+0xd4, is a static in board.cpp:
+    // the SWINE SBoard size is asserted.)
 };
 
 #endif // DENGINE3_BOARD_H

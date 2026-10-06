@@ -52,37 +52,67 @@ struct SPassCache {
 };
 static SPassCache s_Cache;
 
+// PANZERS 0x688230
+// HD resets the cache once at device init and writes each cached state to the
+// device with it, so cache and device agree. The recompile runs it at every HD
+// pass that follows foreign drawing (the SWINE board, the terrain's own draw
+// state STerrainDrawState, the compact-parcel draw): the device states are set
+// as HD sets them, and the masks are full so the next Apply rewrites every
+// stage. (A cache that only assumed values let 0x6f46e0's lit multiply pass run
+// with lighting and blending left off by the terrain draw: white terrain under
+// Shadows = 2 wherever no road or decal pass re-enabled them, i.e. compact
+// missions and the HQ preview.) The fog set by 0x688ac0 for the frame is kept.
 void InvalidateRenderPassCache()
 {
-    // Values no pass produces, so the next Apply sets every state; all stage
-    // masks set, so every stage is rewritten.
     float fs = s_Cache.FogStart, fe = s_Cache.FogEnd;
     unsigned fc = s_Cache.FogColor;
     bool fen = s_Cache.FogEnabled;
+    float fs2 = s_Cache.FogStart2, fe2 = s_Cache.FogEnd2, fi = s_Cache.FogInvRange, fi2 = s_Cache.FogInvRange2;
     memset(&s_Cache, 0, sizeof(s_Cache));
-    s_Cache.VertexShader = -1;
-    s_Cache.Lighting = true;
+    IDirect3DDevice9* dev = HD().Device;
+    s_Cache.VertexShader = 0;
+    s_Cache.Lighting = false;
     s_Cache.MaterialDirty = true;
     s_Cache.SourceDirty = true;
+    s_Cache.ShadeMode = D3DSHADE_GOURAUD;
     s_Cache.TransformMask = 0x1f;
-    s_Cache.ShadeMode = -1;
-    s_Cache.CullMode = -1;
+    s_Cache.PixelShader = 0;
+    s_Cache.CullMode = D3DCULL_CCW;
+    s_Cache.TextureFactor = -1;
     s_Cache.SamplerMask = 0x1f;
-    s_Cache.PixelShader = -1;
-    s_Cache.TextureFactor = 0x12345678;
+    s_Cache.ColorWrite = 0xf;
     s_Cache.StageMask = 0x1f;
-    s_Cache.ColorWrite = 0xee;
-    s_Cache.AlphaBlend = true;
-    s_Cache.AlphaTest = true;
-    s_Cache.ZEnable = false;
-    s_Cache.ZFunc = -1;
-    s_Cache.ZWrite = false;
-    s_Cache.Stencil = true;
-    s_Cache.FogMode = -1;
+    s_Cache.AlphaBlend = false;
+    s_Cache.AlphaTest = false;
+    s_Cache.ZEnable = true;
+    s_Cache.ZFunc = D3DCMP_LESSEQUAL;
+    s_Cache.ZWrite = true;
+    s_Cache.Stencil = false;
+    s_Cache.FogMode = -1;   // HD 0 with FOGENABLE off; -1 makes the next Apply set the frame fog
+    if (dev) {
+        GepardSetVertexShader(0);                                   // 0x680f40(0)
+        dev->SetRenderState(D3DRS_LIGHTING, FALSE);
+        dev->SetRenderState(D3DRS_SHADEMODE, D3DSHADE_GOURAUD);
+        GepardSetPixelShader(0);                                    // 0x680ac0(0)
+        dev->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);
+        dev->SetRenderState(D3DRS_TEXTUREFACTOR, 0xffffffff);
+        dev->SetRenderState(D3DRS_COLORWRITEENABLE, 0xf);
+        dev->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
+        dev->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
+        dev->SetRenderState(D3DRS_ZENABLE, TRUE);
+        dev->SetRenderState(D3DRS_ZFUNC, D3DCMP_LESSEQUAL);
+        dev->SetRenderState(D3DRS_ZWRITEENABLE, TRUE);
+        dev->SetRenderState(D3DRS_STENCILENABLE, FALSE);
+        dev->SetRenderState(D3DRS_FOGENABLE, FALSE);
+    }
     s_Cache.FogStart = fs;
     s_Cache.FogEnd = fe;
     s_Cache.FogColor = fc;
     s_Cache.FogEnabled = fen;
+    s_Cache.FogStart2 = fs2;
+    s_Cache.FogEnd2 = fe2;
+    s_Cache.FogInvRange = fi;
+    s_Cache.FogInvRange2 = fi2;
 }
 
 bool GetPassFog(float* start, float* end, float* start2, float* end2, float* inv)

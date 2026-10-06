@@ -492,7 +492,7 @@ void STerrain::SetCompactMode(bool on)
         }
     } else {
         Update();
-        // HD 0x6f9330 (overlay prepare) is not ported.
+        UpdateLitDiffuse();   // 0x6f9330
         for (int pz = 0; pz < ParcelsZ; ++pz)
             for (int px = 0; px < ParcelsX; ++px) {
                 int i = ParcelsX * pz + px;
@@ -506,6 +506,39 @@ void STerrain::SetCompactMode(bool on)
             }
     }
     Compact = on;
+}
+
+// PANZERS 0x6f9330
+// +0x80 per vertex: the diffuse lit in software by the scene sun (+0x110
+// direction, +0xe8 colour) and ambient (+0xd8), the sun part scaled by the
+// sun occlusion (+0x88 / 128); channels clamped to 255 where lit. (Compact
+// mode prepares it; nothing in the mission path reads it yet.)
+void STerrain::UpdateLitDiffuse()
+{
+    const float sx = SceneField<float>(Scene, 0x110), sy = SceneField<float>(Scene, 0x114),
+                sz = SceneField<float>(Scene, 0x118);
+    const float* amb = &SceneField<float>(Scene, 0xd8);
+    const float* sun = &SceneField<float>(Scene, 0xe8);
+    for (int i = 0; i < Verts; ++i) {
+        const float* n = Normals + i * 3;
+        float d = -(sx * n[0] + n[1] * sy + n[2] * sz);
+        const unsigned char* c = (const unsigned char*)&Diffuse[i];
+        float r, g, b;
+        if (d <= 0.0f) {
+            r = (float)c[2] * amb[0];
+            g = (float)c[1] * amb[1];
+            b = (float)((double)c[0] + 0.0) * amb[2];   // 0x7ea790
+        } else {
+            float s = (float)((double)Shade[i] * 0.0078125 * (double)d);   // 0x886ea0
+            r = (sun[0] * s + amb[0]) * (float)c[2];
+            g = (sun[1] * s + amb[1]) * (float)c[1];
+            b = (sun[2] * s + amb[2]) * (float)((double)c[0] + 0.0);
+            if (255.0 < (double)r) r = 255.0f;   // 0x878780
+            if (255.0 < (double)g) g = 255.0f;
+            if (255.0 < (double)b) b = 255.0f;
+        }
+        Buffer80[i] = ((unsigned)lrintf(r) << 8 | (unsigned)lrintf(g)) << 8 | (unsigned)lrintf(b);
+    }
 }
 
 // PANZERS 0x6f4b70
@@ -737,13 +770,37 @@ void STerrain::Render(SViewport* vp)
             }
         }
     } else {
-        // Compact mode (debug).
-        for (int i = 0; i < ParcelCount; ++i) {
-            if (!Parcels[i].Visible || !Parcels[i].Compact)
-                continue;
-            Parcels[i].Stamp = OverlayFrame;
-            Parcels[i].Compact->DrawCompact(shadow);
-        }
+        // Compact mode (every mission, 0x5e2d70): the baked parcels, with
+        // their colours from the diffuse and the fog-of-war overlay
+        // (+0x11c54 / +0x11c58). Within 6 parcels of the map edge the
+        // overlay is not read (mode 1 dims everything, as overlay mode 1).
+        st.Reset();
+        st.Lighting = !shadow;   // 0x6f2b11 sete [state +4]: unlit, the shadow pass lights it
+        if (shadow)
+            st.SetFog(2, 0);
+        st.Apply(dev);
+        for (int pz = 0; pz < ParcelsZ; ++pz)
+            for (int px = 0; px < ParcelsX; ++px) {
+                int i = ParcelsX * pz + px;
+                if (!Parcels[i].Visible)
+                    continue;
+                Parcels[i].Stamp = OverlayFrame;
+                int mode = 0;
+                const unsigned char* overlay = nullptr;
+                if (px < 6 || ParcelsX - 6 <= px || pz * 16 - 1 < 0x5f || ParcelsZ - 6 <= pz ||
+                    OverlayMode == 0) {
+                    mode = OverlayMode == 1;
+                } else if (Overlay != 0) {
+                    mode = (OverlayMode != 1) + 2;
+                    overlay = (const unsigned char*)(intptr_t)Overlay +
+                              ((Stride * (pz * 16 - 1) + px * 8) * 2 - 1);
+                }
+                SParcel2* c = Parcels[i].Compact;
+                if (!c)
+                    continue;   // recompile guard (HD has one per parcel)
+                c->UpdateColors(Diffuse + (Stride * pz + px) * 8, overlay, Stride, mode);   // 0x70b240
+                c->DrawCompact(shadow);                                                    // 0x7089e0
+            }
         // 0x688780: blend and alpha test off, z write on.
         dev->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
         dev->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);

@@ -155,6 +155,11 @@ static void CopyUnitDef(pz::SUnitDef* dst, const pz::SUnitDef* src)
 // ---------------------------------------------------------------------------
 
 #include "market_glyphs.inl"
+#include "mods.h"
+#if PANZERS_MOD_WIDESCREEN
+#include "mod_widescreen.h"
+#include "superwindow.h"
+#endif
 
 // ===========================================================================
 // SFullScreenMenu
@@ -1016,8 +1021,18 @@ void SMarket::Create()
         int wx, wy, ww, wh;
         GetWindowParent()->GetPosition(&wx, &wy, &ww, &wh);        // 0x5435b0 +0x04
         Subport[0] = vp->CreateSubport(0, 0, ww, wh);              // +0x54
-        Subport[1] = vp->CreateSubport((ww * 0x136) / 0x400, (wh * 0x3c) / 0x300,
-                                       (ww * 0x1aa) / 0x400, (wh * 0x13f) / 0x300);
+        int px = (ww * 0x136) / 0x400, py = (wh * 0x3c) / 0x300;
+        int pw = (ww * 0x1aa) / 0x400, ph = (wh * 0x13f) / 0x300;
+#if PANZERS_MOD_WIDESCREEN
+        // MOD_WIDESCREEN: the preview where the centred HQ draws its frame.
+        {
+            int dx = 0x136, dy = 0x3c, dw = 0x1aa, dh = 0x13f;
+            if (ModWidescreenDesignRect(static_cast<SSuperWindow*>(GetWindowParent()), &dx, &dy, &dw, &dh)) {
+                px = dx; py = dy; pw = dw; ph = dh;
+            }
+        }
+#endif
+        Subport[1] = vp->CreateSubport(px, py, pw, ph);
         vp->GetSubport(0)->SetDrawScene(false);                    // +0x5c(0) +0x80(0)
         vp->GetSubport(1)->SetDrawBoard(false);                    // +0x5c(1) +0x7c(0)
     }
@@ -1573,8 +1588,40 @@ void SMarket::LoadUnitInfo()
                 continue;
             InfoRows[rows].SetVisible(true);
             Board->ShowFrame(InfoRowFrames[rows], true);
-            if (rank >= 2 && p && p->UnitType == 0xe && SelVehicle.size == 0) {
-                float bonus = pz::g_UnitRegistry->CrewDamageBonus[rank - 1];
+            if (SelVehicle.size == 0) {
+                // HD 0x64741a (no vehicle, +0x390 == 0): one row. A squad
+                // shows its member's first weapon (SquadMemberName +0x140),
+                // with the squad bonus of the rank (registry +0x7c) unless
+                // the unit is a crew (+0x44 == 0xe); others the first weapon.
+                const pz::SPUnit* member = nullptr;
+                if (p && p->ClassType == 5) {
+                    const pz::SPPanzersSquadUnit* sq = static_cast<const pz::SPPanzersSquadUnit*>(p);
+                    if (sq->SquadMemberName.size != 0) {
+                        member = PUnit(Str(sq->SquadMemberName));
+                        if (member && member->PGunners.Size <= 0)
+                            member = nullptr;
+                    }
+                }
+                if (member) {
+                    dmg = *(const float*)((const unsigned char*)member->PGunners.Array[0] + 0x58);
+                    if (rank >= 2 && p->UnitType != 0xe) {
+                        float bonus = pz::g_UnitRegistry->SquadDamageBonus[rank - 1];   // +0x80..+0x8c
+                        sprintf(buf, "%s %g + %.02f", Tx("Damage:"), (double)dmg, (double)(bonus * dmg - dmg));
+                    } else {
+                        sprintf(buf, "%s %g", Tx("Damage:"), (double)dmg);
+                    }
+                } else {
+                    dmg = *(const float*)((const unsigned char*)d->PGunners.Array[0] + 0x58);   // 0x64773e
+                    sprintf(buf, "%s %g", Tx("Damage:"), (double)dmg);
+                }
+                Board->SetText(InfoRowFrames[rows], g_PzFont[PZF_SANS14], 0, buf);
+                ++rows;
+                break;
+            }
+            // HD 0x646fc8 (a vehicle chosen for the crew): every weapon,
+            // with the crew bonus of the rank (registry +0x90) for a crew.
+            if (rank >= 2 && p && p->UnitType == 0xe) {
+                float bonus = pz::g_UnitRegistry->CrewDamageBonus[rank - 1];   // +0x94..+0xa0
                 sprintf(buf, "%s %g + %.02f", Tx("Damage:"), (double)dmg, (double)(bonus * dmg - dmg));
             } else {
                 sprintf(buf, "%s %g", Tx("Damage:"), (double)dmg);

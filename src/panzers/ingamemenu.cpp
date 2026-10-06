@@ -17,6 +17,7 @@
 #include "worldapi.h"
 #include "world.h"
 #include "gamelogic.h"
+#include "results.h"
 
 static const char* Tx(const char* id) { return GetText("panzers/InGameMenu.cpp", id); }
 
@@ -405,6 +406,7 @@ void PzGameViewDeleteMenus(SGameView* v)
     DeleteWidget(ObjectivesMenu(v));
     DeleteWidget(RestartBox(v));
     DeleteWidget(EndBox(v));
+    PzDeleteStatisticMenu(v);                                      // +0x3e6c (results.cpp)
 }
 
 // PANZERS 0x6216b0 (the in-game-menu cases; the rest of OnAction is agent V's / O's)

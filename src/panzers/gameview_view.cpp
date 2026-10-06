@@ -315,8 +315,9 @@ void SGameView::MouseCamera(int x, int y, int ms)
         float ray[6] = { 0, 0, 0, 0, -1.0f, 0 };
         if (Viewport)
             Viewport->ScreenToRay(ray, x, y);                      // viewport +0x34
-        World->SelectUnit(World->PickAnyUnitAt(ray), 0x21);
-        cursor = 0x14;
+        int unit = World->PickAnyUnitAt(ray);
+        World->SelectUnit(unit, 0x21);
+        PzTargetCursor(this, unit);                                // 0x620d7c: 0x14 coloured by 0x56d280
         break;
     }
     case 5:
@@ -341,7 +342,7 @@ void SGameView::MouseCamera(int x, int y, int ms)
         break;
     }
     if (cursor >= 0)
-        Cursor = cursor;                                           // 0x543970(cursor, -1)
+        PzViewSetCursor(this, cursor, 0xffffffffu);                // 0x543970(cursor, -1)
 
     // Edge scroll (full screen only: window vtbl +0xb4 = IsFullScreen).
     if (MouseMode == 1 || MouseMode == 2 || MouseMode == 3)
@@ -367,18 +368,14 @@ void SGameView::MouseCamera(int x, int y, int ms)
     float right = Settings.MouseScrollSpeed * (float)ms * (float)xdir;   // 0x64e040
     float forward = Settings.MouseScrollSpeed * (float)ms * (float)zdir;
     World->MoveCamera(forward, right);                             // 0x5f4dc0
-    Cursor = kScrollCursor[xdir - 3 * zdir + 4];
+    PzViewSetCursor(this, kScrollCursor[xdir - 3 * zdir + 4], 0xffffffffu);   // 0x543970(cursor, -1)
 }
 
-// 0x621540 (not lifted): the cursor over the terrain point / unit under the
-// mouse (pick 0x5ebac0, highlight 0x5fcb10(unit, 0x21), cursor by the unit
-// kind 0x56d490 and colour by the relation 0x56d280; on terrain, 9 where
-// 0x5d9e00 allows a move, else 0). Needs the viewport ray (agent E) and the
-// pick (agent O). Recompile: the plain cursor.
+// 0x621540: the cursor over the unit / ground under the mouse (hudcursor.cpp).
 void SGameView::HoverCursor(int x, int y, int ms)
 {
-    (void)x; (void)y; (void)ms;
-    Cursor = 0;
+    (void)ms;
+    PzHoverCursor(this, x, y);
 }
 
 // PANZERS 0x6251a0

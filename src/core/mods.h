@@ -44,6 +44,11 @@
 // Defined in src/3dengine/pz/pzviewport.cpp (also linked by the tools);
 // src/panzers/mod_widescreen.cpp reads it from panzers.ini.
 extern bool g_ModWidescreen;
+// Screen rectangle of an HD sub viewport (pixels) -> the rectangle in the
+// game view's widget coordinates (the coordinates the game view passes to
+// ScreenToRay / the box select and reads back from ProjectToScreen). Set by
+// src/panzers/mod_widescreen.cpp; null or false: HD's pixel mapping.
+extern bool (*g_ModWidescreenViewRect)(float* left, float* top, float* width, float* height);
 #endif
 
 #endif // PANZERS_MODS_H

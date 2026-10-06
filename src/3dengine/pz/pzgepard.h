@@ -11,6 +11,7 @@
 
 #include "igepardhd.h"
 #include "pmodel.h"
+#include "hdbitmap.h"
 
 struct IDirect3DDevice9;
 struct IDirect3DVertexBuffer9;
@@ -22,6 +23,8 @@ namespace pz {
 struct SViewport;
 struct SPixie;
 struct SPAnim;
+
+// HD SBitmap: hdbitmap.h
 
 // The HD SGepard state the HD scene path reads (HD offsets in comments).
 struct SGepardHDState {

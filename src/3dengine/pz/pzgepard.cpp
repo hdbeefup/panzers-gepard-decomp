@@ -1224,11 +1224,70 @@ void SPzGepard::DestroyViewport(int index)
 }
 
 // HD SPzGepard vtbl +0x4c -> 0x681540 (4 arg dwords)
-void SPzGepard::UpdateTexture(int texture, int p2, int p3, void* data)
+int HdBitmapBpp(int format)
 {
-    STUB_LOG("SPzGepard::UpdateTexture (0x681540)");
+    switch (format) {
+    case 1: return 3;
+    case 2: case 3: case 0x21: case 0x23: return 4;
+    case 4: case 5: case 6: case 7: case 10: case 0xb: case 0xf: case 0x1d: case 0x20: return 2;
+    case 8: case 9: case 0xe: case 0x10: return 1;
+    default: return 0;
+    }
+}
+
+// PANZERS 0x681540
+// Blits the bitmap into the texture at (x, y): HD locks the texture as an
+// SBitmap (0x6c0f20), BitBlt 0x669d60 converts, unlock 0x6c1080. The
+// recompile locks the SWINE texture's level 0 and converts the 24/32-bit
+// formats the minimap uses (1 -> 32 bit; 2/3 copied as they are).
+void SPzGepard::UpdateTexture(int texture, int x, int y, void* data)
+{
     PZ_TRACE("SPzGepard::UpdateTexture (0x681540)");
-    (void)texture; (void)p2; (void)p3; (void)data;
+    SGepard* g = SwineGepard();
+    const SHdBitmap* b = (const SHdBitmap*)data;
+    if (!g || texture < 0 || texture >= g->Textures.size || g->Textures.array[texture].use != 0x7FFFFFFF ||
+        !g->Textures.array[texture].data.lpTexture || !b) {
+        Logger.g->Log(0, "SGepard::UpdateTexture: Invalid texture");   // HD panics
+        return;
+    }
+    IDirect3DTexture9* t = g->Textures.array[texture].data.lpTexture;
+    D3DSURFACE_DESC desc;
+    if (FAILED(t->GetLevelDesc(0, &desc)))
+        return;
+    if (desc.Format != D3DFMT_A8R8G8B8 && desc.Format != D3DFMT_X8R8G8B8) {
+        Logger.g->Log(0, "SGepard::UpdateTexture: texture format %d not handled", (int)desc.Format);
+        return;
+    }
+    int bpp = HdBitmapBpp(b->Format);
+    if (bpp != 3 && bpp != 4) {
+        Logger.g->Log(0, "SGepard::UpdateTexture: bitmap format %d not handled", b->Format);
+        return;
+    }
+    // 0x669d60: clip to both bitmaps.
+    int w = b->Width, h = b->Height;
+    if ((int)desc.Width - x < w) w = (int)desc.Width - x;
+    if ((int)desc.Height - y < h) h = (int)desc.Height - y;
+    if (w <= 0 || h <= 0 || x < 0 || y < 0)
+        return;
+    RECT r = { x, y, x + w, y + h };
+    D3DLOCKED_RECT lr;
+    if (FAILED(t->LockRect(0, &lr, &r, 0)))
+        return;
+    for (int row = 0; row < h; ++row) {
+        const unsigned char* src = b->Data + b->Start + row * b->Pitch;
+        unsigned char* dst = (unsigned char*)lr.pBits + row * lr.Pitch;
+        if (bpp == 4) {
+            memcpy(dst, src, (size_t)w * 4);                    // 0x66a460 (3 <- 2 / same format)
+        } else {
+            for (int i = 0; i < w; ++i) {                       // 0x66e210 (1 -> 32 bit)
+                dst[i * 4 + 0] = src[i * 3 + 0];
+                dst[i * 4 + 1] = src[i * 3 + 1];
+                dst[i * 4 + 2] = src[i * 3 + 2];
+                dst[i * 4 + 3] = 0xff;
+            }
+        }
+    }
+    t->UnlockRect(0);
 }
 
 // HD SPzGepard vtbl +0x54 -> 0x67fb50 (0 arg dwords)
