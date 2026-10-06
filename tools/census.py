@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tripwire census for the Panzers recompile.
 
-Prints exactly one line:
+Prints exactly one line (the last clause counts lifted bodies that still reach a STUB_LOG):
 
     CENSUS: <N> lifted bodies (PANZERS 0xADDR markers) + <M> SWINE-shared bodies + <K> stubs
 
@@ -48,6 +48,7 @@ def main() -> int:
 
     panzers_dir = os.path.join(src, "panzers")
     lifted = swine = stubs = menu3d = m2 = m3 = 0
+    partial = 0  # lifted bodies that still reach a STUB_LOG (docs/RECCMP.md)
     for root, dirs, files in os.walk(src):
         dirs.sort()
         in_stubs = os.path.commonpath([root, stubs_dir]) == stubs_dir
@@ -62,7 +63,17 @@ def main() -> int:
                 continue
             path = os.path.join(root, name)
             with open(path, "r", encoding="utf-8", errors="replace") as f:
+                in_lifted = flagged = False
                 for line in f:
+                    # A STUB_LOG between a // PANZERS marker and the next
+                    # marker makes that lifted body "partial".
+                    if in_lifted and not flagged and STUB_RE.match(line):
+                        partial += 1
+                        flagged = True
+                    if LIFTED_RE.match(line):
+                        in_lifted, flagged = True, False
+                    elif SWINE_RE.match(line):
+                        in_lifted = False
                     if LIFTED_RE.match(line):
                         lifted += 1
                     elif in_stubs or in_menu3d:
@@ -82,7 +93,8 @@ def main() -> int:
 
     print(f"CENSUS: {lifted} lifted bodies (PANZERS 0xADDR markers) + "
           f"{swine} SWINE-shared bodies + {stubs + menu3d + m2 + m3} stubs "
-          f"({stubs} shell, {menu3d} menu3d skeleton, {m2} m2 skeleton, {m3} m3 skeleton)")
+          f"({stubs} shell, {menu3d} menu3d skeleton, {m2} m2 skeleton, {m3} m3 skeleton); "
+          f"{partial} lifted bodies still contain a STUB_LOG")
     return 0
 
 
