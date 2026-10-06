@@ -39,6 +39,7 @@
 #include "milesconcert.h"
 #if PANZERS_HAVE_BINK
 #include "bink.h"   // P2-C: src/panzers/bink.*
+#include "mod_widescreen.h"
 static SBinkVideo s_Intro;   // handles mirrored into SSuperWindowData::Bink/BinkBuffer
 #endif
 
@@ -83,6 +84,9 @@ SSuperWindow::SSuperWindow()
 
     PanzersIni = new SProperties(Settings.GetIniPath(), true);     // 0x65fe80(path, 1)
     Logger.g->SetLogLevel(PanzersIni->GetInt("Debug", "debug level", 0));   // 0x65ca80
+#if PANZERS_MOD_WIDESCREEN
+    ModWidescreenInit(PanzersIni);
+#endif
 
     const char* home = PanzersIni->GetString("Paths", "Home", "");
     SString homeCopy;
@@ -116,19 +120,9 @@ SSuperWindow::SSuperWindow()
     ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
 
     // HD 0x53a440 = SDXWindow::SetPosition (vtbl +0x08). WindowX/Y default to
-    // 0x80000000 (CW_USEDEFAULT).
-    {
-        int wx = Settings.WindowX, wy = Settings.WindowY;
-        // TEMP until P2-B merge: HD passes 0x80000000 through to
-        // CreateWindow as CW_USEDEFAULT; the SWINE SWindow::Create runs it
-        // through AdjustWindowRect first and the window lands at 32767,32767
-        // (off screen). Centre it on the desktop instead.
-        if (wx == (int)0x80000000 || wy == (int)0x80000000) {
-            wx = (ScreenWidth - Settings.WindowWidth) / 2;
-            wy = (ScreenHeight - Settings.WindowHeight) / 2;
-        }
-        SetPosition(wx, wy, Settings.WindowWidth, Settings.WindowHeight);
-    }
+    // 0x80000000; SWindow::Create (HD 0x5447e0) centres the window on the
+    // screen while a coordinate is still that sentinel.
+    SetPosition(Settings.WindowX, Settings.WindowY, Settings.WindowWidth, Settings.WindowHeight);
     // HD 0x53a510(WindowAALevel, WindowAAQualityLevel): windowed AA.
     // TEMP until P2-B merge: SWINE SDXWindow keeps a single AntialiasingMode;
     // left Off.
@@ -201,12 +195,15 @@ int SSuperWindow::Create(int icon, int cursor, const char* title)
     // render options with no SWINE counterpart. TEMP until P2-B merge.
     // HD: RootFrame = board CreateFrame(7 = scaler, 0, 0,0,0,0), resized to
     // the client area, virtual size 0x400x0x300 (board +0x58), shown.
-    RootFrame = Board->CreateFrame(FT_SCALER, 0, 0, 0, 0, 1);
-    Board->ResizeFrame(RootFrame, Width, Height);
-    float sx = Width > 0 ? (float)Width / 1024.0f : 1.0f;
-    float sy = Height > 0 ? (float)Height / 768.0f : 1.0f;
-    Board->SetScaleFactor(RootFrame, sx < sy ? sx : sy);   // TEMP until P2-B: SWINE scaler is uniform
-    Board->ShowFrame(RootFrame, Visible);
+    // The menus are laid out in 1024x768 units and stretched to the client
+    // area separately in x and y (board +0x58, 0x6cb0c0).
+    RootFrame = Board->CreateFrame(FT_SCALER, 0, 0, 0, 0, 1);     // board +0x08
+    Board->ResizeFrame(RootFrame, Width, Height);                  // board +0x14
+    Board->SetVirtualSize(RootFrame, 0x400, 0x300);                // board +0x58
+    Board->ShowFrame(RootFrame, Visible);                          // board +0x18
+#if PANZERS_MOD_WIDESCREEN
+    ModWidescreenOnSize(this);
+#endif
     // HD: if FullScreen, vtbl +0xa4(0, 0x65bad0()) (display-mode switch).
 #if PANZERS_HAVE_BINK
     if (SIPanzersConcert* pc = PzConcert())
@@ -589,12 +586,19 @@ void SSuperWindow::OnMouseDown(int button, int x, int y, int shift)
 void SSuperWindow::OnSize(int w, int h)
 {
     SDXWindow::OnSize(w, h);                                       // 0x53a1b0
-    if (Board && RootFrame >= 0) {
+    // HD 0x53a1b0 ends with viewport +0x04 Resize (0x68c4e0): device reset
+    // to the new client size and the projection's y scale recomputed for the
+    // new aspect. The SWINE SDXWindow::OnSize does the device reset
+    // (Gepard->Resize); the pz viewport does the rest.
+    if (w && h && pz::g_Menu3D.World && DisplayMode != ExclusiveFullscreen)
+        pz::PzGepard()->GetViewport(0)->Resize(w, h);              // viewport +0x04
+    // The root scaler follows the client size; its virtual size stays
+    // 1024x768, so the menus stretch with the window.
+    if (Board && RootFrame >= 0)
         Board->ResizeFrame(RootFrame, Width, Height);              // board +0x14
-        float sx = Width > 0 ? (float)Width / 1024.0f : 1.0f;
-        float sy = Height > 0 ? (float)Height / 768.0f : 1.0f;
-        Board->SetScaleFactor(RootFrame, sx < sy ? sx : sy);
-    }
+#if PANZERS_MOD_WIDESCREEN
+    ModWidescreenOnSize(this);
+#endif
     // HD: MultiView -> 0x64b9e0; else GameView -> 0x625d80 (in-game HUD).
 }
 
@@ -605,13 +609,20 @@ SWidget* SSuperWindow::GetEventTarget(int x, int y, int* lx, int* ly)
     LastMouseY = y;
     if (Width == 0 || Height == 0)
         return this;
-    // HD maps the client area onto the 1024x768 virtual screen with rounding:
-    // x' = (W/2 + x*1024) / W, y' = (H/2 + y*768) / H. The SWINE scaler keeps
-    // the aspect (uniform factor), so map through the same factor.
-    float sx = (float)Width / 1024.0f, sy = (float)Height / 768.0f;
-    float s = sx < sy ? sx : sy;
-    int vx = (int)floorf((float)x / s + 0.5f);
-    int vy = (int)floorf((float)y / s + 0.5f);
+#if PANZERS_MOD_WIDESCREEN
+    {
+        int mx, my;
+        if (ModWidescreenEventPoint(this, x, y, &mx, &my))
+            return SDXWindow::GetEventTarget(mx, my, lx, ly);
+    }
+#endif
+    // HD maps the client area onto the 1024x768 virtual screen, separately
+    // in x and y, with rounding: x' = (W/2 + x*1024) / W, y' = (H/2 + y*768) / H.
+    int vx = ((Width >> 1) + x * 0x400) / Width;
+    int vy = ((Height >> 1) + y * 0x300) / Height;
+    // HD: with a captured widget (SWidget +0x5c) the point goes to that
+    // widget's GetEventTarget relative to it (0x5435d0); SWINE's
+    // SWindow::GetEventTarget handles the capture itself.
     return SDXWindow::GetEventTarget(vx, vy, lx, ly);
 }
 
@@ -702,6 +713,9 @@ bool SSuperWindow::OnAction(SWidget* source, int action, int param)
 // PANZERS 0x65ab50
 void SSuperWindow::OnDestroy()
 {
+#if PANZERS_MOD_WIDESCREEN
+    ModWidescreenShutdown();
+#endif
     CloseBinkVideo();                              // 0x65b830
     ReleaseNews();
     // HD: 0x5447b0 (SWindow capture reset), 0x65b8c0
@@ -780,6 +794,9 @@ bool SSuperWindow::OnIdle()
             Concert->Update(false);                                // Concert +0x0c(0)
     }
     // HD: -movierec frame capture (Settings.RecordFrames) — not lifted.
+#if PANZERS_MOD_WIDESCREEN
+    ModWidescreenFrame(this);
+#endif
     if (EventFrame(0, 0))                          // SWindow::EventFrame 0x544a50
         OnClose();                                 // vtbl +0x8c
     // HD: news ticker fade (+0x184/+0x178, board +0x20/+0x10) — news.ini

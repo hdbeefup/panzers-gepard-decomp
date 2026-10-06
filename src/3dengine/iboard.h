@@ -54,6 +54,10 @@ struct SIBoard {
     // +0x94 (0x6c59e0). SWINE's LoadCursorSet(scale) loads its own atlas PNG
     // and .cur files instead.
     virtual void LoadCursorSetFile(const char* filename, int size, int count, const POINT* hotspots) = 0;
+    // Panzers: virtual size of a scaler frame (HD SBoard vtable slot +0x58,
+    // 0x6cb0c0). Children of the scaler are laid out in width x height
+    // units and stretched to the scaler's frame size, separately in x and y.
+    virtual void SetVirtualSize(int frame, int width, int height) = 0;
 };
 
 #endif // DENGINE3_IBOARD_H

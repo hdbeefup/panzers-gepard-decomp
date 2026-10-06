@@ -65,6 +65,12 @@ int SDXWindow::Create(HICON icon, HCURSOR cursor, const wchar_t *title)
   {
     if ( SWindow::Create(icon, cursor, title, 0xCF0000u, 0, 0) >= 0 )
     {
+      // HD 0x539d70: the windowed rect (+0xac..+0xb8) is taken after
+      // SWindow::Create, which may have centred the window.
+      this->WindowedX = this->X;
+      this->WindowedY = this->Y;
+      this->WindowedWidth = this->Width;
+      this->WindowedHeight = this->Height;
       Logger.g->Attach(this->hWnd);
       ValidateRect(this->hWnd, 0);
       height = this->Height;

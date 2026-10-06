@@ -15,7 +15,7 @@ and the `.4d` loader are only noted where an obvious difference showed up.
 | HD function | HD address | SWINE counterpart | Difference |
 |---|---|---|---|
 | `SDXWindow::SDXWindow` | 0x539c70 | `SDXWindow::SDXWindow` | Same defaults for the windowed rect (40,40,800,600). HD also sets `+0xc4`/`+0xc5` (bools for HW T&L and HAL device, both 1), `+0xc6` (use Miles, 1), and clears the viewport/scene pointers at `+0xdc`/`+0xe0`. SWINE has DisplayMode, VSync, MSAA and monitor fields instead. |
-| `SWindow::Create` | 0x5447e0 | `SWindow::Create` | HD uses the **ANSI** API (`RegisterClassExA`/`CreateWindowExA`, `char*` title, class name in an `SString` at `+0x48`), uses a black `hbrBackground`, and **centres** the window when X or Y is still the `0x80000000` sentinel that the SWidget constructor sets. HD registers the window in a global `SHeap<{hwnd, SWindow*}>` (0x8da79c); `StaticWindowProc` 0x545150 looks the window up by hwnd, so several windows can exist. SWINE uses the wide API, a `wchar_t ClassName[32]`, no centring, and a single `TheWindow`. |
+| `SWindow::Create` | 0x5447e0 | `SWindow::Create` | HD uses the **ANSI** API (`RegisterClassExA`/`CreateWindowExA`, `char*` title, class name in an `SString` at `+0x48`), uses a black `hbrBackground`, and **centres** the window when X or Y is still the `0x80000000` sentinel that the SWidget constructor sets. HD registers the window in a global `SHeap<{hwnd, SWindow*}>` (0x8da79c); `StaticWindowProc` 0x545150 looks the window up by hwnd, so several windows can exist. SWINE uses the wide API, a `wchar_t ClassName[32]` and a single `TheWindow`. **Changed:** the centring is lifted into the SWINE `SWindow::Create` (`// HD 0x5447e0`), so `SSuperWindow` passes options.ini's `WindowX/WindowY` through unchanged (the old TEMP centring in the constructor is gone). Style is `WS_OVERLAPPEDWINDOW` (0xCF0000) in both: the HD window is resizable and maximizable (measured on the original: style 0x14CF0000, `WM_NCHITTEST` on the border returns HTRIGHT/HTBOTTOMRIGHT). |
 | `SDXWindow::Create` | 0x539d70 | `SDXWindow::Create` | HD: `CreateGepard(hwnd, fullscreen, w, h, bpp, hintW, hintH, bHWTnL, bHAL, &Gepard)`, then `viewport = Gepard->vtbl[+0x3c](0)` (stored at `+0xdc`) and **`Board = viewport->vtbl[+0x4c]()`**. Sound is `CreateMilesConcert(hwnd, redistDir)` 0x684fb0, or a null concert 0x6820a0 when `+0xc6` is 0. SWINE: `CreateGepard(hwnd, fs, vsync, msaa, w, h, 1, &Gepard)`; `Board` is set inside `SGepard::Initialize`; DirectSound `CreateConcert`. |
 | `::CreateGepard` | 0x678ba0 | `CreateGepard` | `new SGepard` (0x810 bytes) + Initialize, then Release on failure. Same shape; the parameter lists differ as above. |
 | `SGepard::SGepard` | 0x676c20 | `SGepard::SGepard` | HD opens **no files**. SWINE loads `decals.ini` with SProperties, which panics when the file is missing. **Changed:** `DecalsIni` is now null (`// PANZERS 0x676c20`). |
@@ -24,7 +24,8 @@ and the `.4d` loader are only noted where an obvious difference showed up.
 | `SBoard::SBoard` | 0x6c2500 | `SBoard::SBoard` | HD gets `new SBoard(clientW, clientH)` (0xe8 bytes) from the viewport. It sets RefCount=1 and duplicate-board protection, makes a 32x32 A8R8G8B8 offscreen surface for the hardware cursor, and calls `SetHardwareMouseCursor`. SWINE **panicked unless 3 HD-remaster `.ttf` files** could be registered. **Changed:** they are registered only if present (`// PANZERS 0x6c2500`). The hardware-cursor surface is not ported. |
 | `SWindow::Run` | 0x544db0 | `SWindow::ProcessMessages` (close) | HD returns void and has no ModalResult or `shouldClose` handling. **Lifted** as `SWindow::Run()` (`// PANZERS 0x544db0`). |
 | `SDXWindow::OnIdle` (vtbl +0x90) | 0x53a0d0 | `SDXWindow::OnIdle` | HD: cursor position → `Board->vtbl[+0x9c](x, y, cursorX, cursorY)`, then `viewport->vtbl[+0x50](scene, 0)` renders. It **returns `+0xd8` OR event-record OR event-playback**, so it normally returns **false** and `Run` then blocks in `GetMessage`; continuous rendering needs the `+0xd8` flag (writer not identified). SWINE always returns true (busy loop) and renders with `Gepard->RenderScene(0)`. Not changed: `SSuperWindow::OnIdle` 0x65ae50 (owned by P2-D) returns this value. |
-| `SDXWindow::OnSize` | 0x53a1b0 | same | HD logs the FPU control word before and after and calls `viewport->Resize`. SWINE calls `Gepard->Resize`. |
+| `SDXWindow::OnSize` | 0x53a1b0 | same | HD logs the FPU control word before and after and calls `viewport->Resize` (0x68c4e0). SWINE calls `Gepard->Resize`. **Changed:** `SSuperWindow::OnSize` also calls the pz viewport's `Resize` (lifted, `// PANZERS 0x68c4e0`) when the 3D menu world is on; see section 7. |
+| `SWindow::WindowProc` `WM_WINDOWPOSCHANGING` | 0x545200 | `case 0x46` | HD: on `SWP_FRAMECHANGED` while maximized, the window rect is set so the client area covers the whole primary screen (`HORZRES` x `VERTRES` through `AdjustWindowRect`, over the taskbar), and `SWP_NOSIZE/NOMOVE` are cleared. A maximized HD window on a 1920x1080 screen has a 1920x1080 client. SWINE returned 1 and did nothing. **Lifted** into the SWINE case (`// HD 0x545200`). HD has no `WM_GETMINMAXINFO` case; SWINE's 800x600 minimum is kept. |
 | `SDXWindow::OnDestroy` | 0x53a040 | same | HD releases the scene (`+0xe0`), `Board`, `Concert` and `Gepard` (in that order) and logs "releasing scene". SWINE releases MBox, Concert and Gepard. |
 
 ### 2. Textures (TGA, `_hq` / `_a`, DXT)
@@ -268,7 +269,7 @@ SWINE has 33 slots. Compared with HD:
   | +3C | SetBoxColor |
   | +40..+48 | SetAnim |
   | +4C | SetMinimapGlyph |
-  | +58 | SetVirtualSize(frame, w, h)? (name guessed): 0x657540 uses (scaler, 1024, 768) |
+  | +58 | SetVirtualSize(frame, w, h) 0x6cb0c0 (name guessed): stores w, h at frame +0x28/+0x2c; 0x657540 uses (scaler, 1024, 768). **Lifted** as `SBoard::SetVirtualSize` |
   | +60 | CreateTrueTypeFont |
   | +68 | LoadProportionalFont |
   | **+6C** | **LoadFontFileFont** |
@@ -285,7 +286,7 @@ SWINE has 33 slots. Compared with HD:
   | +C4 | apply hardware cursor |
   | +C8 | SetHardwareMouseCursor |
 
-  SWINE lacks GetText, GetFontHeight and SetVirtualSize; it has SetScaleFactor on scaler frames instead.
+  SWINE lacks GetText and GetFontHeight; it has SetScaleFactor on scaler frames, and now also SetVirtualSize (section 7).
 
 ### 6. Public API changes in this branch
 
@@ -296,6 +297,7 @@ SWINE has 33 slots. Compared with HD:
   - `+ void Run()`
   - `+ virtual void ShowStatusMessage(void *)`
   - `+ virtual void HideStatusMessage(void *)`
+- `SIBoard` / `SBoard`: `+ void SetVirtualSize(int frame, int width, int height)` (`// PANZERS 0x6cb0c0`, HD board +0x58). `SFrameScaler` gains `VirtualWidth`/`VirtualHeight` (0 = SWINE's uniform `ScaleFactor`).
 - No signature in `gepard.h`, `dxwindow.h` or `board.h` changed, apart from the `SBoard` additions above.
 
 ### 7. Not done / not verified
@@ -475,3 +477,15 @@ Other engine-facing details:
   The third was found from the strings and was not run.
 - **Recompile-only.** Esc on the Options menu acts as Back. HD ignores Esc
   there (checked on the original).
+
+### 7. Window size, 2D scaler and 3D aspect (branch fix-window-scaling)
+
+How HD behaves when the window is resized or maximized (the window is resizable, see `SWindow::Create` above):
+
+- **Device:** `SDXWindow::OnSize` 0x53a1b0 -> `SViewport::Resize` 0x68c4e0 (mode 0, primary windowed viewport) zeroes the back-buffer size in the present parameters (+0x30/+0x34, so D3D takes the client size) and calls `SGepard::ResetDevice` 0x67fde0. The back buffer always matches the client area; there is no fixed 1024x768 back buffer stretched by Present. The original's log shows `SDXWindow::OnSize(1920, 1080)` followed by `Gepard::ResetDevice` when maximized.
+- **3D projection:** `SetProjection` 0x68cfd0 sets m00 = 1/tan(fov/2) and, windowed, m11 = m00 / h * w from the viewport size (+0x128/+0x12c); full-screen mode (+0x78 == 1) uses a fixed 4/3 instead. `Resize` recomputes m11 = m00 / h * w whenever a projection is set (fov +0xcc != 0.0). So the **horizontal** field of view is fixed (60 degrees from `SWorld::ComputeCamera` 0x5ddc30) and a wide window crops the top and bottom of the 4:3 view, without distortion. Measured on the original at 1024x768 and 1920x1080: objects keep their pixel aspect, and their width as a fraction of the window stays the same. The recompile lifts this as `pz::SViewport::Resize`; before, the projection was set once and stayed 4:3 after a resize, so the scene was stretched.
+- **2D UI:** `SSuperWindow::Create` 0x657540 creates the root scaler frame (board +0x08 type 7), resizes it to the client area (+0x14) and sets its virtual size to 1024x768 (+0x58). `SSuperWindow::OnSize` 0x65b410 only resizes the scaler to the new client size. The board render 0x6c7150 keeps separate x and y scales on its frame stack; a scaler multiplies them by width / virtual width and height / virtual height. The 1024x768 menus are therefore **stretched non-uniformly** to fill the window. The recompile had a uniform min-factor (SWINE's scaler only scales uniformly), which pinned a 4:3 UI to the left; it now keeps x and y scales in `SBoard::Render`, and also scales the alignment offset of bitmap text by the x scale, as HD does. Bitmap-font text extents are no longer divided by the text scale (`GetTextExtent`, `// HD 0x6c5530`); only the TrueType path converts scaled pixels back.
+- **Mouse:** `SSuperWindow::GetEventTarget` 0x657850 maps client to virtual coordinates as x' = (W/2 + x*1024) / W and y' = (H/2 + y*768) / H (integer), now lifted exactly.
+- **Maximize:** see `WM_WINDOWPOSCHANGING` above: HD's maximized client is the full screen.
+- **Not ported:** `SViewport::Resize`'s subport scaling, the board +0xc4 hardware-cursor refresh, and the full-screen projection branch (the SWINE device handles full-screen mode).
+- **Mod, not HD:** `PANZERS_MOD_WIDESCREEN` (OFF by default, `src/core/mods.h`, `src/panzers/mod_widescreen.*`) replaces this behaviour on windows wider than 4:3. The root scaler gets a virtual size of (768 * w / h) x 768, so the UI keeps its aspect; top-level widgets are moved by the extra width (right-aligned ones, X + width at the 1024 edge) or half of it (the rest); the top and bottom bars are centred and extended with 230-px tiles cut from their own textures; `GetEventTarget` maps through the same virtual width; and the projection keeps the 4:3 vertical field of view (m11 = 4/3 / tan(fov/2), m00 = m11 * h / w). The hooks sit in `#if PANZERS_MOD_WIDESCREEN` blocks; with the switch off, the default build's `.text`, `.data` and `.rsrc` are byte-identical, and `.rdata` differs only in the debug directory.

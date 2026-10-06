@@ -28,6 +28,24 @@ install (the folder with the .pak files, mss32.dll, binkw32.dll and miles/), the
 run it with `-nointro` to skip the Bink intro. Game data is never part of
 this repo.
 
+Mods
+----
+
+Mods are opt-in. Each one has its own CMake switch, OFF by default, so the
+default build stays the faithful one; the switches are listed in
+src/core/mods.h. Build a mod build in a separate build directory:
+
+    cmake -S . -B build-mod -G "Visual Studio 18 2026" -A Win32 -DPANZERS_MOD_WIDESCREEN=ON
+    cmake --build build-mod --config Release --parallel
+
+- PANZERS_MOD_WIDESCREEN: widescreen window. The original stretches its
+  1024x768 menus to any window size and crops the 3D view at the top and
+  bottom. With the mod, a window wider than 4:3 shows more of the 3D scene
+  at the sides (same vertical field of view, Hor+). The menus keep their
+  4:3 shape: the top and bottom bars run the full width, the logo and
+  centred screens stay centred, and the main menu stays at the right edge.
+  Runtime toggle: `[Mods] Widescreen = 0` in panzers.ini turns it off.
+
 Docs:
 - docs/re/TRIAGE.md       HD exe triage: boot path, libraries, symbol sources
 - docs/FORMATS.md         pak, ini and menu.ini string table

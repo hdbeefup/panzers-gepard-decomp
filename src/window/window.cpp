@@ -135,6 +135,13 @@ int SWindow::Create(HICON icon, HCURSOR cursor, const wchar_t *title, unsigned i
   wcex.lpszClassName = ClassName;
   if (!RegisterClassExW(&wcex))
     Logger.g->Log(0, "SWindow::Create: RegisterClassExW failed (err=%lu)", GetLastError());
+  // HD 0x5447e0: a position still at the 0x80000000 sentinel (CW_USEDEFAULT,
+  // the SWidget default and options.ini's default WindowX/WindowY) is
+  // centred on the primary screen before AdjustWindowRect.
+  if ( this->X == (int)0x80000000 )
+    this->X = (GetSystemMetrics(SM_CXSCREEN) - this->Width) / 2;
+  if ( this->Y == (int)0x80000000 )
+    this->Y = (GetSystemMetrics(SM_CYSCREEN) - this->Height) / 2;
   X = this->X;
   Y = this->Y;
   r.right = X + this->Width;
@@ -899,6 +906,34 @@ $LN42_10:
           *(DWORD *)(v5 + 28) = 600;
           return result;
         case 0x46u:
+          // HD 0x545200 (WM_WINDOWPOSCHANGING): when a frame change arrives
+          // while the window is maximized, the window is placed so that its
+          // client area covers the whole primary screen (HORZRES x VERTRES,
+          // through AdjustWindowRect), over the taskbar; the size/move
+          // suppression bits are cleared.
+          if ( (((WINDOWPOS *)lParam)->flags & SWP_FRAMECHANGED) != 0 )
+          {
+            WINDOWPLACEMENT wpl;
+            wpl.length = sizeof(wpl);
+            GetWindowPlacement(this->hWnd, &wpl);
+            if ( wpl.showCmd == SW_SHOWMAXIMIZED )
+            {
+              HDC dc = GetDC(0);
+              RECT full;
+              full.left = 0;
+              full.top = 0;
+              full.right = GetDeviceCaps(dc, HORZRES);
+              full.bottom = GetDeviceCaps(dc, VERTRES);
+              ReleaseDC(0, dc);
+              AdjustWindowRect(&full, this->Style, 0);
+              WINDOWPOS *wp = (WINDOWPOS *)lParam;
+              wp->x = full.left;
+              wp->y = full.top;
+              wp->cx = full.right - full.left;
+              wp->cy = full.bottom - full.top;
+              wp->flags &= ~(SWP_NOSIZE | SWP_NOMOVE);
+            }
+          }
           return 1;
         case 0x81u:
           goto $LN42_10;

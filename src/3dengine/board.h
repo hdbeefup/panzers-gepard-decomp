@@ -75,6 +75,12 @@ struct SFrameMinimap {
 
 struct SFrameScaler {
     float ScaleFactor;
+    // Panzers (HD SBoard +0x58, 0x6cb0c0): virtual size of the scaler. When
+    // set (> 0), children are scaled by Width/VirtualWidth and
+    // Height/VirtualHeight (non-uniform), as HD's board render 0x6c7150 does;
+    // 0 keeps SWINE's uniform ScaleFactor.
+    int VirtualWidth;
+    int VirtualHeight;
 };
 
 // === SFrame ===
@@ -190,6 +196,7 @@ struct SBoard : SIBoard {
     void SetMinimapRotation(int frameIdx, float rotation);
     void SetPixelRounding(bool round);
     void SetScaleFactor(int idx, float scaleFactor);
+    void SetVirtualSize(int idx, int width, int height);
     void SetSpriteGlyph(int idx, int font, int glyph);
     void SetSpriteSepiaFilter(int idx, bool enable, unsigned int color);
     void SetText(int idx, int font, int align, const char *text);

@@ -381,6 +381,8 @@ int SBoard::CreateFrame(SFrameType type, int parent, int x, int y, int gravity, 
       break;
     case FT_SCALER:
       array[v11].data.Sprite.Font = 1065353216;
+      array[v11].data.Scaler.VirtualWidth = 0;   // Panzers: no virtual size (uniform ScaleFactor)
+      array[v11].data.Scaler.VirtualHeight = 0;
       break;
     default:
       break;
@@ -613,7 +615,14 @@ float SBoard::GetTextEffectiveScaleFactor(int idx)
     {
       v5 = Parent;
       if ( array[v5].data.Type == FT_SCALER )
-        v2 = v2 * array[v5].data.Scaler.ScaleFactor;
+      {
+        // Panzers: a scaler with a virtual size scales text by its height
+        // ratio (the glyph quads are stretched in x by the render).
+        if ( array[v5].data.Scaler.VirtualHeight > 0 )
+          v2 = v2 * ((float)array[v5].data.Height / (float)array[v5].data.Scaler.VirtualHeight);
+        else
+          v2 = v2 * array[v5].data.Scaler.ScaleFactor;
+      }
       Parent = array[v5].data.Parent;
     }
     while ( Parent >= 0 );
@@ -892,6 +901,10 @@ LABEL_82:
   *height = (int)(float)((float)((float)(array[v10].data.Glyphs[32].Dest.Bottom - array[v10].data.Glyphs[32].Dest.Top)
                                - (float)array[v10].data.TopMargin)
                        - (float)array[v10].data.BottomMargin);
+  // HD 0x6c5530: bitmap-font extents are in the font's own (virtual)
+  // units; HD does not divide them by the text scale. Only the TrueType path
+  // above measures scaled pixels and converts back.
+  v8 = 1.0f;
   v12 = 0;
   v13 = str;
   v14 = &str[nchars];
@@ -1911,7 +1924,7 @@ void SBoard::Render(float a2, int a3, int a4)
   struct RenderState {
     int frameIdx;
     float absX, absY;
-    float scale;
+    float scaleX, scaleY;   // Panzers: HD 0x6c7150 pushes separate x/y scales
   };
   RenderState stack[64];
   int stackTop = 0;
@@ -1921,7 +1934,8 @@ void SBoard::Render(float a2, int a3, int a4)
   stack[0].frameIdx = root.Child;
   stack[0].absX = root.X;
   stack[0].absY = root.Y;
-  stack[0].scale = 1.0f;
+  stack[0].scaleX = 1.0f;
+  stack[0].scaleY = 1.0f;
   stackTop = 1;
 
   int lastTextureIdx = -2; // track to minimize texture switches
@@ -1932,7 +1946,8 @@ void SBoard::Render(float a2, int a3, int a4)
     int idx = stack[stackTop].frameIdx;
     float parentX = stack[stackTop].absX;
     float parentY = stack[stackTop].absY;
-    float scale = stack[stackTop].scale;
+    float scaleX = stack[stackTop].scaleX;
+    float scaleY = stack[stackTop].scaleY;
 
     while (idx > 0 && idx < Frames.size)
     {
@@ -1946,14 +1961,23 @@ void SBoard::Render(float a2, int a3, int a4)
         continue;
       }
 
-      float fx = parentX + f.X * scale;
-      float fy = parentY + f.Y * scale;
-      float curScale = scale;
+      float fx = parentX + f.X * scaleX;
+      float fy = parentY + f.Y * scaleY;
+      float curScaleX = scaleX;
+      float curScaleY = scaleY;
 
       switch (f.Type)
       {
       case FT_SCALER:
-        curScale = scale * f.Scaler.ScaleFactor;
+        // HD 0x6c7150: a scaler with a virtual size (board +0x58)
+        // scales x by Width/VirtualWidth and y by Height/VirtualHeight.
+        if (f.Scaler.VirtualWidth > 0 && f.Scaler.VirtualHeight > 0) {
+          curScaleX = scaleX * ((float)f.Width / (float)f.Scaler.VirtualWidth);
+          curScaleY = scaleY * ((float)f.Height / (float)f.Scaler.VirtualHeight);
+        } else {
+          curScaleX = scaleX * f.Scaler.ScaleFactor;
+          curScaleY = scaleY * f.Scaler.ScaleFactor;
+        }
         break;
 
       case FT_SPRITE:
@@ -1990,10 +2014,10 @@ void SBoard::Render(float a2, int a3, int a4)
           }
 
           SGlyph &g = f.Sprite.Glyph;
-          float dx = fx + g.Dest.Left * scale;
-          float dy = fy + g.Dest.Top * scale;
-          float dw = (g.Dest.Right - g.Dest.Left) * scale;
-          float dh = (g.Dest.Bottom - g.Dest.Top) * scale;
+          float dx = fx + g.Dest.Left * scaleX;
+          float dy = fy + g.Dest.Top * scaleY;
+          float dw = (g.Dest.Right - g.Dest.Left) * scaleX;
+          float dh = (g.Dest.Bottom - g.Dest.Top) * scaleY;
 
           // Ghidra sboard.c:1175 — snap sprite origin to int when roundPixels is on.
           // Intro crawl sets roundPixels=0 to keep sub-pixel scroll smooth across lines.
@@ -2049,10 +2073,10 @@ void SBoard::Render(float a2, int a3, int a4)
           lpD3DDev->SetSamplerState(0, D3DSAMP_BORDERCOLOR, 0);
 
           SGlyph &g = f.Minimap.Glyph;
-          float dx = fx + g.Dest.Left * scale;
-          float dy = fy + g.Dest.Top * scale;
-          float dw = (g.Dest.Right - g.Dest.Left) * scale;
-          float dh = (g.Dest.Bottom - g.Dest.Top) * scale;
+          float dx = fx + g.Dest.Left * scaleX;
+          float dy = fy + g.Dest.Top * scaleY;
+          float dw = (g.Dest.Right - g.Dest.Left) * scaleX;
+          float dh = (g.Dest.Bottom - g.Dest.Top) * scaleY;
 
           // Vertex positions
           vert[0].x = dx;      vert[0].y = dy;
@@ -2131,9 +2155,9 @@ void SBoard::Render(float a2, int a3, int a4)
             if ((x0 < 0.0f && x1 < 0.0f) || (x0 > maxX && x1 > maxX)) continue;
             if ((y0 < 0.0f && y1 < 0.0f) || (y0 > maxY && y1 > maxY)) continue;
 
-            vert[0].x = x0 * scale + fx; vert[0].y = y0 * scale + fy;
+            vert[0].x = x0 * scaleX + fx; vert[0].y = y0 * scaleY + fy;
             vert[0].u = 0; vert[0].v = 0; vert[0].color = 0xC0FFFFC0;
-            vert[1].x = x1 * scale + fx; vert[1].y = y1 * scale + fy;
+            vert[1].x = x1 * scaleX + fx; vert[1].y = y1 * scaleY + fy;
             vert[1].u = 0; vert[1].v = 0; vert[1].color = 0xC0FFFFC0;
 
             lpD3DDev->DrawPrimitiveUP(D3DPT_LINELIST, 1, vert, sizeof(TLVertBoard));
@@ -2157,11 +2181,11 @@ void SBoard::Render(float a2, int a3, int a4)
 
           SGlyph &g = f.Sprite.Glyph;
           // Glyph dest size defines the corner dimensions
-          float cornerW = (g.Dest.Right - g.Dest.Left) * scale * 0.5f;
-          float cornerH = (g.Dest.Bottom - g.Dest.Top) * scale * 0.5f;
+          float cornerW = (g.Dest.Right - g.Dest.Left) * scaleX * 0.5f;
+          float cornerH = (g.Dest.Bottom - g.Dest.Top) * scaleY * 0.5f;
           // Frame width/height define the total fill area
-          float totalW = (float)f.Width * scale;
-          float totalH = (float)f.Height * scale;
+          float totalW = (float)f.Width * scaleX;
+          float totalH = (float)f.Height * scaleY;
           float x0 = fx - 0.5f;
           float y0 = fy - 0.5f;
 
@@ -2307,10 +2331,11 @@ void SBoard::Render(float a2, int a3, int a4)
 
         // Handle text alignment for bitmap fonts
         int align = f.Text.Align;
+        // HD 0x6c7150: the alignment offset is scaled by the x scale.
         if (align == 1)       // right-aligned
-          tx -= (float)f.Text.Width;
+          tx -= (float)f.Text.Width * scaleX;
         else if (align == 2)  // center-aligned
-          tx -= (float)(f.Text.Width / 2);
+          tx -= (float)(f.Text.Width / 2) * scaleX;
 
         for (const unsigned char *p = (const unsigned char *)text; *p; )
         {
@@ -2361,10 +2386,10 @@ void SBoard::Render(float a2, int a3, int a4)
           if (g.Width == 0)
             continue;
 
-          float dx = tx + g.Dest.Left * scale;
-          float dy = ty + g.Dest.Top * scale;
-          float dw = (g.Dest.Right - g.Dest.Left) * scale;
-          float dh = (g.Dest.Bottom - g.Dest.Top) * scale;
+          float dx = tx + g.Dest.Left * scaleX;
+          float dy = ty + g.Dest.Top * scaleY;
+          float dw = (g.Dest.Right - g.Dest.Left) * scaleX;
+          float dh = (g.Dest.Bottom - g.Dest.Top) * scaleY;
 
           // Ghidra: snap per-glyph quad to integer pixels when roundPixels is on.
           if (roundPixels) {
@@ -2378,7 +2403,7 @@ void SBoard::Render(float a2, int a3, int a4)
           vert[3].x = dx + dw; vert[3].y = dy + dh; vert[3].u = g.Src.Right; vert[3].v = g.Src.Bottom; vert[3].color = col;
 
           lpD3DDev->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, vert, sizeof(TLVertBoard));
-          tx += g.Width * scale;
+          tx += g.Width * scaleX;
         }
         break;
       }
@@ -2391,8 +2416,8 @@ void SBoard::Render(float a2, int a3, int a4)
         lpD3DDev->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
         lpD3DDev->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
 
-        float bw = (float)f.Width * scale;
-        float bh = (float)f.Height * scale;
+        float bw = (float)f.Width * scaleX;
+        float bh = (float)f.Height * scaleY;
         unsigned int col = f.Box.Color;
 
         // Ghidra: box vertices snap to integer pixels when roundPixels is on.
@@ -2426,8 +2451,8 @@ void SBoard::Render(float a2, int a3, int a4)
             lastTextureIdx = -1;
             float x0 = fx - 0.5f;
             float y0 = fy - 0.5f;
-            float x1 = x0 + (float)f.Width * curScale;
-            float y1 = y0 + (float)f.Height * curScale;
+            float x1 = x0 + (float)f.Width * curScaleX;
+            float y1 = y0 + (float)f.Height * curScaleY;
             float u1 = f.Sprite.Glyph.Dest.Left;
             float v1 = f.Sprite.Glyph.Dest.Top;
             vert[0].x = x0;  vert[0].y = y0;  vert[0].u = 0;   vert[0].v = 0;   vert[0].color = 0xFFFFFFFF;
@@ -2474,8 +2499,8 @@ void SBoard::Render(float a2, int a3, int a4)
           lastTextureIdx = -1;
           float x0 = fx - 0.5f;
           float y0 = fy - 0.5f;
-          float x1 = x0 + (float)f.Width * curScale;
-          float y1 = y0 + (float)f.Height * curScale;
+          float x1 = x0 + (float)f.Width * curScaleX;
+          float y1 = y0 + (float)f.Height * curScaleY;
           // UV max values stored in Anim.MaxU/MaxV by StartAnim
           float u1 = f.Anim.MaxU;
           float v1 = f.Anim.MaxV;
@@ -2497,7 +2522,8 @@ void SBoard::Render(float a2, int a3, int a4)
         stack[stackTop].frameIdx = f.Sibling;
         stack[stackTop].absX = parentX;
         stack[stackTop].absY = parentY;
-        stack[stackTop].scale = scale;
+        stack[stackTop].scaleX = scaleX;
+        stack[stackTop].scaleY = scaleY;
         stackTop++;
       }
 
@@ -2505,7 +2531,8 @@ void SBoard::Render(float a2, int a3, int a4)
       if (f.Child > 0) {
         parentX = fx;
         parentY = fy;
-        scale = curScale;
+        scaleX = curScaleX;
+        scaleY = curScaleY;
         idx = f.Child;
       } else {
         idx = 0; // no children, loop will exit and pop from stack
@@ -4857,6 +4884,19 @@ LABEL_10:
     if ( array[Child].data.Sibling >= 0 )
       goto LABEL_10;
   }
+}
+
+// PANZERS 0x6cb0c0
+// HD SBoard +0x58: stores the virtual size in the scaler frame (+0x28/+0x2c
+// of the 0x5c-byte HD frame record). The render (0x6c7150) multiplies the
+// pushed x scale by frame width / virtual width and the y scale by frame
+// height / virtual height.
+void SBoard::SetVirtualSize(int idx, int width, int height)
+{
+  if ( idx < 0 || idx >= this->Frames.size || this->Frames.array[idx].use != 0x7FFFFFFF )
+    Logger.g->Panic("SBoard::SetVirtualSize: invalid frame (%d)", idx);
+  this->Frames.array[idx].data.Scaler.VirtualWidth = width;
+  this->Frames.array[idx].data.Scaler.VirtualHeight = height;
 }
 
 //----- (00421540) --------------------------------------------------------

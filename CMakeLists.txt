@@ -91,6 +91,15 @@ message(STATUS "Audio backend: ${GEPARD_AUDIO_BACKEND}")
 # zstd is NOT built: its only engine user (ANI2 animations in
 # 3dengine/animation.cpp, a SWINE-HD-only format) is stubbed in src/stubs/.
 
+# Mods (src/core/mods.h). Each mod has its own switch, OFF by default: the
+# default build is the faithful one and must not change when mod code is
+# added. Set before the libraries so every target sees the definition.
+option(PANZERS_MOD_WIDESCREEN "Mod: widescreen window (Hor+ 3D, 4:3 UI with extended bars)" OFF)
+if(PANZERS_MOD_WIDESCREEN)
+    add_compile_definitions(PANZERS_MOD_WIDESCREEN=1)
+    message(STATUS "Mod: PANZERS_MOD_WIDESCREEN on")
+endif()
+
 # Engine libraries, in dependency order
 add_subdirectory(src/core)
 add_subdirectory(src/3dengine)

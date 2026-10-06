@@ -33,11 +33,38 @@
 #include "core_common.h"
 #include "logger.h"
 #include "stub_log.h"
+#include "mods.h"
 
 extern SIGepard* Gepard;   // SWINE renderer (window/widget.h)
 extern SIBoard* Board;
 
+#if PANZERS_MOD_WIDESCREEN
+bool g_ModWidescreen = true;   // see mods.h
+#endif
+
 namespace pz {
+
+#if PANZERS_MOD_WIDESCREEN
+// MOD_WIDESCREEN (Hor+): on a window wider than 4:3, keep the vertical field
+// of view of a 4:3 view with the same fov (m11 = 4/3 / tan(fov/2)) and widen
+// the horizontal one (m00 = m11 * h / w). Narrower windows keep HD's fixed
+// horizontal fov. Called after HD's projection maths, so the faithful values
+// are only replaced, never mixed.
+static void ModWidescreenProjection(SViewport* vp)
+{
+    if (!g_ModWidescreen || vp->Camera.Fov == 0.0f || vp->Width <= 0 || vp->Height <= 0)
+        return;
+    float base = (float)(1.0 / tan((double)vp->Camera.Fov * 0.5));
+    if (vp->Width * 3 > vp->Height * 4) {
+        vp->Proj[5] = base * (4.0f / 3.0f);
+        vp->Proj[0] = vp->Proj[5] * (float)vp->Height / (float)vp->Width;
+    } else {
+        // HD's values (Proj[0] may still hold a widened m00 from before).
+        vp->Proj[0] = base;
+        vp->Proj[5] = (base / (float)vp->Height) * (float)vp->Width;
+    }
+}
+#endif
 
 static SScene*    s_FrameScene = nullptr;
 static SViewport* s_FrameViewport = nullptr;
@@ -163,6 +190,9 @@ void SViewport::SetProjection(float fovRadians, float nearZ, float farZ)
     Proj[11] = 1.0f;
     Proj[5] = m11;
     Proj[14] = -(q * nearZ);
+#if PANZERS_MOD_WIDESCREEN
+    ModWidescreenProjection(this);
+#endif
     ProjectionSet = true;
     ApplyTransforms();   // 0x68d160
     UpdateScreenMatrix();
@@ -307,12 +337,31 @@ void SViewport::SetPosition(int x, int y, int w, int h)
     (void)x; (void)y; (void)w; (void)h;
 }
 
-// HD SViewport vtbl +0x04 -> 0x68c4e0 (2 arg dwords)
+// PANZERS 0x68c4e0
+// Primary windowed viewport (mode +0x78 == 0), called by SDXWindow::OnSize
+// 0x53a1b0 with the new client size. HD scales its subports (none in the
+// menu), stores the size at +0x128/+0x12c, zeroes the back-buffer size in the
+// present parameters (+0x30/+0x34: D3D takes the client size) and resets the
+// device (SGepard::ResetDevice 0x67fde0), then resizes board frame 0 (board
+// +0x14) and re-applies the hardware cursor (board +0xc4). In the recompile
+// the SWINE SDXWindow::OnSize has already done the device reset and the
+// board (Gepard->Resize). The rest is HD's: with a projection set (fov +0xcc
+// != 0.0) the y scale follows the new aspect, m11 = m00 / h * w, so the
+// horizontal field of view stays and the vertical one narrows on a wide
+// window; then SetViewport (0x68d620), the transforms (0x68d160) and the
+// screen matrix (0x68c070).
 void SViewport::Resize(int width, int height)
 {
-    STUB_LOG("SViewport::Resize (0x68c4e0)");
     PZ_TRACE("SViewport::Resize (0x68c4e0)");
-    (void)width; (void)height;
+    Width = width;
+    Height = height;
+    if (Camera.Fov != 0.0f)
+        Proj[5] = (Proj[0] / (float)Height) * (float)Width;
+#if PANZERS_MOD_WIDESCREEN
+    ModWidescreenProjection(this);
+#endif
+    ApplyTransforms();
+    UpdateScreenMatrix();
 }
 
 // HD SViewport vtbl +0x08 -> 0x68ca00 (8 arg dwords)
