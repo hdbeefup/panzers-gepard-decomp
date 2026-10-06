@@ -11001,6 +11001,8 @@ void SGepard::InitShaders()
 
 //----- (0043F550) --------------------------------------------------------
 
+void (*SGepard::PanzersScenePass)(IDirect3DDevice9* dev) = nullptr;
+
 static bool semaphor = false;
 static unsigned int lasttime = 0;
 static unsigned int cycles = 0;
@@ -11482,6 +11484,11 @@ void SGepard::RenderScene(int a2, bool minimapmode)
       old_rt = NULL;
     }
   }
+
+  // Panzers: HD scene (SScene::RenderViewport 0x6acaf0) before the board,
+  // in the same BeginScene/EndScene (SViewport::Render 0x68c220).
+  if ( !minimapmode && PanzersScenePass )
+    PanzersScenePass(this->lpD3DDev);
 
   // Board — Board::Render sets up its own 2D render states internally
   if ( !minimapmode && this->BoardVisible )

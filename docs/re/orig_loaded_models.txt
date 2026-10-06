@@ -1,0 +1,82 @@
+v101	units/flag/german-hero.4d
+v101	units/flag/us-hero.4d
+v101	units/flag/russian-hero.4d
+v100	objects/02 bushes/nagybokor3.4d
+v100	objects/04 tree/fa09 - voros.4d
+v100	objects/02 bushes/nagybokor4.4d
+v100	objects/04 tree/fa07 - zold2.4d
+v100	objects/04 tree/fa01 - zold2.4d
+v100	objects/04 tree/fenyo.4d
+v100	objects/04 tree/fa04 - zold1.4d
+v100	objects/04 tree/fa08 zold2.4d
+v100	objects/04 tree/fenyo kicsi.4d
+v100	objects/04 tree/fa02 - zold2.4d
+v100	objects/04 tree/fa03 - zold2.4d
+v100	objects/04 tree/fa06.4d
+v100	objects/17 terrain objects/utjelzotabla.4d
+v100	objects/17 terrain objects/fahordo.4d
+v100	objects/02 bushes/varosbabokor01b.4d
+v100	objects/17 terrain objects/lampa.4d
+v100	objects/17 terrain objects/viragtarto2.4d
+v100	objects/17 terrain objects/viragtartodoboz03.4d
+v101	objects/02 bushes/varosbabokor02.4d
+v100	objects/01 fern/fukicsi.4d
+v100	objects/04 tree/fa09.4d
+v100	objects/17 terrain objects/teplomdisz_kereszt.4d
+v100	objects/17 terrain objects/viragtarto01.4d
+v100	objects/17 terrain objects/szobor01.4d
+v100	objects/01 fern/fucsomo01.4d
+v100	objects/01 fern/fucsomo06.4d
+v100	objects/22 units/pzkpfw_v_d_kilott.4d
+v100	objects/01 fern/fucsomo05.4d
+v100	buildings/house/fr village long stone.4d
+v100	objects/19 ruins/fr village5 long stone ruin.4d
+v100	units/walker/squad.4d
+v101	units/walker/us_rifle_soldier.4d
+v101	units/projectiles/rocket.4d
+v101	effects/media/haztalalat_fa_darab_0.4d
+v101	effects/media/haztalalat_fa_darab_1.4d
+v101	effects/media/haztalalat_cement_darab_0.4d
+v101	effects/media/haztalalat_cement_darab_1.4d
+v100	units/projectiles/german_grenade.4d
+v100	units/projectiles/molotov_coctail.4d
+v100	units/walker/oar_left.4d
+v100	units/walker/oar_right.4d
+v100	units/mechanical/sherman.4d
+v100	units/mechanical/sherman_wrecked.4d
+v100	effects/media/unit_szetrobbanaskor_szetrepulo_darab_kicsi.4d
+v100	effects/media/unit_szetrobbanaskor_szetrepulo_darab_l_alak.4d
+v100	effects/media/unit_szetrobbanaskor_szetrepulo_darab_l2_alak.4d
+v100	effects/media/raketabecsapodaskor_szetrepulo_darab_nagy.4d
+v100	effects/media/unit_szetrobbanaskor_szetrepulo_darab_nagy.4d
+v100	effects/media/unit_szetrobbanaskor_szetrepulo_darab_oriasi.4d
+v101	units/walker/us_crew_soldier.4d
+v101	units/walker/us_ft_soldier.4d
+v100	units/projectiles/empty.4d
+v101	units/walker/us_mg_soldier.4d
+v101	units/walker/us_medic_soldier.4d
+v100	flora/99 regi/grass01.4d
+v101	units/planes/gb dehavilland mosquito.4d
+v101	units/planes/hawker_typhoon.4d
+v100	effects/media/hazfal_darab_1.4d
+v100	effects/media/hazfal_darab_2.4d
+v100	units/projectiles/plane_rocket.4d
+v100	units/planes/b25.4d
+v100	units/projectiles/bomb.4d
+v101	units/planes/us c-47 skytrain.4d
+v101	units/planes/ge fi-156-storch.4d
+v101	units/planes/junkers_ju87b_stuka.4d
+v101	units/planes/ge he-111.4d
+v101	units/planes/ge ju-52.4d
+v101	units/mechanical/m2a1_halftrack.4d
+v100	units/mechanical/m2a1_halftrack_wrecked.4d
+v100	effects/media/ammo.4d
+v101	units/walker/us_smg_soldier.4d
+v100	units/mechanical/bedford_ql_ammo.4d
+v100	units/mechanical/bedford_ql_ammo_wrecked.4d
+v101	units/mechanical/willys_jeep.4d
+v100	units/mechanical/willys_jeep_roncs.4d
+v100	units/mechanical/m36-slugger.4d
+v100	units/mechanical/m36-slugger_wrecked.4d
+v101	units/mechanical/m7-priest.4d
+v100	units/mechanical/m7-priest_wrecked.4d

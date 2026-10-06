@@ -13,6 +13,7 @@
 #include "stream.h"
 #include "settings.h"
 #include "superwindow.h"
+#include "pz/pzcommon.h"
 
 extern HINSTANCE hInstance;
 void RunGame();                       // PANZERS 0x64c800 (src/panzers/gamemain.cpp)
@@ -130,6 +131,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nS
         }
         __argc = w;
     }
+    // Recompile-only "-menu3d" (and PZ_MENU3D / PZ_MENU3D_TRACE): 3D menu
+    // world test hook, src/3dengine/pz/pztrace.cpp.
+    pz::Menu3DParseCommandLine(&__argc, __argv);
 
     WIN32_FILE_ATTRIBUTE_DATA fad;
     if (!GetFileAttributesExA(Settings.GetIniPath(), GetFileExInfoStandard, &fad)) {

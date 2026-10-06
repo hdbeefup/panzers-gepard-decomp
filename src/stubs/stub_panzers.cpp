@@ -87,8 +87,9 @@ void PzStub_DestroyUnitRegistry(void* reg)
 }
 
 // HD 0x658690 world part: maps/menu.map -> SWorld 0x5d2f90 (0x7538),
-// map load 0x5f1990, camera 0x55e440 (0x318). The 3D tank scene behind the
-// main menu. Needs the world/game layer.
+// SWorld::LoadMap 0x5f1990, SGameLogic::SGameLogic 0x55e440 (0x318). The 3D
+// scene behind the main menu. Taken when the 3D menu world is off (default);
+// with -menu3d SSuperWindow::LoadMenuWorld runs src/world instead.
 void PzStub_LoadMenuWorld(SSuperWindow* sw)
 {
     STUB_LOG("SSuperWindow::LoadMenuBackground maps/menu.map world (0x658690 -> 0x5d2f90/0x5f1990)");

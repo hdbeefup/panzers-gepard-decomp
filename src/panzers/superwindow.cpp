@@ -27,6 +27,13 @@
 #include "iconcert.h"
 #include "gettext.h"
 #include "options.h"
+#include "pz/igepardhd.h"
+#include "pz/iscene.h"
+#include "pz/iviewport.h"
+#include "pz/ipixie.h"
+#include "worldapi.h"
+#include "world.h"
+#include "gamelogic.h"
 
 #include "milesconcert.h"
 #if PANZERS_HAVE_BINK
@@ -52,7 +59,7 @@ void PzStub_LoadMultiPreMenu();                    // 0x658a30
 void PzStub_LoadChatRoomView();                    // 0x658050
 void* PzStub_CreateUnitRegistry();                 // 0x5cfe30 -> SUnitRegistry::LoadUnitFiles 0x5d1050
 void PzStub_DestroyUnitRegistry(void* reg);        // 0x5d0c10
-void PzStub_LoadMenuWorld(SSuperWindow* sw);       // maps/menu.map scene in 0x658690
+void PzStub_LoadMenuWorld(SSuperWindow* sw);       // maps/menu.map world in 0x658690 (-menu3d off)
 void PzStub_SuperWindowAction(int action);         // OnAction cases beyond the main menu
 const char* PzStub_GetVersionString();             // SVersion::GetVersionString 0x65c070
 void PzStub_GepardRenderStates();                  // Gepard +0x10 render options in Initialize
@@ -381,7 +388,13 @@ void SSuperWindow::Initialize()
     };
     Board->LoadCursorSetFile("menu/cursor2_hq.tga", 0x28, 0x15, kCursorHotspots);   // board +0x94 (0x6c59e0)
     LoadMenuSkins();                         // 0x544040
-    // HD: DAT_00929f14 = Gepard +0x5c() (an engine object released in OnDestroy).
+    // HD: DAT_00929f14 = Gepard +0x5c() (SPixie, AddRef'd; released in
+    // OnDestroy). Only on the 3D menu path (-menu3d / PZ_MENU_WORLD), so the
+    // default boot path does not create the pz facade.
+    Logger.g->Log(0, "SSuperWindow::Initialize: 3D menu world %s, trace %s",
+                  pz::g_Menu3D.World ? "on" : "off", pz::g_Menu3D.Trace ? "on" : "off");
+    if (pz::g_Menu3D.World)
+        pz::g_Pixie = pz::PzGepard()->GetPixie();                  // Gepard +0x5c
     s_UnitRegistry = PzStub_CreateUnitRegistry();   // new 0x124, 0x5cfe30
     if (!Settings.StartMultiFromCommandLine)
         LoadMenuBackground(true);            // 0x658690(1)
@@ -390,6 +403,25 @@ void SSuperWindow::Initialize()
         SplashFrame = -1;
     }
     Initialized = true;                      // +0x12d
+}
+
+// World part of SSuperWindow::LoadMenuBackground 0x658690 (taken when the 3D
+// menu world is on). OWNER: agent D; the callee bodies are skeletons.
+void SSuperWindow::LoadMenuWorld()
+{
+    const char* map = "maps/menu.map";                             // 0x51de30
+    SStream* stream = FileSystem.OpenRead(map, nullptr);           // 0x65f420(name, 0)
+    if (!stream)
+        Logger.g->Panic("Can't load map: %s", map);
+    MenuWorld = new pz::SWorld(0);                                 // new 0x7538, 0x5d2f90(0)
+    MenuWorld->ShowLoadingIcon(RootFrame);                         // 0x5edca0(+0x1bc)
+    if (!MenuWorld->LoadMap(stream, true, 0, 0))                   // 0x5f1990(stream, 1, 0, 0)
+        Logger.g->Panic("Can't load map: %s", map);
+    MenuWorld->Initialize();                                       // 0x5eec90
+    stream->Release();                                             // HD stream vtbl +0 (delete)
+    MenuGameLogic = new pz::SGameLogic(0, -1, 0);                  // new 0x318, 0x55e440(0, -1, 0)
+    MenuGameLogic->SetRunning(1);                                  // 0x5802f0(1)
+    MenuWorld->HideLoadingIcon();                                  // 0x5dc7d0
 }
 
 // PANZERS 0x658690
@@ -406,12 +438,23 @@ void SSuperWindow::LoadMenuBackground(bool keepScene)
             pc->StartPlaylist(true);
         }
     }
-    if (!MenuWorld)
-        PzStub_LoadMenuWorld(this);   // maps/menu.map: SWorld (0x7538), camera (0x318)
+    if (!MenuWorld) {
+        if (pz::g_Menu3D.World)
+            LoadMenuWorld();          // maps/menu.map: SWorld (0x7538), SGameLogic (0x318)
+        else
+            PzStub_LoadMenuWorld(this);
+    }
     if (keepScene)
         return;
-    // HD: scene +0x04 release / DAT_00929a54 scene addref into SDXWindow
-    // +0xe0, +0xd8 = 1; MenuTime/MenuNextTick = timer seconds (0x661800).
+    // HD: SDXWindow+0xe0 scene: Release the old one, AddRef g_Scene into it;
+    // +0xd8 = 1 (continuous render: the SWINE SDXWindow::OnIdle always
+    // renders). g_Scene is null unless the menu world is loaded.
+    if (pz::g_WindowScene)
+        pz::g_WindowScene->Release();                              // scene +0x04
+    if (pz::g_Scene)
+        pz::g_Scene->AddRef();                                     // scene +0x00
+    pz::g_WindowScene = pz::g_Scene;
+    // MenuTime/MenuNextTick = timer seconds (0x661800).
     MenuTime = MenuNextTick = (float)((double)Timer.GetTickValue() / 1000.0);
     Cursor = 0;                                                  // 0x543970 (SWidget +0x3c; SWINE SetCursor has no body)(0, -1)
     int tex = PzLoadTexture("menu/main_menu_top_hq.tga");
@@ -445,9 +488,19 @@ void SSuperWindow::UnloadMenuBackground()
     Board->DestroyFrame(MenuBottomFrame);
     MenuTopFrame = -1;
     MenuBottomFrame = -1;
-    // HD: release scene (+0xe0), delete camera (0x1a0, 0x318), world (0x19c).
-    MenuCamera = nullptr;
-    MenuWorld = nullptr;
+    if (pz::g_WindowScene) {                                       // SDXWindow+0xe0
+        pz::g_WindowScene->Release();                              // scene +0x04
+        pz::g_WindowScene = nullptr;
+    }
+    if (MenuGameLogic) {
+        delete MenuGameLogic;                                      // 0x55fe00 + delete 0x318
+        MenuGameLogic = nullptr;
+    }
+    if (MenuWorld) {
+        delete MenuWorld;                                          // vtbl +0 (0x5d68b0)
+        MenuWorld = nullptr;
+    }
+    // HD: +0xd8 = 0 (continuous render off).
     Cursor = -1;                                                 // 0x543970 (SWidget +0x3c; SWINE SetCursor has no body)(-1, -1)
 }
 
@@ -674,6 +727,11 @@ void SSuperWindow::OnDestroy()
         Board->DestroyFrame(RootFrame);            // board +0x0c
         RootFrame = -1;
     }
+    if (pz::g_Pixie) {                             // DAT_00929f14 vtbl +0x04
+        pz::g_Pixie->Release();
+        pz::g_Pixie = nullptr;
+    }
+    pz::PzGepardShutdown();                        // recompile: the facade over the SWINE Gepard
     SDXWindow::OnDestroy();                        // 0x53a040
 }
 
@@ -695,14 +753,43 @@ bool SSuperWindow::OnIdle()
     else if (Menu_f4)
         Menu_f4->Update();
     if (MenuWorld) {
-        // HD: fixed-step menu world simulation (0x576d80 at 1/_DAT_007f4534 s),
-        // scene/camera update, Concert +0xc listener update. The menu world
-        // is a stub, so nothing to step.
+        // HD 0x65aef8..0x65b03a (SSE single-precision maths).
+        float now = (float)((double)Timer.GetTickValue() / 1000.0);  // 0x661800
+        if (MenuNextTick < now) {
+            do {
+                MenuGameLogic->Refresh();                          // 0x576d80
+                MenuNextTick += 0.05f;                             // _DAT_007f4534: 20 Hz
+            } while (MenuNextTick < now);
+        }
+        int elapsedMs = (int)((now - MenuTime) * 1000.0f);         // 0x7f1b94 = 1000.0, ftol
+        pz::g_Scene->AdvanceTime(elapsedMs);                       // scene +0x1c
+        // HD board +0xa0(elapsedMs): board animation clock. The SWINE board
+        // keeps its own clock; not mapped.
+        MenuTime = now;
+        pz::SIViewport* vp = pz::PzGepard()->GetViewport(0);       // Gepard +0x3c(0)
+        pz::g_World->ComputeCamera(vp);                            // 0x5ddc30
+        double interpolation = (double)((MenuNextTick - now) * 20.0f);   // 0x7f35d8 = 20.0
+        pz::g_Scene->SetInterpolation(interpolation);              // scene +0x20
+        vp = pz::PzGepard()->GetViewport(0);
+        pz::g_GameLogic->UpdateUnitVisuals(vp, interpolation);     // 0x5638f0 on DAT_008f2078
+        if (Concert)
+            Concert->Update(false);                                // Concert +0x0c(0)
     }
     // HD: -movierec frame capture (Settings.RecordFrames) — not lifted.
     if (EventFrame(0, 0))                          // SWindow::EventFrame 0x544a50
         OnClose();                                 // vtbl +0x8c
     // HD: news ticker fade (+0x184/+0x178, board +0x20/+0x10) — news.ini
     // fetch is a stub, NewsTextFrame stays -1.
+    if (pz::g_WindowScene) {
+        // HD SDXWindow::OnIdle 0x53a0d0 with SDXWindow+0xe0 set: board cursor
+        // (+0x9c), then primary viewport +0x50 Render(scene, 0). Same as the
+        // SWINE SDXWindow::OnIdle below, but through the HD viewport so the
+        // scene is drawn before the board.
+        if (!SWidget::LastMouseTarget)
+            UpdateMouse();
+        Board->SetCursor(SWidget::GetCurrentCursor(), CursorX, CursorY);
+        pz::PzGepard()->GetViewport(0)->Render(pz::g_WindowScene, 0);
+        return true;
+    }
     return SDXWindow::OnIdle();                    // 0x53a0d0
 }

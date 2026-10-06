@@ -9,7 +9,9 @@ Counting rules (scan of src/, C/C++ sources and headers):
   lifted       lines of the form   // PANZERS 0x<hex>        (anywhere in src/)
   SWINE-shared lines of the form   //----- (<hex>) ...        (IDA function markers
                                    carried over from the SWINE decomp; src/stubs excluded)
-  stubs        STUB_LOG("...") call sites in src/stubs/*.c / *.cpp
+  stubs        STUB_LOG("...") call sites in src/stubs/*.c / *.cpp, plus the
+               skeleton stubs of the 3D menu path in src/3dengine/pz and
+               src/world (shown separately as "menu3d")
 
 Read this line after EVERY build. An unexpected change means bodies were
 dropped, duplicated or silently replaced by stubs; the link exit code won't say.
@@ -32,11 +34,13 @@ def main() -> int:
     src = sys.argv[1] if len(sys.argv) > 1 else os.path.join(here, "..", "src")
     src = os.path.abspath(src)
     stubs_dir = os.path.join(src, "stubs")
+    menu3d_dirs = [os.path.join(src, "3dengine", "pz"), os.path.join(src, "world")]
 
-    lifted = swine = stubs = 0
+    lifted = swine = stubs = menu3d = 0
     for root, dirs, files in os.walk(src):
         dirs.sort()
         in_stubs = os.path.commonpath([root, stubs_dir]) == stubs_dir
+        in_menu3d = any(os.path.commonpath([root, d]) == d for d in menu3d_dirs)
         for name in sorted(files):
             if not name.lower().endswith(SRC_EXT):
                 continue
@@ -45,14 +49,20 @@ def main() -> int:
                 for line in f:
                     if LIFTED_RE.match(line):
                         lifted += 1
-                    elif in_stubs:
+                    elif in_stubs or in_menu3d:
                         if name.lower().endswith((".c", ".cpp", ".cc", ".cxx")) and STUB_RE.match(line):
-                            stubs += 1
+                            if in_stubs:
+                                stubs += 1
+                            else:
+                                menu3d += 1
+                        elif in_menu3d and SWINE_RE.match(line):
+                            swine += 1
                     elif SWINE_RE.match(line):
                         swine += 1
 
     print(f"CENSUS: {lifted} lifted bodies (PANZERS 0xADDR markers) + "
-          f"{swine} SWINE-shared bodies + {stubs} stubs")
+          f"{swine} SWINE-shared bodies + {stubs + menu3d} stubs "
+          f"({stubs} shell, {menu3d} menu3d skeleton)")
     return 0
 
 

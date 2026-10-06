@@ -10,7 +10,7 @@ add_executable(panzers WIN32
     crashhandler.cpp
 )
 
-set(PANZERS_ENGINE_LIBS core 3dengine window common sound platform panzersgame)
+set(PANZERS_ENGINE_LIBS core 3dengine pz3d pzworld window common sound platform panzersgame)
 if(GEPARD_AUDIO_BACKEND STREQUAL "dsound")
     list(APPEND PANZERS_ENGINE_LIBS mdec)
     target_compile_definitions(panzers PRIVATE GEPARD_AUDIO_DSOUND=1)

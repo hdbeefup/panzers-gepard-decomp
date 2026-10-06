@@ -19,7 +19,7 @@ these runs from `scratchpad\p2d\run\` (windowed, HD data, no cutscene paks):
 |---|---|---|---|
 | `SSuperWindow::Initialize Gepard render options (Gepard +0x10)` | Gepard +0x10 calls in `SSuperWindow::Initialize` 0x657910 | Initialize | 2, 3 |
 | `SUnitRegistry ctor + LoadUnitFiles (0x5cfe30 / 0x5d1050)` | 0x5cfe30 and `SUnitRegistry::LoadUnitFiles` 0x5d1050 | Initialize | 2, 3 |
-| `SSuperWindow::LoadMenuBackground maps/menu.map world (...)` | world part of 0x658690: 0x5d2f90 SWorld, 0x5f1990 map load, 0x55e440 camera | Initialize / LoadMainMenu | 2, 3 |
+| `SSuperWindow::LoadMenuBackground maps/menu.map world (...)` | world part of 0x658690: 0x5d2f90 SWorld, 0x5f1990 SWorld::LoadMap, 0x55e440 SGameLogic::SGameLogic (not the camera) | Initialize / LoadMainMenu | 2, 3 |
 | `SVersion::GetVersionString (0x65c070)` | 0x65c070 (exported) over 0x65bbf0; returns "1.25" | LoadMenuBackground | 2, 3 |
 | `DrawDebugPickerOverlayFromGepard` | SWINE editor overlay (no HD counterpart) | every frame, SGepard::RenderScene | 2, 3 |
 | `SSuperWindow::OnAction unhandled action (0x659250)` | `SSuperWindow::OnAction` 0x659250, cases the shell does not handle | menu clicks: New Game, Load Game, Multiplayer, Tutorial, Training Camp (Options lifted in P3-Y, Credits in P3-X) | 2 |

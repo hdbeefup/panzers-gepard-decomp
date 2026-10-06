@@ -20,5 +20,5 @@ add_library(panzersgame STATIC
 )
 target_include_directories(panzersgame PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(panzersgame PRIVATE ${PANZERS_SRC_DIR}/sound ${PANZERS_SRC_DIR}/stubs)
-target_link_libraries(panzersgame PUBLIC core window common sound panzers_bink)
+target_link_libraries(panzersgame PUBLIC core window common sound panzers_bink pz3d pzworld)
 target_compile_definitions(panzersgame PRIVATE PANZERS_HAVE_BINK=1)

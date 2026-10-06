@@ -1,0 +1,51 @@
+v100	buildings/house/fr village long stone.4d	unit:FR village long stone
+v100	objects/19 ruins/fr village5 long stone ruin.4d	unit:FR village long stone
+v100	units/walker/squad.4d	unit:US Rifle Squad(1)
+v101	units/walker/us_rifle_soldier.4d	unit:US Rifle Member
+v100	units/sprites/german_soldier.4d	unit:US Rifle Member
+v100	units/mechanical/sherman.4d	unit:US Sherman
+v100	units/mechanical/sherman_wrecked.4d	unit:US Sherman
+v100	units/sprites/sherman.4d	unit:US Sherman
+v101	units/walker/us_crew_soldier.4d	unit:US Crew Member
+v101	units/walker/us_ft_soldier.4d	unit:US Flamethrower Member
+v101	units/walker/us_mg_soldier.4d	unit:US MG Member
+v101	units/walker/us_medic_soldier.4d	unit:US Medic Member
+v101	units/mechanical/m2a1_halftrack.4d	unit:US M2A1
+v100	units/mechanical/m2a1_halftrack_wrecked.4d	unit:US M2A1
+v100	units/mechanical/bedford_ql_ammo.4d	unit:GB Bedford QL Ammo
+v100	units/mechanical/bedford_ql_ammo_wrecked.4d	unit:GB Bedford QL Ammo
+v100	units/mechanical/m36-slugger.4d	unit:US M36-Slugger
+v100	units/mechanical/m36-slugger_wrecked.4d	unit:US M36-Slugger
+v101	units/mechanical/m7-priest.4d	unit:US M7-Priest
+v100	units/mechanical/m7-priest_wrecked.4d	unit:US M7-Priest
+v101	units/mechanical/willys_jeep.4d	unit:US Willys Jeep
+v100	units/mechanical/willys_jeep_roncs.4d	unit:US Willys Jeep
+v101	units/walker/us_smg_soldier.4d	unit:US Wilson Hero Member
+v100	objects/02 bushes/nagybokor3.4d	doodad
+v100	objects/04 tree/fa09 - voros.4d	doodad
+v100	objects/02 bushes/nagybokor4.4d	doodad
+v100	objects/04 tree/fa07 - zold2.4d	doodad
+v100	objects/04 tree/fa01 - zold2.4d	doodad
+v100	objects/04 tree/fenyo.4d	doodad
+v100	objects/04 tree/fa04 - zold1.4d	doodad
+v100	objects/04 tree/fa08 zold2.4d	doodad
+v100	objects/04 tree/fenyo kicsi.4d	doodad
+v100	objects/04 tree/fa02 - zold2.4d	doodad
+v100	objects/04 tree/fa03 - zold2.4d	doodad
+v100	objects/04 tree/fa06.4d	doodad
+v100	objects/17 terrain objects/utjelzotabla.4d	doodad
+v100	objects/17 terrain objects/fahordo.4d	doodad
+v100	objects/02 bushes/varosbabokor01b.4d	doodad
+v100	objects/17 terrain objects/lampa.4d	doodad
+v100	objects/17 terrain objects/viragtarto2.4d	doodad
+v100	objects/17 terrain objects/viragtartodoboz03.4d	doodad
+v101	objects/02 bushes/varosbabokor02.4d	doodad
+v100	objects/01 fern/fukicsi.4d	doodad
+v100	objects/04 tree/fa09.4d	doodad
+v100	objects/17 terrain objects/teplomdisz_kereszt.4d	doodad
+v100	objects/17 terrain objects/viragtarto01.4d	doodad
+v100	objects/17 terrain objects/szobor01.4d	doodad
+v100	objects/01 fern/fucsomo01.4d	doodad
+v100	objects/01 fern/fucsomo06.4d	doodad
+v100	objects/22 units/pzkpfw_v_d_kilott.4d	doodad
+v100	objects/01 fern/fucsomo05.4d	doodad

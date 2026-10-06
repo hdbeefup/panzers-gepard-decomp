@@ -26,6 +26,7 @@ struct SProperties;
 struct SMainMenu;
 struct SAchimMenu;
 struct SMainCreditMenu;
+namespace pz { struct SWorld; struct SGameLogic; }
 
 // HD SSuperWindow fields 0xe4..0x1c0. Names follow SWINE's SSuperWindow
 // where the use matches; unknown ones keep the HD offset.
@@ -61,8 +62,8 @@ struct SSuperWindowData {
     SWidget*     NewsWidget;        // 0x190
     int          MenuTopFrame;      // 0x194 menu/main_menu_top_hq.tga
     int          MenuBottomFrame;   // 0x198 menu/main_menu_bottom_hq.tga
-    void*        MenuWorld;         // 0x19c maps/menu.map world (new 0x7538)
-    void*        MenuCamera;        // 0x1a0 (new 0x318)
+    pz::SWorld*  MenuWorld;         // 0x19c maps/menu.map world (new 0x7538, ctor 0x5d2f90)
+    pz::SGameLogic* MenuGameLogic;  // 0x1a0 SGameLogic (new 0x318, ctor 0x55e440)
     float        MenuTime;          // 0x1a4
     float        MenuNextTick;      // 0x1a8
     int          SplashFrame;       // 0x1ac menu/splash_hq.tga while loading
@@ -100,6 +101,7 @@ struct SSuperWindow : SDXWindow, SSuperWindowData {
     void LoadMainMenu();                                   // 0x6583e0
     void LoadMainCreditMenu();                             // 0x658300
     void LoadMenuBackground(bool keepScene);               // 0x658690
+    void LoadMenuWorld();                                  // world part of 0x658690
     void UnloadMenuBackground();                           // 0x65b940
     void CloseBinkVideo();                                 // 0x65b830
     void ReleaseMultiView();                               // 0x65b8c0

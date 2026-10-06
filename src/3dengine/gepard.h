@@ -743,6 +743,11 @@ struct SGepard : SIGepard {
     void RenderObjects(bool minimapmode, bool shadows);
     void RenderRects();
     void RenderScene(int a2, bool minimapmode);
+    // Panzers (recompile-only): the HD scene pass of SViewport::Render
+    // 0x68c220. RenderScene calls it inside BeginScene/EndScene, right
+    // before the board, as HD draws scene then board in one scene. Set by
+    // the pz Gepard facade (src/3dengine/pz/pzgepard.cpp); null = SWINE as is.
+    static void (*PanzersScenePass)(IDirect3DDevice9* dev);
     void RenderScene2(int a2, bool minimapmode);
     void RenderShadowBoxToStencil();
     void RenderShadowMap(bool minimap);

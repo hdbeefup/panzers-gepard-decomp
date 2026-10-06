@@ -1,0 +1,20 @@
+buildings/fr village long stone.unit
+units/us rifle squad(1).unit
+units/us rifle member.unit
+units/us sherman.unit
+units/us crew squad.unit
+units/us crew member.unit
+units/us flamethrower squad.unit
+units/us flamethrower member.unit
+units/us rifle squad(2).unit
+units/us mg squad.unit
+units/us mg member.unit
+units/us medic squad.unit
+units/us medic member.unit
+units/us m2a1.unit
+units/gb bedford ql ammo.unit
+units/us m36-slugger.unit
+units/us m7-priest.unit
+units/us willys jeep.unit
+units/us wilson hero.unit
+units/us wilson hero member.unit

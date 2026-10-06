@@ -32,6 +32,7 @@ Docs:
 - docs/re/TRIAGE.md       HD exe triage: boot path, libraries, symbol sources
 - docs/FORMATS.md         pak, ini and menu.ini string table
 - docs/ENGINE_DIFF.md     Panzers HD vs SWINE engine: struct/vtable drift, renderer, sound
+- docs/MENU3D_INTERFACES.md  3D menu background: HD interfaces, Gepard facade, owners, -menu3d
 - docs/STUBS_HIT.md       stubs reached at runtime, with their HD addresses
 - docs/IMPORT_NOTES.md    what was imported from the SWINE engine, and what was cut
 - tools/ghidra/           headless pyghidra helpers (decompile by address/string)
