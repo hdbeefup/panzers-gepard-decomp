@@ -23,6 +23,7 @@
 #include "pzunitregistry.h"
 #include "doodad.h"
 #include "pz/iterrain.h"
+#include "pz/imodel.h"
 #include "logger.h"
 #include "stub_log.h"
 
@@ -44,6 +45,55 @@ static float s_RowS[0xc0];
 
 static inline int PlayerType(int p) { return *(const int*)(g_World->Players[p] + 0x08); }   // World+0x178
 static inline int PlayerTeam(int p) { return *(const int*)(g_World->Players[p] + 0x0c); }   // World+0x17c
+
+// PANZERS 0x564c20
+// The doodad grid: 8x8-tile cells; every doodad with a model is linked into
+// the cells its logic-pose extent (+0x100) covers, floor(min / 8) ..
+// ceil(max / 8) (fistp under 0x8de15c = 0x47f / 0x8de160 = 0x87f; outside
+// the map 0 / size / 8), rows outer, each new link in front of the cell's
+// list. ProjectileHitTest 0x562c20 and DamageArea 0x576490 read it.
+void SGameLogic::BuildDoodadGrid()
+{
+    SWorld* w = g_World;
+    int gw = w->TerrainW / 8, gh = w->TerrainH / 8;               // cdq / and 7 / sar 3
+    DoodadGrid = (int*)malloc((size_t)gw * gh * 4);               // 0x766b87
+    memset(DoodadGrid, 0xff, (size_t)gh * gw * 4);
+    DoodadLinkCount = 0;                                          // 0x563330(0)
+    if (DoodadLinks)
+        memset(DoodadLinks, 0, (size_t)DoodadLinkMax * 8);
+    for (int i = 0; i < w->Doodads.Size; ++i) {
+        if (!w->Doodads.IsLive(i) || !w->Doodads.Array[i].Data.Model)
+            continue;
+        float x0, x1, z0, z1;
+        w->Doodads.Array[i].Data.Model->GetLogicBoundsXZ(&x0, &x1, &z0, &z1);   // +0x100
+        int c0 = 0.0f > x0 ? 0 : (int)floorf(x0 * 0.125f);       // 0x7f7f40
+        int c1 = x1 > (float)w->TerrainW ? gw : (int)ceilf(x1 * 0.125f);
+        int r0 = 0.0f > z0 ? 0 : (int)floorf(z0 * 0.125f);
+        int r1 = z1 > (float)w->TerrainH ? gh : (int)ceilf(z1 * 0.125f);
+        for (int r = r0; r < r1; ++r)
+            for (int c = c0; c < c1; ++c) {
+                int cell = gw * r + c;
+                if (DoodadLinkCount == DoodadLinkMax) {
+                    int m = DoodadLinkMax < 0x10 ? 0x10 : DoodadLinkMax * 6 / 5;
+                    DoodadLinks = (SDoodadLink*)realloc(DoodadLinks, (size_t)m * 8);   // 0x78b864
+                    memset(DoodadLinks + DoodadLinkMax, 0, (size_t)(m - DoodadLinkMax) * 8);
+                    DoodadLinkMax = m;
+                }
+                int k = DoodadLinkCount++;
+                DoodadLinks[k].Doodad = i;
+                DoodadLinks[k].Next = DoodadGrid[cell];
+                DoodadGrid[cell] = k;
+            }
+    }
+}
+
+// The cell head of 0x562c20 / 0x576490: (int)(x * 0.125) under CW 0xc7f.
+int SGameLogic::DoodadGridHead(float x, float z) const
+{
+    int cx = (int)(x * 0.125f);
+    int cz = (int)(z * 0.125f);
+    return DoodadGrid[(g_World->TerrainW / 8) * cz + cx];
+}
 
 // PANZERS 0x564fb0
 void SGameLogic::BuildVisMaps()
@@ -94,18 +144,61 @@ void SGameLogic::BuildVisMaps()
     VisOverlayMode = 1;
 }
 
-// HD 0x546f70 (SBuildingUnit; called by 0x576a70 for every building): guards only.
-// Raises the eye-height cells under the building model by 2.0 where the
-// model is hit by a 1 m vertical ray above the ground (model +0x100 bounds,
-// +0xd8 ray test). Both model slots are engine stubs in the recompile
-// (SModel::Slot_100 0x6d7150, Slot_D8 0x6db550), so the cells keep the bare
-// terrain height.
-static void AddBuildingHeights(SUnit* u)
+// The half-tile cells under a model's logic-pose extent (+0x100, 0x6d7150),
+// widened by one cell, where a 1 m vertical segment above the ground at the
+// cell corner crosses the model's collision (+0xd8, 0x6db550) get `add` on
+// their eye height. The extent is converted with fistp under 0x8de160 (0x87f,
+// up) for the minimum and 0x8de15c (0x47f, down) for the maximum.
+static void RaiseVisHeights(SGameLogic* gl, SIModel* m, float add)
+{
+    float x0, x1, z0, z1;
+    m->GetLogicBoundsXZ(&x0, &x1, &z0, &z1);
+    int c0 = (int)ceilf(x0 * 2.0f) - 1;                       // 0x7f4558
+    if (c0 < 0)
+        c0 = 0;
+    int c1 = (int)floorf(x1 * 2.0f) + 1;
+    if (c1 > gl->VisW)
+        c1 = gl->VisW;
+    int r0 = (int)ceilf(z0 * 2.0f) - 1;
+    if (r0 < 0)
+        r0 = 0;
+    int r1 = (int)floorf(z1 * 2.0f) + 1;
+    if (r1 > gl->VisH)
+        r1 = gl->VisH;
+    for (int r = r0; r < r1; ++r) {
+        float z = (float)r * 0.5f;                            // 0x7f453c
+        for (int c = c0; c < c1; ++c) {
+            float x = (float)c * 0.5f;
+            float g = g_World->GetTerrainHeight(x, z);        // 0x5e7730
+            float lo[3] = { x, g, z };
+            float g2 = g_World->GetTerrainHeight(x, z);
+            float hi[3] = { x, g2 + 1.0f, z };                // fld1 / faddp, fstp float
+            if (m->HitTestSegment(hi, lo))                    // +0xd8
+                gl->VisHeights[gl->VisW * r + c] += add;
+        }
+    }
+}
+
+// PANZERS 0x546f70
+// SBuildingUnit (called by 0x576a70 for every building): cells under a
+// building that is not of type 3 rise by 2.0.
+static void AddBuildingHeights(SGameLogic* gl, SUnit* u)
 {
     const unsigned char* pb = *(const unsigned char* const*)((const unsigned char*)u + 0x340);   // SPBuildingUnit
     if (*(const int*)(pb + 0x13c) == 3 || u->Model == nullptr)
         return;
-    STUB_LOG("SBuildingUnit 0x546f70 building eye heights (model +0x100 / +0xd8 not lifted in the engine)");
+    RaiseVisHeights(gl, u->Model, 2.0f);                      // 0x7f4558
+}
+
+// PANZERS 0x57f6a0
+// An indestructible, non-scrub doodad without a "Platform" node: cells
+// under it rise by 0.75.
+static void AddDoodadHeights(SGameLogic* gl, int i)
+{
+    SWorld* w = g_World;
+    if (i < 0 || i >= w->Doodads.Size || w->Doodads.Array[i].Next != kHeapLive)
+        Logger.g->Panic("SHeap<%s>::operator[]: invalid index (%d)", "struct SDoodad", i);
+    RaiseVisHeights(gl, w->Doodads.Array[i].Data.Model, 0.75f);   // 0x7f2fcc
 }
 
 // PANZERS 0x576a70
@@ -142,15 +235,15 @@ void SGameLogic::BuildVisHeights()
         const SDoodad& d = w->Doodads.Array[i].Data;
         if (d.Scrub != 0 || d.Indestructible == 0)
             continue;
-        // HD: model +0x40 node "Platform"; without one 0x57f6a0(i).
-        STUB_LOG("SGameLogic 0x576a70 doodad \"Platform\" heights (0x57f6a0)");
+        if (d.Model->FindNode("Platform") < 0)                   // +0x40
+            AddDoodadHeights(this, i);                            // 0x57f6a0
     }
     for (int i = 0; i < w->Units.Size; ++i) {
         if (w->Units.Array[i].Next != kHeapLive)
             continue;
         SUnit* u = w->Units.Array[i].Unit;
         if (u->Proto->ClassType == 9)
-            AddBuildingHeights(u);                                // 0x546f70
+            AddBuildingHeights(this, u);                          // 0x546f70
     }
 }
 
@@ -497,8 +590,7 @@ void SGameLogic::Tick_565e10(int player)
     if (VisMap[player] == VisMap[w->LocalPlayer]) {
         if (w->Terrain)
             w->Terrain->SetOverlay((int)(size_t)VisMap[player], VisOverlayMode);   // terrain +0x1c
-        if (MinimapFrame >= 0)
-            STUB_LOG("SGameLogic::Tick_565e10 minimap fog bitmap (0x565f1d)");
+        // The minimap fog bitmap (0x565f1d) is the HUD's (PzMinimapUpdate).
     }
     for (int i = 0; i < 3; ++i) {
         for (int c = 0x5e; c < w->TerrainW * 2 - 0x5e; ++c) {

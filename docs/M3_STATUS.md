@@ -1,31 +1,59 @@
 # M3 status
 
-## THE REPLAY ORACLE IS UP: FRAME 0 MATCHES (agent F, 2026-10-06)
+## THE tc1 REPLAY MATCHES THE ORIGINAL THROUGH FRAME 654 (M3-I, 2026-10-06)
 
 Our build replays the original's recording `m3ref\tc1.rec` from the recorded start state:
 
 ```
-PZM3F.exe -nointro -m3 -packetplay Replays\tc1.rec      (PZ_M2_CRC=1 for the CRC lines)
+PZM3I.exe -nointro -m3 -packetplay Replays\tc1.rec      (PZ_M2_CRC=1, PZ_M3_REPLAY_PAUSED=1)
 ```
 
 (copy `m3ref\tc1.rec` to `<run>\Replays\tc1.rec`; full recipe in docs/M3_REPLAY.md "Our build").
+CRC, seed and unit count equal the original on **every frame 0..654** (it was frame 0 only before
+M3-I); the first difference is frame 655, the tick after the recorded minimap move of the tank.
 
-| Frame | Original (`tc1_crc_mission.txt` / `tc1_crc_ref.txt`) | Ours |
+| Frame | Original | Ours |
 |---|---|---|
-| map load frame 0 | `6365f6b2 09e7b075 346` | `6365f6b2 09e7b075 346` |
 | mission start frame 0 | `737376f6 141334d6 358` | `737376f6 141334d6 358` |
-| frame 1 | `17efc580 141334d6 358` | `68cec0f1 141334d6 358` (differs) |
-| frame 3 | `cac2925a 64c3dd55 358` | `88a8237c 64c3dd55 358` (seed equal) |
+| frame 1 | `17efc580 141334d6 358` | `17efc580 141334d6 358` |
+| frame 654 | `d96af00d 82919470 360` | `d96af00d 82919470 360` |
+| frame 655 | `ff2a6364 a464bdd9 360` | `f1ea6364 a464bdd9 360` (seed equal) |
 
-All 358 units also match the original's own mission-start save (`TRNG-Start.save` of the playB
-run: position, direction, player, HP per unit; `m3f\tools\ucmp.py`).
+The reference to diff against is `m3ref\tc1_crc_bf_mission.txt` (computed at BeginFrame 0x571840,
+like our `PZM2 CRC` line). The polled `tc1_crc_ref.txt` differs from it on frames 402 / 449 / 462 /
+642 only (selection packets: the poller saw them after ProcessPacket). Tools (scratch `m3i\tools`):
+`mdiff.py <log>` (first differing frame), `ucap_cmp.py <log> f0 f1 [--all]` (per-unit fields
+against the original's capture), `rawcmp.py <log> <unit> u|drv|gunK` (raw dwords against the
+capture; our side `PZ_M2_UNITRAW` / `PZ_M2_DRVDUMP` / the new `PZ_M2_GUNDUMP`).
 
-**Frame 1 onward is the next bug**: the first logic tick after mission start (ProcessPacket of the
-recorded frames, unit refresh, triggers). The world RNG stays in step through frame 3, so the
-difference is a unit field (+0x8c/+0x90/+0x94 position, +0xb0, +0x114, +0x108, +0x1dc), not a draw.
+### The original's per-unit capture (one run, M3-I)
 
-Diff our log against the reference with the lines after `PZM3: mission start` (the map-load frame 0
-comes first in the log): `m3f\tools\mdiff.py <our log>` (or `crcdiff.py` on a log cut there).
+`m3ref\tc1_units_f0-40.txt` / `tc1_units_raw.bin` (README line in m3ref): the original replaying
+tc1 (recipe B) under a small debugger (`m3ref\tools\ucapdbg.py`: execute breakpoint on
+SGameLogic::BeginFrame 0x571840, so no frame is missed). Frames 0..40: every unit 0x480 bytes, its
+model, model2, animation, drivers and gunners, and the SWorld; frames 41..200 and every 10th to
+2190: unit raw 0x480. Uninitialised fields read 0xbaadf00d there (the debugger's heap fill).
+
+### Fixes, in the order the frames moved (HD addresses)
+
+| Match to | Root cause | Fix |
+|---|---|---|
+| 1 | The 88mm flak (unit 84) on the bridge deck: FixBridges 0x5e65f0 skipped the height patches | SIModel +0xb0 `GetHeightPatch` 0x6d6700, applied as HD |
+| 140 | An occupied tower (unit 16) saw 35 m (the prototype sight) instead of its squad's; player 9's AA truck (340) saw and attacked the riflemen at frame 0. Also CanAttack 0x583af0 had the bullet / armour test inverted (the AA trucks aimed at the tank) | `SBuildingUnit::GetSightRange` 0x548b40 / `GetMinRange` 0x5482e0; CanAttack fixed |
+| 140 | (same commit) buildings never blocked vision or the line of fire | SIModel +0xd0 0x6db7c0, +0xd8 0x6db550, +0x100 0x6d7150, the BSP / convex-poly / AABB / sphere tests (0x6d4130, 0x6d3c00, 0x6d3e40, 0x6d41d0, 0x6d40e0, 0x6d3c90), eye heights 0x546f70 / 0x57f6a0, BuildingBetween 0x5630c0 |
+| 265 | Trigger T0's attack-move (command 9) hit the "untyped EC_ slot" stub | ExecuteCommand 0x5b95a0 dispatches every typed slot |
+| 504 | A medic squad never healed (stub) | `SUnit::ServerRefreshMedic` 0x5bfa50 |
+| 654 | The riflemen's empty squad stayed in the world | `SPanzersSquadUnit::RefreshDead` 0x59dfe0 |
+| (654) | Building vision cells (+0x458) empty: node points stub, ctor skipped 0x5497a0; doodad grid missing | SIModel +0xac 0x6d8090, ctor loop as 0x55e440, doodad grid 0x564c20 with ProjectileHitTest 0x562c20 / DamageArea 0x576490 (CrushDoodad) |
+
+### Frame 655: the next bug
+
+The recorded minimap right click (frame 654, `02` move of the tank 346 to (93.09, 86.00)) gives
+the tank a different route: HD's ghost queue (+0x1dc) holds 0x61 frames at frame 660, ours 0x58
+(+0x1e8 top 0x2f4 / 0x2eb); positions stay equal to frame 680, then HD drives at heading -2.252,
+ours at -2.655. The global path waypoint count (+0x30c) is the same, so the A* result differs in
+its points: most likely the block map along the way (the A* itself is emulator-verified), e.g.
+dead soldiers or crushed doodads near (130, 146). Not resolved; see "Requests" in the M3-I report.
 
 ## What it took (F)
 
@@ -43,21 +71,11 @@ comes first in the log): `m3f\tools\mdiff.py <our log>` (or `crcdiff.py` on a lo
   0x548560) + the building part of `CanStore` 0x5b7040: each member stands at its window in the
   "stand" state, one world draw each (buildingunit_store.cpp; agent C's area, see the report).
 
-## Frame 1 (for O / C)
+## Frame 1 (history)
 
-- The divergence is in the first tick, before any recorded order (first order at frame 402, O),
-  and also without the army: our naive playback (`PZ_M3_NAIVE_PLAY=1`, the original's playA path)
-  differs from `playA_crc.txt` at frame 1 too (`ffea0a23` vs our `f1568fb6`, seed equal). So it is
-  the first refresh of the map's own units, not the army or the packets.
-- In our first tick 230 units change: 192 only their y (+0x90, 0 at placement, terrain height after
-  the first refresh), 38 crew / passengers in vehicles get seat-relative x / z / dir. Keeping either
-  group (or any one or two fields) at its frame-0 value does not give HD's CRC
-  (`m3f\tools\crchyp.py`), so more than one thing differs.
-- Stubs that run in that tick: SBuildingUnit::RefreshMisc 0x54b910 (occupants at the windows; now
-  that buildings hold squads), SSingleUnit::RefreshMisc 0x5af890 (gun crews), SUnit::FindTarget
-  0x5b4720 (gunner tests).
-- The training map's triggers: T0 (every second, after 8 s) attack-moves 7 enemy units to
-  "start 1" with action 0xe (lifted; not an end of scenario), at frame 140.
+Frame 1 differed because of unit 84's bridge height (above). The other suspects listed here before
+(SBuildingUnit::RefreshMisc 0x54b910, SSingleUnit::RefreshMisc 0x5af890, FindTarget 0x5b4720) were
+not involved; they match the original's capture through frame 654.
 
 ## The flow
 
@@ -98,6 +116,15 @@ SGameLogic ctor could call `PzMinimapCreate`; iunit +0xa8 is `int ActionOn(int t
 - Autosave `SaveGames/TRNG-Start.save`: the campaign part equals the original's byte for byte;
   the game state is not written (docs/FORMATS.md).
 
+## Shutdown panic (M3-I)
+
+"SWidget::~SWidget: Children widgets should be removed first" at exit: reproduced only by closing
+the window while the Training Camp dialog is open. HD's SSuperWindow::OnDestroy 0x65ab50 deletes
++0x104..+0x11c except +0x118 (the dialog) and +0x100 (credits), so the original has the same bug
+(decided from the code, as for the credits). Fixed only under `PANZERS_MOD_BUGFIXES` (exit code 0
+there); the faithful build keeps it. Training Camp mission -> End Mission -> menu -> close, and
+replay -> End Mission -> Exit, exit cleanly (code 0) in the faithful build.
+
 ## Not verified
 
-- Frames after 0 (O: the recorded packets; C: unit refresh). Other recordings and nations.
+- Frames after 654. Other recordings and nations.

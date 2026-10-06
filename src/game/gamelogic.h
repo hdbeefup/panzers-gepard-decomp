@@ -98,6 +98,8 @@ struct SGameLogic {
     bool IsInPlayerVision(int player, SIUnit* unit);   // 0x562650 own unit, or VisMap bit 4 at its cell
 
     // --- M2-I sub-agent LG: add SGameLogic declarations here only.
+    void BuildDoodadGrid();               // 0x564c20 (ctor): +0x1b8 / +0x1bc
+    int  DoodadGridHead(float x, float z) const;   // the list head of the cell under (x, z) (fistp CW 0xc7f)
     void BuildVisMaps();                  // 0x564fb0 (ctor): +0x1c8..+0x264 and the shadow-cast tables
     void BuildVisHeights();               // 0x576a70 (from 0x564fb0): +0x1d0 eye heights
     void AddUnitVision(int player, SIUnit* unit);   // 0x565530 marks the unit's sight/hearing in VisMap[player]
@@ -231,7 +233,13 @@ struct SGameLogic {
     int           BoardArea[4];      // +0x1a0 0x57fac0 (LoadMap: view +0x4b8, 0x13c, 7, 7)
     SStream*      RecordStream;      // +0x1b0 -packetrec file (0x5805c0)
     SStream*      PlaybackStream;    // +0x1b4 -packetplay file (0x580540); ProcessPacket reads the frames from it
-    unsigned char _1b8[0x1c8 - 0x1b8];
+    // The doodad grid (0x564c20): per 8x8-tile cell the head of a list of
+    // {doodad, next} links in +0x1bc (-1 ends).
+    int*          DoodadGrid;        // +0x1b8 (TerrainW / 8) * (TerrainH / 8) heads
+    struct SDoodadLink { int Doodad; int Next; };
+    SDoodadLink*  DoodadLinks;       // +0x1bc SDArray
+    int           DoodadLinkCount;   // +0x1c0
+    int           DoodadLinkMax;     // +0x1c4
     int           VisW;              // +0x1c8 TerrainW * 2 + 2 (half-tile cells per row, 0x564fb0)
     int           VisH;              // +0x1cc TerrainH * 2 + 2
     float*        VisHeights;        // +0x1d0 VisW * VisH eye heights (0x576a70)
@@ -274,6 +282,7 @@ static_assert(offsetof(SGameLogic, CrcBottom) == 0x040, "0x5610a0 param_1[5]");
 static_assert(offsetof(SGameLogic, MessageTimer) == 0x07c, "0x578a70 +0x7c");
 static_assert(offsetof(SGameLogic, PlayerTable) == 0x234, "ctor param_1 + 0x8d");
 static_assert(offsetof(SGameLogic, VisW) == 0x1c8, "0x564fb0 +0x1c8");
+static_assert(offsetof(SGameLogic, DoodadGrid) == 0x1b8, "0x564c20 +0x1b8");
 static_assert(offsetof(SGameLogic, PlaybackStream) == 0x1b4, "0x580540 +0x1b4");
 static_assert(offsetof(SGameLogic, VisMap) == 0x1d4, "0x565530 +0x1d4");
 static_assert(offsetof(SGameLogic, VisMapOwned) == 0x204, "0x565e10 +0x204");

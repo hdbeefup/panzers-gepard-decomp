@@ -37,6 +37,8 @@
 #include "m3common.h"
 #include "stub_log.h"
 
+void PzMinimapPing(int unit);   // src/panzers/minimap.cpp (HD 0x570f30 board +0xb4)
+
 namespace pz {
 
 namespace {
@@ -329,8 +331,9 @@ void SGameLogic::PingAttackedUnit(int unit)
     // x = ((pos.x - 0.5) / (TerrainW - 0x60) - 0.5) * minimap +0x18c [0],
     // y = ((pos.z - 0.5) / (TerrainH - 0x60) - 0.5) * minimap +0x18c [1]
     // (constants 0x7f7f90, 0x7ea760). The minimap is agent H's (hud /
-    // minimap.cpp) and the SIBoard of the recompile has no +0xb4.
-    STUB_LOG("SGameLogic::PingAttackedUnit (0x570f30) board +0xb4 minimap blink");
+    // minimap.cpp) and the SIBoard of the recompile has no +0xb4: the HUD's
+    // minimap blinks the unit instead.
+    ::PzMinimapPing(unit);
 }
 
 // PANZERS 0x5c3dd0

@@ -960,8 +960,166 @@ SBlockBitmap* SModel::BuildNodeBlockBitmap(int cellsPerUnit, const char* name)
     bm->Z = (int)z0;
     return bm;
 }
-void SModel::Slot_AC() { STUB_LOG("SModel::Slot_AC (0x6d8090)"); }
-void SModel::Slot_B0() { STUB_LOG("SModel::Slot_B0 (0x6d6700)"); }
+// PANZERS 0x6d8090
+// The vertices of a node's mesh in the logic pose (node +0x30 matrix) into
+// `out` (SDArray::SetSize(0) 0x5dd0c0 first, one 0x6d5890 add per vertex).
+void SModel::GetNodePoints(const char* name, SVec3Array* out)
+{
+    if (out->Size != 0 && out->Array == nullptr)
+        Logger.g->Panic("SDArray<%s>::Clear: array is damaged", "SVector");
+    out->Size = 0;
+    if (out->Array)
+        memset(out->Array, 0, (size_t)out->Max * 12);
+    int node = FindNode(name);                                    // +0x40
+    if (node < 0)
+        return;
+    ExtraFrame = Scene->FrameCount;                               // scene +0xa0
+    if (PrevDirty) {
+        PrevDirty = false;
+        ComputeNodes(ExtraFrame, nullptr, true);                  // 0x6dc7b0(frame, 0, 1)
+    }
+    float m[12];
+    memcpy(m, Nodes[node].PrevWorld, 48);
+    if (node >= Proto->NodeCount)
+        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "SPModelNode", node);
+    SMesh* mesh = Proto->Nodes[node].Mesh;                        // proto node +0x44
+    mesh->Lock();                                                 // +0x30
+    for (int i = 0; i < mesh->VertexCount; ++i) {                 // 0x6ce990
+        const float* v = (const float*)(mesh->Vertices + mesh->OffPosition + mesh->Stride * i);
+        float x = ((v[0] * m[0] + v[1] * m[3]) + v[2] * m[6]) + m[9];
+        float y = ((v[0] * m[1] + v[1] * m[4]) + v[2] * m[7]) + m[10];
+        float z = ((v[0] * m[2] + v[1] * m[5]) + v[2] * m[8]) + m[11];
+        if (out->Size == out->Max) {                              // 0x6d5890
+            int nmax = out->Max < 0x10 ? 0x10 : out->Max * 6 / 5;
+            out->Array = (float(*)[3])realloc(out->Array, (size_t)nmax * 12);
+            memset(out->Array + out->Max, 0, (size_t)(nmax - out->Max) * 12);
+            out->Max = nmax;
+        }
+        int k = out->Size++;
+        out->Array[k][0] = x;
+        out->Array[k][1] = y;
+        out->Array[k][2] = z;
+    }
+    mesh->Unlock();                                               // +0x34
+}
+
+// PANZERS 0x6d6700
+// The "Platform" node's mesh (a bridge deck) in the logic pose, sampled at the
+// terrain vertices it covers: per vertex the height of the first face whose
+// XZ projection strictly contains it (plane through the face), -FLT_MAX
+// elsewhere. SWorld::FixBridges 0x5e65f0 takes the max into the second height
+// map. The span is the terrain vertices ceil(min) .. floor(max) of the
+// projected mesh (x87 frndint under 0x8de160 = 0x87f up / 0x8de15c = 0x47f down).
+SHeightPatch* SModel::GetHeightPatch()
+{
+    int node = FindNode("Platform");                              // +0x40 (0x7f4350)
+    if (node < 0)
+        return nullptr;
+    ExtraFrame = Scene->FrameCount;                               // scene +0xa0
+    if (PrevDirty) {
+        PrevDirty = false;
+        ComputeNodes(ExtraFrame, nullptr, true);                  // 0x6dc7b0(frame, 0, 1)
+    }
+    float minX = 10000.0f, minZ = 10000.0f;                       // 0x7fd710
+    float m[12];
+    memcpy(m, Nodes[node].PrevWorld, 48);                         // node +0x30
+    float maxX = -10000.0f, maxZ = -10000.0f;                     // 0x7f5aa8
+    if (node >= Proto->NodeCount)
+        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "SPModelNode", node);
+    SMesh* mesh = Proto->Nodes[node].Mesh;                        // proto node +0x44
+    int count = mesh->VertexCount;                                // 0x6ce990
+    float* pts = new float[(size_t)count * 3]();                  // (x, y, z) per vertex
+    mesh->Lock();                                                 // mesh +0x30
+    for (int i = 0; i < count; ++i) {
+        const float* v = (const float*)(mesh->Vertices + mesh->OffPosition + mesh->Stride * i);
+        float x = v[0] * m[0];
+        x = x + v[1] * m[3];
+        x = x + v[2] * m[6];
+        x = x + m[9];
+        float y = v[0] * m[1];
+        y = y + v[1] * m[4];
+        y = y + v[2] * m[7];
+        y = y + m[10];
+        float z = v[0] * m[2];
+        z = z + v[1] * m[5];
+        z = z + v[2] * m[8];
+        z = z + m[11];
+        pts[i * 3] = x;
+        pts[i * 3 + 1] = y;
+        pts[i * 3 + 2] = z;
+        if (minX > x)
+            minX = x;
+        if (x > maxX)
+            maxX = x;
+        if (minZ > z)
+            minZ = z;
+        if (z > maxZ)
+            maxZ = z;
+    }
+    mesh->Unlock();                                               // mesh +0x34
+    minX = ceilf(minX);                                           // CW 0x8de160 = 0x87f (up)
+    maxX = floorf(maxX);                                          // CW 0x8de15c = 0x47f (down)
+    minZ = ceilf(minZ);
+    maxZ = floorf(maxZ);
+    int w = (int)((maxX - minX) + 1.0f);                          // 0x7f1b58, cvttss2si
+    int h = (int)((maxZ - minZ) + 1.0f);
+    if (w <= 0 && h <= 0) {
+        delete[] pts;
+        return nullptr;
+    }
+    SHeightPatch* p = new SHeightPatch;                           // new(0x14), 0x6619f0
+    p->X = 0;
+    p->Z = 0;
+    p->W = w;
+    p->H = h;
+    p->Data = (float*)operator new((size_t)w * h * 4);
+    memset(p->Data, 0, (size_t)w * h * 4);
+    LockIndexBuffer(mesh);                                        // 0x6ce9a0
+    int faces;
+    unsigned short* idx;
+    GetFaces(mesh, &faces, &idx);                                 // 0x6ce790
+    for (int r = 0; r < h; ++r) {
+        float pz = (float)r + minZ;
+        for (int c = 0; c < w; ++c) {
+            float px = (float)c + minX;
+            float* out = &p->Data[p->W * r + c];
+            unsigned bits = 0xff7fffffu;                          // -FLT_MAX
+            memcpy(out, &bits, 4);
+            for (int f = 0; f < faces; ++f) {
+                const float* p0 = pts + idx[f * 3] * 3;
+                const float* p1 = pts + idx[f * 3 + 1] * 3;
+                const float* p2 = pts + idx[f * 3 + 2] * 3;
+                float e = (p1[0] - p0[0]) * (pz - p0[2]) + (p0[2] - p1[2]) * (px - p0[0]);
+                if (!(e > 0.0f))
+                    continue;
+                e = (pz - p1[2]) * (p2[0] - p1[0]) + (p1[2] - p2[2]) * (px - p1[0]);
+                if (!(e > 0.0f))
+                    continue;
+                e = (p2[2] - p0[2]) * (px - p2[0]) + (p0[0] - p2[0]) * (pz - p2[2]);
+                if (!(e > 0.0f))
+                    continue;
+                // 0x6d6bd1: the plane through the face at (px, pz).
+                float d2y = p2[1] - p0[1], d1y = p1[1] - p0[1];
+                float d1z = p1[2] - p0[2], d2z = p2[2] - p0[2];
+                float d1x = p1[0] - p0[0], d2x = p2[0] - p0[0];
+                float a = d2z * d1y - d2y * d1z;
+                a = a * (px - p0[0]);
+                float den = d1x * d2z - d2x * d1z;
+                float b = d1x * d2y - d2x * d1y;
+                b = b * (pz - p0[2]);
+                *out = (a + b) / den + p0[1];
+                break;
+            }
+        }
+    }
+    mesh->UnlockIndexBuffer();                                    // 0x6cea30
+    delete[] pts;
+    delete[] idx;
+    p->X = (int)minX;                                             // cvttss2si
+    p->Z = (int)minZ;
+    return p;
+}
+
 void SModel::Slot_B4() { STUB_LOG("SModel::Slot_B4 (0x6d59e0)"); }
 void SModel::Slot_B8() { STUB_LOG("SModel::Slot_B8 (0x6d5ae0)"); }
 void SModel::Slot_BC() { STUB_LOG("SModel::Slot_BC (0x6dae10)"); }
@@ -975,9 +1133,64 @@ void SModel::SetHighlight(int mode)
 void SModel::Slot_C4() { STUB_LOG("SModel::Slot_C4 (0x6d7ef0)"); }
 void SModel::Slot_C8() { STUB_LOG("SModel::Slot_C8 (0x6d7920)"); }
 void SModel::Slot_CC() { STUB_LOG("SModel::Slot_CC (0x6dad80)"); }
-void SModel::Slot_D0() { STUB_LOG("SModel::Slot_D0 (0x6db7c0)"); }
+// World point -> node space of collision node `node`: the inverse (0x7c59c0)
+// of the logic-pose node matrix (+0x58, 0x6d7c60), row-vector convention,
+// ((m0 x + m3 y) + m6 z) + m9 per axis (0x6db5df / 0x6db7c0).
+static void ToNodeSpace(SModel* m, int node, const float* p, float* out)
+{
+    float mat[12], inv[12];
+    m->GetNodeMatrix(mat, node);
+    Mat34Inverse(inv, mat);
+    float x = p[0], y = p[1], z = p[2];
+    out[0] = ((inv[0] * x + inv[3] * y) + inv[6] * z) + inv[9];
+    out[1] = ((inv[1] * x + inv[4] * y) + inv[7] * z) + inv[10];
+    out[2] = ((inv[2] * x + inv[5] * y) + inv[8] * z) + inv[11];
+}
+
+static SCollisionBase* PolyNodeCollision(SPModel* proto, int i, int* node)
+{
+    if (i < 0 || i >= proto->PolyNodeCount)
+        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "int", i);
+    int n = proto->PolyNodes[i];
+    if (n < 0 || n >= proto->NodeCount)
+        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "SPModelNode", n);
+    *node = n;
+    return proto->Nodes[n].Collision;                             // proto node +0x48
+}
+
+// PANZERS 0x6db7c0
+// Whether the world point lies inside one of the collision nodes (+0x08 of
+// the collision object, in node space).
+bool SModel::HitTestPoint(const float* p)
+{
+    for (int i = 0; i < Proto->PolyNodeCount; ++i) {
+        int node;
+        SCollisionBase* c = PolyNodeCollision(Proto, i, &node);
+        float q[3];
+        ToNodeSpace(this, node, p, q);
+        if (c->TestPoint(q))
+            return true;
+    }
+    return false;
+}
+
 void SModel::Slot_D4() { STUB_LOG("SModel::Slot_D4 (0x6db960)"); }
-void SModel::Slot_D8() { STUB_LOG("SModel::Slot_D8 (0x6db550)"); }
+// PANZERS 0x6db550
+// Whether the world segment a-b crosses one of the collision nodes (+0x10 of
+// the collision object, in node space; b is transformed first, as in HD).
+bool SModel::HitTestSegment(const float* a, const float* b)
+{
+    for (int i = 0; i < Proto->PolyNodeCount; ++i) {
+        int node;
+        SCollisionBase* c = PolyNodeCollision(Proto, i, &node);
+        float qb[3], qa[3];
+        ToNodeSpace(this, node, b, qb);
+        ToNodeSpace(this, node, a, qa);
+        if (c->TestLineSection(qa, qb))
+            return true;
+    }
+    return false;
+}
 // PANZERS 0x6d5910
 void SModel::AttachTo(SIModel* parent, int node)
 {
@@ -1076,7 +1289,40 @@ void SModel::GetWorldBounds(float* minX, float* maxX, float* minY, float* maxY, 
         }
     }
 }
-void SModel::Slot_100() { STUB_LOG("SModel::Slot_100 (0x6d7150)"); }
+// PANZERS 0x6d7150
+// XZ extent of the BBOX corners of every mesh node in the logic pose (node
+// +0x30 matrix): ((m3 y + m0 x) + m6 z) + m9 and ((m2 x + m5 y) + m8 z) + m11.
+void SModel::GetLogicBoundsXZ(float* minX, float* maxX, float* minZ, float* maxZ)
+{
+    ExtraFrame = Scene->FrameCount;                               // scene +0xa0
+    if (PrevDirty) {
+        PrevDirty = false;
+        ComputeNodes(ExtraFrame, nullptr, true);                  // 0x6dc7b0(frame, 0, 1)
+    }
+    *minX = 10000.0f;
+    *maxX = -10000.0f;
+    *minZ = 10000.0f;
+    *maxZ = -10000.0f;
+    for (int i = 0; i < Proto->NodeCount; ++i) {
+        const SPModelNode& pn = Proto->Nodes[i];
+        if (!pn.Mesh)                                             // proto node +0x44
+            continue;
+        const float* m = Nodes[i].PrevWorld;                      // node +0x30
+        for (int k = 0; k < 8; ++k) {
+            const float* c = &pn.BBox[k * 3];                     // proto node +0x54
+            float x = ((m[3] * c[1] + m[0] * c[0]) + m[6] * c[2]) + m[9];
+            float z = ((m[2] * c[0] + m[5] * c[1]) + m[8] * c[2]) + m[11];
+            if (x < *minX)
+                *minX = x;
+            if (*maxX < x)
+                *maxX = x;
+            if (z < *minZ)
+                *minZ = z;
+            if (*maxZ < z)
+                *maxZ = z;
+        }
+    }
+}
 void SModel::Slot_104() { STUB_LOG("SModel::Slot_104 (0x6d7400)"); }
 
 // PANZERS 0x6d86e0

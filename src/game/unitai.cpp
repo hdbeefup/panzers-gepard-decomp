@@ -16,6 +16,8 @@
 #include "singleunit.h"
 #include "squadunit.h"
 #include "gunner.h"
+#include "gunnermath.h"
+#include "projectile.h"
 #include "idriver.h"
 #include "driver.h"
 #include "manoeuvre.h"
@@ -1306,11 +1308,101 @@ void SUnit::ExecuteCommand(const SOrder& o)
     case 0x28:
         SetBehavior(o.Param);                                 // +0x12c
         return;
-    case 0: case 3: case 4: case 5: case 9: case 10: case 0xb: case 0xc: case 0xd: case 0xe: case 0xf:
-    case 0x10: case 0x11: case 0x12: case 0x14: case 0x16: case 0x17: case 0x18: case 0x19: case 0x1a:
-    case 0x1b: case 0x1c: case 0x1d: case 0x1e: case 0x20: case 0x21: case 0x22: case 0x23: case 0x24:
-    case 0x25: case 0x26: case 0x27: case 0x29: case 0x2a: case 0x2b: case 0x2c: case 0x2d: case 0x2e:
-    case 0x2f:
+    case 0:
+        EC_Default(o.Unit, q);                                // +0xa4
+        return;
+    case 9:
+        EC_AttackMove(o.X, o.Z, q);                           // +0xcc
+        return;
+    case 10:
+        EC_AttackAlongPath(o.Param, -1, q);                   // +0xd0
+        return;
+    case 0xc:
+        Slot_E0(o.Unit, q);                                   // +0xe0
+        return;
+    case 0xd:
+        Slot_158(o.Unit);                                     // +0x158
+        return;
+    case 0xe:
+        Slot_160(o.Unit);                                     // +0x160
+        return;
+    case 0xf:
+        Slot_15C(o.Unit);                                     // +0x15c
+        return;
+    case 0x10:
+        EC_AttackPos(FBits(o.X), FBits(o.Z), q);              // +0xe4
+        return;
+    case 0x11:
+    case 0x20:
+        EC_Attack(o.Unit, q);                                 // +0xe8
+        return;
+    case 0x12:
+        EC_ThrowGrenade(o.Unit, q);                           // +0xf0
+        return;
+    case 0x14:
+        EC_ThrowMolotov(o.Unit, q);                           // +0xf4
+        return;
+    case 0x16:
+        EC_ThrowMagneticMine(o.Unit, q);                      // +0xf8
+        return;
+    case 0x17:
+        Slot_FC(FBits(o.X), FBits(o.Z), q);                   // +0xfc
+        return;
+    case 0x18:
+        Slot_100(FBits(o.X), FBits(o.Z), q);                  // +0x100
+        return;
+    case 0x19:
+        Slot_104();                                           // +0x104
+        return;
+    case 0x1a:
+        Slot_108();                                           // +0x108
+        return;
+    case 0x1b:
+        Slot_10C(FBits(o.X), FBits(o.Z), q);                  // +0x10c
+        return;
+    case 0x1e:
+        Slot_110(o.Param, q);                                 // +0x110
+        return;
+    case 0x21:
+        SetFireBehavior(o.Param);                             // +0x13c
+        return;
+    case 0x22:
+        Slot_114(FBits(o.X), FBits(o.Z));                     // +0x114
+        return;
+    case 0x23:
+        Slot_118(o.Unit);                                     // +0x118
+        return;
+    case 0x24:
+        Slot_11C();                                           // +0x11c
+        return;
+    case 0x25:
+        Slot_120(o.Param2);                                   // +0x120
+        return;
+    case 0x26:
+        EC_Die();                                             // +0x124
+        return;
+    case 0x29:
+        Slot_134(o.Param);                                    // +0x134
+        return;
+    case 0x2a:
+        EC_Enter(o.Unit, q);                                  // +0x140
+        return;
+    case 0x2b:
+        Unload(o.Param);                                      // +0x144
+        return;
+    case 0x2d:
+        Slot_154();                                           // +0x154
+        return;
+    case 0x2e:
+        Slot_164(o.Param);                                    // +0x164
+        return;
+    case 3: case 4:                                           // +0xb0 (X, Z, queue, 0 / 1, 0 / Param2)
+    case 5:                                                   // +0xbc (Param2)
+    case 0xb:                                                 // +0xdc (Unit)
+    case 0x1c: case 0x1d:                                     // 0x5b88f0(0 / 1, Param != 0)
+    case 0x27:                                                // +0x128
+    case 0x2c:                                                // +0xd8 (Unit)
+    case 0x2f:                                                // +0x168 (Param != 0)
         STUB_LOG("SUnit::ExecuteCommand (0x5b95a0) command with an untyped EC_ slot");
         PZ_M2_TRACE("SUnit::ExecuteCommand (0x5b95a0) untyped command");
         return;
@@ -1322,14 +1414,72 @@ void SUnit::ExecuteCommand(const SOrder& o)
 // ---------------------------------------------------------------------------
 // Medic
 
-// PANZERS 0x5bfa50 (entry test)
-// Healing: only a current target of kind 8 (never in the menu).
+// PANZERS 0x5bfa50
+// Healing (current target of kind 8 on a unit): within `range` (2D) and
+// while the target has a wounded member (+0x80), the weakest member (the
+// last with the lowest HP, its index kept as a float) gets Heal(0.1) once
+// per member of this unit; the order ends when it is whole and the lowest
+// was 1.0. Every 9th frame a "Projectile medic" flies to it (ballistic at
+// pi/4, no damage, homing on it). Out of range: wait while the driver is
+// active, else (or when nobody is wounded) go back to the primary order.
 void SUnit::ServerRefreshMedic(float range)
 {
-    (void)range;
-    if (!CurrentTarget || TKind(CurrentTarget) != 8)
+    STarget* t = CurrentTarget;
+    if (!t || TKind(t) != 8)
         return;
-    STUB_LOG("SUnit::ServerRefreshMedic (0x5bfa50) heal target");
+    int tu = tgt::I(t, tgt::kUnit);
+    SUnit* tgtUnit = WorldUnit(tu);
+    float dz = Pos[2] - tgtUnit->Pos[2];
+    float dx = Pos[0] - tgtUnit->Pos[0];
+    if (dz * dz + dx * dx > range * range) {
+        if (ActiveDriver != -1)
+            return;
+    } else if (tgtUnit->HasWoundedMember()) {                 // +0x80
+        float lowest = 1.0f;                                  // 0x7f1b58
+        float best = -1.0f;                                   // 0x7f5a98 (member unit index as a float)
+        for (int i = 0;; ++i) {
+            SUnit* sq = WorldUnit(tgt::I(CurrentTarget, tgt::kUnit));
+            if (i >= sq->Members.Size)
+                break;
+            SUnit* m = WorldUnit(sq->Members.Array[i].Unit);
+            if (lowest >= m->HP) {
+                best = (float)sq->Members.Array[i].Unit;      // 0x5991e0, cvtdq2ps
+                lowest = WorldUnit((int)best)->HP;
+            }
+        }
+        if (best < 0.0f)
+            return;
+        int b = (int)best;                                    // cvttss2si
+        WorldUnit(b)->Heal(0.1f);                       // +0x98 (0x3dcccccd)
+        for (int k = 1; k < Members.Size; ++k)
+            WorldUnit(b)->Heal(0.1f);
+        if (WorldUnit(b)->HP >= 1.0f && lowest == 1.0f)
+            ClearTargets();                                   // +0xc4
+        if (tgt::I(CurrentTarget, tgt::kUnit) == WorldIndex || g_GameLogic->GetFrame() % 9 != 0)
+            return;
+        float from[3] = { Pos[0], Pos[1] + 1.0f, Pos[2] };
+        SUnit* bu = WorldUnit(b);
+        float to[3] = { bu->Pos[0], bu->Pos[1], bu->Pos[2] };
+        float dir = DAtan2f((double)(to[0] - from[0]), (double)(to[2] - from[2]));   // 0x78d07a, fstp float
+        int proj = g_World->CreateUnit(Player, "Projectile medic", from, dir, 0, 1.0f, -1, true, "");   // 0x5e3170
+        float vel[3];
+        GunnerBallisticVelocity(to[0] - from[0], to[1] - from[1], to[2] - from[2], 0.7853981852531433f, vel);   // 0x7f7f50
+        if (!_finite((double)vel[0]) || !_finite((double)vel[1]) || !_finite((double)vel[2]))   // 0x793d6c
+            Logger.g->Panic("SUnit::ServerRefreshMedic: Projectile speed is not finite!");
+        SProjectileUnit* p = (SProjectileUnit*)WorldUnit(proj);
+        p->SetVelocity(vel[0], vel[1], vel[2]);               // 0x5a4450
+        p->SetDamage(0.0f, 0.0f, 0);                          // 0x5a4410
+        p->Shooter = WorldIndex;                              // +0x354
+        p->SetHomingTarget(b);                                // 0x5a4440
+        return;
+    }
+    STarget* pt = PrimaryTarget;
+    if (!pt || pt == CurrentTarget) {
+        ClearTargets();                                       // +0xc4
+        return;
+    }
+    SetCurrentTarget(pt, 0);                                  // +0xa0
+    AI_Heartbeat();                                           // +0x190
 }
 
 // ---------------------------------------------------------------------------

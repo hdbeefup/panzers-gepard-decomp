@@ -30,6 +30,21 @@ namespace pz {
 struct SPModel;   // HD 0x54 bytes, owned by the Gepard facade (agent A)
 struct SPAnim;    // HD CANM animation prototype (agent A)
 struct SBlockBitmap; // HD 0x1c-byte cell bitmap (0x661a50), world/blockmaprefresh.h
+// HD 0x14-byte float grid (ctor 0x6619f0, free of Data 0x661b10): the height
+// patch SIModel +0xb0 returns (a "Platform" node: bridges, SWorld::FixBridges 0x5e65f0).
+// HD SDArray<SVector> (0x0c bytes, element 0x0c): SIModel +0xac output.
+struct SVec3Array {
+    float (*Array)[3];  // +0x00
+    int    Size;       // +0x04
+    int    Max;        // +0x08
+};
+struct SHeightPatch {
+    int    X;      // +0x00 first terrain vertex column
+    int    Z;      // +0x04 first terrain vertex row
+    int    W;      // +0x08 columns
+    int    H;      // +0x0c rows
+    float* Data;   // +0x10 W * H heights, -FLT_MAX outside the mesh
+};
 
 struct SIModel {
     virtual void AddRef() = 0;                              // +0x00 HD 0x6d5900 (0 arg dwords) RefCount +0x10
@@ -75,8 +90,8 @@ struct SIModel {
     virtual void Slot_A0() = 0;                             // +0xa0 HD 0x6d6ce0 (8 arg dwords)
     virtual void Slot_A4() = 0;                             // +0xa4 HD 0x6d61c0 (6 arg dwords)
     virtual SBlockBitmap* BuildNodeBlockBitmap(int cellsPerUnit, const char* node) = 0; // +0xa8 HD 0x6d5ca0 (2 arg dwords) new cell bitmap of the node mesh's triangles projected on XZ (logic pose); null when the node is missing ("Block" in SDoodad::UpdatePosition)
-    virtual void Slot_AC() = 0;                             // +0xac HD 0x6d8090 (2 arg dwords)
-    virtual void Slot_B0() = 0;                             // +0xb0 HD 0x6d6700 (0 arg dwords)
+    virtual void GetNodePoints(const char* node, SVec3Array* out) = 0; // +0xac HD 0x6d8090 (2 arg dwords) the node mesh vertices in the logic pose (out cleared first; empty without the node) (M3-I)
+    virtual SHeightPatch* GetHeightPatch() = 0;             // +0xb0 HD 0x6d6700 (0 arg dwords) "Platform" node heights per terrain vertex; null without the node (M3-I)
     virtual void Slot_B4() = 0;                             // +0xb4 HD 0x6d59e0 (1 arg dword)
     virtual void Slot_B8() = 0;                             // +0xb8 HD 0x6d5ae0 (1 arg dword)
     virtual void Slot_BC() = 0;                             // +0xbc HD 0x6dae10 (1 arg dword)
@@ -84,9 +99,9 @@ struct SIModel {
     virtual void Slot_C4() = 0;                             // +0xc4 HD 0x6d7ef0 (0 arg dwords)
     virtual void Slot_C8() = 0;                             // +0xc8 HD 0x6d7920 (2 arg dwords)
     virtual void Slot_CC() = 0;                             // +0xcc HD 0x6dad80 (1 arg dword)
-    virtual void Slot_D0() = 0;                             // +0xd0 HD 0x6db7c0 (1 arg dword)
+    virtual bool HitTestPoint(const float* p) = 0;          // +0xd0 HD 0x6db7c0 (1 arg dword) a world point inside any collision node (POLY / BSP_) of the logic pose (M3-I)
     virtual void Slot_D4() = 0;                             // +0xd4 HD 0x6db960 (1 arg dword)
-    virtual void Slot_D8() = 0;                             // +0xd8 HD 0x6db550 (2 arg dwords)
+    virtual bool HitTestSegment(const float* a, const float* b) = 0; // +0xd8 HD 0x6db550 (2 arg dwords) the world segment a-b crosses a BSP_ collision node (line of fire, eye heights; M3-I)
     virtual void AttachTo(SIModel* parent, int node) = 0;   // +0xdc HD 0x6d5910 (2 arg dwords) parent->AttachChild(node, this) 0x6d5940
     virtual void Slot_E0() = 0;                             // +0xe0 HD 0x6d7310 (0 arg dwords)
     virtual void Slot_E4() = 0;                             // +0xe4 HD 0x6d62e0 (2 arg dwords)
@@ -96,7 +111,7 @@ struct SIModel {
     virtual void Slot_F4() = 0;                             // +0xf4 HD 0x6d7900 (0 arg dwords)
     virtual void Slot_F8() = 0;                             // +0xf8 HD 0x6d85d0 (0 arg dwords)
     virtual void GetWorldBounds(float* minX, float* maxX, float* minY, float* maxY, float* minZ, float* maxZ) = 0; // +0xfc HD 0x6d6f40 (6 arg dwords) world AABB of the mesh-node BBOX corners (tick pose)
-    virtual void Slot_100() = 0;                            // +0x100 HD 0x6d7150 (4 arg dwords)
+    virtual void GetLogicBoundsXZ(float* minX, float* maxX, float* minZ, float* maxZ) = 0; // +0x100 HD 0x6d7150 (4 arg dwords) XZ extent of the mesh-node BBOX corners in the logic pose (M3-I)
     virtual void Slot_104() = 0;                            // +0x104 HD 0x6d7400 (2 arg dwords)
 
 protected:

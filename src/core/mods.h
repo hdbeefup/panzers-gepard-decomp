@@ -27,6 +27,9 @@
 //       panics "SWidget::~SWidget: Children widgets should be removed first"
 //       (exit code 1). Seen on the HD PANZERS.exe itself. The fix deletes
 //       CreditMenu with the other menus in OnDestroy.
+//     - The same with the Training Camp dialog open (TrainingCampMenu
+//       +0x118, also skipped by 0x65ab50; decided from the code, M3-I).
+//       The fix deletes it too.
 
 #ifndef PANZERS_MODS_H
 #define PANZERS_MODS_H

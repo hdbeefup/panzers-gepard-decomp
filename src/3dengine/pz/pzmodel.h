@@ -95,8 +95,8 @@ struct SModel : SIModel, SAttachable {
     void Slot_A0() override;
     void Slot_A4() override;
     SBlockBitmap* BuildNodeBlockBitmap(int cellsPerUnit, const char* node) override;
-    void Slot_AC() override;
-    void Slot_B0() override;
+    void GetNodePoints(const char* node, SVec3Array* out) override;   // +0xac 0x6d8090
+    SHeightPatch* GetHeightPatch() override;                     // +0xb0 0x6d6700
     void Slot_B4() override;
     void Slot_B8() override;
     void Slot_BC() override;
@@ -104,9 +104,9 @@ struct SModel : SIModel, SAttachable {
     void Slot_C4() override;
     void Slot_C8() override;
     void Slot_CC() override;
-    void Slot_D0() override;
+    bool HitTestPoint(const float* p) override;                  // +0xd0 0x6db7c0
     void Slot_D4() override;
-    void Slot_D8() override;
+    bool HitTestSegment(const float* a, const float* b) override; // +0xd8 0x6db550
     void AttachTo(SIModel* parent, int node) override;
     void Slot_E0() override;
     void Slot_E4() override;
@@ -116,7 +116,7 @@ struct SModel : SIModel, SAttachable {
     void Slot_F4() override;
     void Slot_F8() override;
     void GetWorldBounds(float* minX, float* maxX, float* minY, float* maxY, float* minZ, float* maxZ) override;
-    void Slot_100() override;
+    void GetLogicBoundsXZ(float* minX, float* maxX, float* minZ, float* maxZ) override;   // +0x100 0x6d7150
     void Slot_104() override;
 
     // SIAttachable (+0x04 vtable 0x883910)

@@ -71,6 +71,7 @@ struct SPanzersSquadUnit : SUnit {
     void EC_ThrowMolotov(int unit, int p2) override;             // 0x59a280
     void Slot_148(int player) override;                          // 0x59af90 (M3-C) a squad at rest: members back to their stand pose
     void OnMemberDied(int unit) override;                        // +0x1b4 0x59d4e0 (RemoveMember)
+    void RefreshDead() override;                                 // +0x30 0x59dfe0 (M3-I) the empty squad's countdown, then RemoveUnit
     float GetLowestMaxRange() override;                          // 0x59b650
     void OnAttackedBy(int attacker) override;                    // 0x59ef00
     int  GetARandomMemberIdx();                                  // 0x59b3d0 (one world RNG draw; the member's world index)

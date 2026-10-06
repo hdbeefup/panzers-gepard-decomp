@@ -339,13 +339,14 @@ bool SGunner::TurnElevation(float angle)
 }
 
 // PANZERS 0x583af0
-// Whether the weapon can hurt the target: bullets anything; other weapons
-// not armour type 2 (except buildings of class 0xb without +0x110), and
+// Whether the weapon can hurt the target: other weapons anything; bullets
+// (weapon type 0) not armour type 2 (except class 0xb without +0x110), and
 // buildings only when their prototype +0x13c is 2; planes (class 8) only
-// for air-defence gunners.
+// for air-defence gunners. (M3-I: the recompile had the weapon test
+// inverted; HD 0x583af0 skips the armour tests when 0x584240 != 0.)
 bool SGunner::CanAttack(SUnit* target)
 {
-    if (GetWeaponType() == 0)                                 // 0x584240
+    if (GetWeaponType() != 0)                                 // 0x584240
         goto air;
     {
         SPUnit* p = target->Proto;

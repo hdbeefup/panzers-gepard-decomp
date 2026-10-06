@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "gamelogic.h"
+#include "buildingunit.h"
 #include "aigroup.h"
 #include "trigger.h"
 #include "triggersunits.h"
@@ -255,7 +256,8 @@ SGameLogic::SGameLogic(int p1, int p2, int p3)
         if ((ct == 0 || ct == 5 || ct == 0xc || ct == 0xb) && !UV::Unplaced(i))
             UpdateActiveLocationsAt(i, false);                    // 0x582080(unit, 0)
     }
-    // HD 0x564c20: per-8x8-tile tables (+0x1d0 ...). Not lifted.
+    if (g_World)
+        BuildDoodadGrid();                                        // 0x564c20
     Flag288 = false;
     Flag2b8 = false;
     if (g_World)
@@ -293,7 +295,8 @@ SGameLogic::SGameLogic(int p1, int p2, int p3)
     if (UV::kReal) {
         PZ_FOR_EACH_UNIT(i) {
             UV::Iface(i)->RefreshTargeting();
-            // TODO(U): SBuildingUnit 0x5497a0 for class 9 (not in SIUnit).
+            if (UV::ClassType(i) == 9)
+                static_cast<SBuildingUnit*>(g_World->Units.Array[i].Unit)->InitBlockCells();   // 0x5497a0
         }
     }
     if (g_M2.Enabled)
@@ -318,6 +321,8 @@ SGameLogic::~SGameLogic()
     }
     free(AnimatedModels);
     free(CrcHistory);
+    free(DoodadGrid);                                             // +0x1b8 / +0x1bc (0x564c20)
+    free(DoodadLinks);
     FreeVisMaps();
     if (FrameObject)
         delete (SStreamBuffer*)FrameObject;
@@ -460,12 +465,14 @@ void SGameLogic::DumpUnitsForCrc()
     // 16, "PZM2 D <frame> <unit> @<offset> ...", as scratch peekdrv.py dumps
     // the original.
     static char s_Drv[256] = { 1 };
-    static bool s_Raw;
+    static bool s_Raw, s_Gun;
     if (s_Drv[0] == 1) {
         const char* e = getenv("PZ_M2_DRVDUMP");
         const char* r = getenv("PZ_M2_UNITRAW");
+        const char* g = getenv("PZ_M2_GUNDUMP");
         s_Raw = !e && r;
-        strncpy(s_Drv, e ? e : (r ? r : ""), sizeof(s_Drv) - 1);
+        s_Gun = !e && !r && g;
+        strncpy(s_Drv, e ? e : (r ? r : (g ? g : "")), sizeof(s_Drv) - 1);
     }
     if (s_Drv[0] && g_World && UV::kReal) {
         char tmp[256];
@@ -476,7 +483,22 @@ void SGameLogic::DumpUnitsForCrc()
                 continue;
             const unsigned char* u = (const unsigned char*)(const void*)g_World->Units.Array[ui].Unit;
             const unsigned* d = (const unsigned*)u;
-            int size = 0x3a8;
+            int size = ((const SUnit*)(const void*)u)->Proto->ClassType == 9 ? 0x470 : 0x3a8;   // SBuildingUnit 0x470
+            if (s_Gun) {
+                // PZ_M2_GUNDUMP=<u>,...: each gunner 0x100 bytes, "PZM2 G <frame> <unit> <k> @<offset> ...".
+                const SUnit* su = (const SUnit*)(const void*)u;
+                for (int k = 0; k < su->Gunners.Size; ++k) {
+                    const unsigned* g = (const unsigned*)(const void*)su->Gunners.Array[k];
+                    for (int off = 0; off < 0x100; off += 0x40) {
+                        char line[16 * 9 + 64];
+                        int n = sprintf(line, "PZM2 G %d %d %d @%x", Frame, ui, k, off);
+                        for (int q = off / 4; q < off / 4 + 16; ++q)
+                            n += sprintf(line + n, " %08x", g[q]);
+                        Logger.g->Log(0, "%s", line);
+                    }
+                }
+                continue;
+            }
             if (!s_Raw) {
                 int ad = *(const int*)(u + 0x28);
                 if (ad < 0)
@@ -706,9 +728,8 @@ void SGameLogic::UpdateUnitVisuals(SIViewport* vp, double interpolation)
         PZ_FOR_EACH_UNIT(i)
             UV::Iface(i)->UpdateVisuals(vp);                      // +0x40
     }
-    if (MinimapFrame < 0)
-        return;
-    STUB_LOG("SGameLogic::UpdateUnitVisuals minimap dots (0x5638f0)");
+    // The minimap dots (MinimapFrame >= 0) are drawn by the HUD
+    // (PzMinimapUpdate, src/panzers/minimap.cpp).
 }
 
 // PANZERS 0x56d1a0

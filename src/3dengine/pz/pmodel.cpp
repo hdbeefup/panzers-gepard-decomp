@@ -807,4 +807,164 @@ void SCollisionConvexPoly::Load(SStream* is)
     }
 }
 
+// ---- collision tests (M3-I) ----
+
+// PANZERS 0x6d40e0
+// SCollisionAABB +0x08: min <= p < max on each axis.
+static bool AabbTestPoint(const float* b, const float* p)
+{
+    return p[0] >= b[0] && b[1] > p[0] && p[1] >= b[2] && b[3] > p[1] && p[2] >= b[4] && b[5] > p[2];
+}
+
+// PANZERS 0x6d3c90
+// SCollisionSphere +0x10: whether the segment a-b passes within the radius
+// (sphere {cx, cy, cz, r^2}).
+static bool SphereTestLineSection(const float* s, const float* a, const float* b)
+{
+    float fy = s[1] - a[1], fx = s[0] - a[0], fz = s[2] - a[2];
+    float ex = b[0] - s[0], ey = b[1] - s[1], ez = b[2] - s[2];
+    float dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
+    float dot = (dy * fy + dx * fx) + dz * fz;
+    if (0.0f > dot)
+        return s[3] > (fy * fy + fx * fx) + fz * fz;
+    float dot2 = (dy * ey + dx * ex) + dz * ez;
+    if (0.0f > dot2)
+        return s[3] > (ey * ey + ex * ex) + ez * ez;
+    float ly = a[1] - b[1], lx = a[0] - b[0], lz = a[2] - b[2];
+    float len2 = (lx * lx + ly * ly) + lz * lz;
+    float d2 = (fy * fy + fx * fx) + fz * fz;
+    return s[3] * len2 > d2 * len2 - dot * dot;
+}
+
+// BSP node (0x14 bytes): u16 front (+0), u16 back (+2), plane a, b, c, d.
+struct SBspNode {
+    unsigned short Front;
+    unsigned short Back;
+    float A, B, C, D;
+};
+static_assert(sizeof(SBspNode) == 0x14, "HD BSP node");
+
+static inline float BspSide(const SBspNode& n, const float* p)
+{
+    return ((n.B * p[1] + n.A * p[0]) + n.C * p[2]) + n.D;
+}
+
+// PANZERS 0x6d4130
+// Inside when the walk ends on a front (solid) leaf: behind a plane (<= 0)
+// go to the front child, else to the back child; child 0 ends the walk.
+bool SCollisionBSPTree::TestPoint(const float* p)
+{
+    if (!AabbTestPoint(Aabb, p))                                  // +0x04 -> +0x08 (0x6d40e0)
+        return false;
+    const SBspNode* nodes = (const SBspNode*)Nodes;               // +0x34
+    unsigned n = 0;
+    for (;;) {
+        while (BspSide(nodes[n], p) <= 0.0f) {
+            n = nodes[n].Front;
+            if (n == 0)
+                return true;
+        }
+        n = nodes[n].Back;
+        if (n == 0)
+            return false;
+    }
+}
+
+// PANZERS 0x6d3e40
+// The first solid node the segment a-b reaches from `node` (-1: none);
+// `hit` is the node the segment came through.
+int SCollisionBSPTree::FirstHit(const float* a, const float* b, int node, int hit)
+{
+    const SBspNode* nodes = (const SBspNode*)Nodes;
+    unsigned n = (unsigned)node;
+    float da, db;
+    for (;;) {
+        da = BspSide(nodes[n], a);
+        db = BspSide(nodes[n], b);
+        if (da > 0.0f && db > 0.0f) {
+            n = nodes[n].Back;
+            if (n == 0)
+                return -1;
+            continue;
+        }
+        if (0.0f > da && 0.0f > db) {
+            unsigned f = nodes[n].Front;
+            if (f == 0)
+                return hit < 0 ? (int)n : hit;
+            n = f;
+            continue;
+        }
+        break;
+    }
+    float t = 0.0f;
+    if (!(da == db)) {                                            // ucomiss: unordered computes too
+        float r = da / (da - db);
+        if (r > 0.0f) {
+            if (!(1.0f > r))
+                t = 1.0f;
+            else
+                t = r;
+        }
+    }
+    float mid[3];
+    mid[0] = (b[0] - a[0]) * t + a[0];
+    mid[1] = (b[1] - a[1]) * t + a[1];
+    mid[2] = (b[2] - a[2]) * t + a[2];
+    if (da > db) {
+        unsigned k = nodes[n].Back;
+        if (k != 0) {
+            int r = FirstHit(a, mid, (int)k, hit);
+            if (r >= 0)
+                return r;
+        }
+        k = nodes[n].Front;
+        if (k == 0)
+            return (int)n;
+        return FirstHit(mid, b, (int)k, (int)n);
+    }
+    unsigned k = nodes[n].Front;
+    if (k != 0) {
+        int r = FirstHit(a, mid, (int)k, hit);
+        if (r >= 0)
+            return r;
+    } else if (hit >= 0) {
+        return hit;
+    }
+    k = nodes[n].Back;
+    if (k == 0)
+        return -1;
+    return FirstHit(mid, b, (int)k, (int)n);
+}
+
+// PANZERS 0x6d3c00
+bool SCollisionBSPTree::TestLineSection(const float* a, const float* b)
+{
+    if (!SphereTestLineSection(Sphere, a, b))                     // +0x20 -> +0x10 (0x6d3c90)
+        return false;
+    return FirstHit(a, b, 0, -1) >= 0;
+}
+
+// PANZERS 0x6d41d0
+// Inside the AABB and behind (<= 0) every face plane (faces 0x14 bytes, the
+// plane at +0x04).
+bool SCollisionConvexPoly::TestPoint(const float* p)
+{
+    if (!AabbTestPoint(Aabb, p))
+        return false;
+    const unsigned char* f = (const unsigned char*)Faces;         // +0x44
+    for (int i = 0; i < FaceCount; ++i) {
+        const float* pl = (const float*)(f + i * 0x14 + 4);
+        if (0.0f < ((pl[1] * p[1] + pl[0] * p[0]) + pl[2] * p[2]) + pl[3])
+            return false;
+    }
+    return true;
+}
+
+// PANZERS 0x6d3c70
+bool SCollisionConvexPoly::TestLineSection(const float*, const float*)
+{
+    Logger.g->Panic("SCollisionConvexPoly::TestLineSection: not implemented");
+    return false;
+}
+
 } // namespace pz

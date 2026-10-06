@@ -206,9 +206,14 @@ void FreeSequence(SPSequence* s, int nodeCount);   // 0x68e7f0 + channel dtors 0
 
 // ---- collision objects of POLY / BSP_ nodes ----
 // The world reads these for block maps; the 3D path only loads them.
+// The AABB (+0x04 sub-object, vftable 0x8834d4: minX, maxX, minY, maxY, minZ,
+// maxZ) and the sphere (+0x20, vftable 0x8834bc: centre, radius squared) are
+// kept as plain floats; their tests are the static helpers in pmodel.cpp.
 struct SCollisionBase {
     virtual ~SCollisionBase() {}
     virtual void Load(SStream* is) = 0;   // +0x04
+    virtual bool TestPoint(const float* p) = 0;                       // +0x08 (node space)
+    virtual bool TestLineSection(const float* a, const float* b) = 0; // +0x10 (node space)
 };
 
 // SCollisionBSPTree (0x38 bytes, ctor 0x6d3490, Load 0x6d37b0).
@@ -221,6 +226,9 @@ struct SCollisionBSPTree : SCollisionBase {
     SCollisionBSPTree();
     ~SCollisionBSPTree() override;
     void Load(SStream* is) override;
+    bool TestPoint(const float* p) override;                          // 0x6d4130
+    bool TestLineSection(const float* a, const float* b) override;    // 0x6d3c00
+    int  FirstHit(const float* a, const float* b, int node, int hit); // 0x6d3e40
 };
 
 // SCollisionConvexPoly (0x4c bytes, ctor 0x6d3500, Load 0x6d3950).
@@ -238,6 +246,8 @@ struct SCollisionConvexPoly : SCollisionBase {
     SCollisionConvexPoly();
     ~SCollisionConvexPoly() override;
     void Load(SStream* is) override;
+    bool TestPoint(const float* p) override;                          // 0x6d41d0
+    bool TestLineSection(const float* a, const float* b) override;    // 0x6d3c70 (HD panics)
 };
 
 } // namespace pz

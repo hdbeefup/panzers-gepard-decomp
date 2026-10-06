@@ -772,9 +772,13 @@ void SSuperWindow::OnDestroy()
     // credits widget linked under SSuperWindow, and ~SWidget (0x5430e0, via
     // ~SSuperWindow 0x6572a0 -> 0x5445a0) panics "Children widgets should be
     // removed first": an original-game bug, kept in the faithful build.
-    // (TrainingCampMenu is never created here.)
+    // The same holds for the Training Camp dialog (-m3, superwindow_m3.cpp):
+    // closing the window while it is open panics the same way (seen in the
+    // recompile; HD 0x65ab50 deletes +0x104..+0x11c except +0x118, so HD
+    // has the bug too; decided statically, M3-I).
 #if PANZERS_MOD_BUGFIXES
     if (CreditMenu) { delete CreditMenu; CreditMenu = nullptr; }  // as PZA_CREDITS_DONE (0x43521) does
+    if (TrainingCampMenu) { delete TrainingCampMenu; TrainingCampMenu = nullptr; }   // as Start / Cancel do
 #endif
     UnloadMenuBackground();                        // 0x65b940
     Board->UnloadCursorSet();                      // board +0x98 (0x6cbd00)

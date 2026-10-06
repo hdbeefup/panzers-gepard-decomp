@@ -6,6 +6,7 @@
 #include "world.h"
 #include "worldapi.h"
 #include "doodad.h"
+#include "blockmaprefresh.h"
 #include "unit.h"
 #include "pz/iterrain.h"
 #include "pz/imodel.h"
@@ -60,6 +61,28 @@ void SWorld::LoadMapExtra_607ad0()
         }
 }
 
+// The height patch of one model (SIModel +0xb0 0x6d6700): the higher of each
+// vertex and the patch goes into the second height map, the rect is marked
+// dirty for the water / height bits (0x600, 0x5ef380), the patch is freed
+// (0x661b10, delete 0x14). Inline twice in 0x5e65f0 (doodads, buildings).
+static void ApplyHeightPatch(SWorld* w, SIModel* m)
+{
+    SHeightPatch* p = m->GetHeightPatch();
+    if (!p)
+        return;
+    for (int r = 0; r < p->H; ++r)
+        for (int c = 0; c < p->W; ++c) {
+            float v = p->Data[p->W * r + c];
+            float* d = &w->AltHeights[(p->Z + r) * (w->TerrainW + 1) + p->X + c];
+            if (*d <= v && v != *d)
+                *d = v;
+        }
+    BlockMap_MarkDirty(w, p->X, p->Z, p->W + p->X, p->H + p->Z, 0x600);
+    operator delete(p->Data);
+    p->Data = nullptr;
+    delete p;
+}
+
 // PANZERS 0x5e65f0
 // Bridges: the second height map (+0xec) starts as a copy of the first and
 // takes the higher of its value and the height patch (model +0xb0) of every
@@ -71,16 +94,12 @@ void SWorld::FixBridges()
     if (UseAltHeights)
         Logger.g->Panic("SWorld::FixBridges: HeightMapLayer2 is already enabled.");
     UseAltHeights = true;
-    if (AltHeights && Heights)
-        memcpy(AltHeights, Heights, (size_t)(TerrainH + 1) * (TerrainW + 1) * 4);
-    bool patched = false;
+    memcpy(AltHeights, Heights, (size_t)(TerrainH + 1) * (TerrainW + 1) * 4);   // 0x76b3a0
     for (int i = 0; i < Doodads.Size; ++i) {
-        if (!Doodads.IsLive(i) || !Doodads.Array[i].Data.Model)
+        if (!Doodads.IsLive(i) || !Doodads.Array[i].Data.Model)   // +0x140, 200-byte records, model +0x24
             continue;
         SIModel* m = Doodads.Array[i].Data.Model;
-        // HD: m +0xb0 height patch {x, z, w, h, float*}: max into +0xec,
-        // 0x5ef380 over its rect, free. Slot_B0 is not lifted (imodel.h).
-        patched = true;
+        ApplyHeightPatch(this, m);
         m->SetNodeVisible(m->FindNode("Platform"), false);        // +0x40("Platform", 0), +0x60
     }
     for (int i = 0; i < Units.Size; ++i) {
@@ -89,11 +108,9 @@ void SWorld::FixBridges()
         SUnit* u = Units.Array[i].Unit;
         if (u->Proto->ClassType != 9 || !u->Model)                // +0x04 +0x40, +0x08
             continue;
-        patched = true;
+        ApplyHeightPatch(this, u->Model);
         u->Model->SetNodeVisible(u->Model->FindNode("Platform"), false);
     }
-    if (patched)
-        Logger.g->Log(1, "STUB: SWorld::FixBridges model height patches (model +0xb0 0x6d6700) not applied");
     RefreshBlockMapDirtyRect();                                   // 0x604620
 }
 

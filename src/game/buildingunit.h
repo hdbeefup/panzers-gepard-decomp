@@ -35,6 +35,8 @@ struct SBuildingUnit : SUnit {
     void RefreshMisc() override;                                 // 0x54b910
     void UpdateVisuals(SIViewport* vp) override;                 // 0x546d20
     float GetMaxRange(int weapon) override;                      // 0x548240
+    float GetMinRange(int weapon) override;                      // 0x5482e0 (M3-I)
+    float GetSightRange() override;                              // 0x548b40 (M3-I)
     void AI_Heartbeat() override;                                // 0x546500
     void OnMemberDied(int unit) override;                        // +0x1b4 0x549b70 (stub) an occupant died
     void AddXP(int victim, float xp, int p3) override;           // +0x8c 0x548d30 to the occupants

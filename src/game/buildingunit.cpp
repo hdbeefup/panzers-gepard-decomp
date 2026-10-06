@@ -96,17 +96,14 @@ SBuildingUnit::~SBuildingUnit()
 {
 }
 
-// SIModel +0xac (agent E: the slot is untyped in imodel.h): the positions of
-// the vertices of a node's mesh ({x, y, z} each) into an SDArray. Until E
-// types it the recompile answers no points (logged), which is HD's answer
-// for a model without that node.
+// SIModel +0xac (0x6d8090): the positions of the vertices of a node's mesh
+// ({x, y, z} each) into an SDArray (the caller frees the array).
 static int ModelNodePoints(SIModel* model, const char* node, float (**out)[3])
 {
-    (void)model;
-    (void)node;
-    STUB_LOG("SIModel +0xac (0x6d8090) node points: untyped in imodel.h (agent E); SBuildingUnit 0x548f20 / 0x5497a0 get none");
-    *out = nullptr;
-    return 0;
+    SVec3Array a = { nullptr, 0, 0 };
+    model->GetNodePoints(node, &a);
+    *out = a.Array;
+    return a.Size;
 }
 
 // HD 0x661b30 + operator delete(0x1c) (as SDoodad's in mapload.cpp).
@@ -639,6 +636,40 @@ float SBuildingUnit::GetMaxRange(int weapon)
         return m->Gunners.Array[0]->GetPGunner()->MaxRange;       // +0x2c, +0x38
     }
     return 0.0f;
+}
+
+// PANZERS 0x5482e0
+// Occupied buildings: the first member's first gunner's MinRange; else 0.
+float SBuildingUnit::GetMinRange(int weapon)
+{
+    (void)weapon;
+    if (Stored.Size == 0 || Members.Size == 0)
+        return 0.0f;
+    if (Members.Size < 1)
+        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "SStoredMemberProperties", 0);
+    SUnit* m = BuildingUnitAt(Members.Array[0].Unit);             // heap check inline
+    if (m->Gunners.Size < 1)
+        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "SGunner", 0);
+    return m->Gunners.Array[0]->GetPGunner()->MinRange;           // +0x2c, +0x34
+}
+
+// PANZERS 0x548b40
+// A building with one stored unit sees with that unit's sight (tail call to
+// its +0x184); otherwise only a capturable (type 3) building that is not
+// +0x110 has its own prototype sight (+0x84), the rest 0. The recompile used
+// SUnit 0x5ba240 (the prototype sight for every building), so occupied
+// towers saw 35 m instead of the squad's range.
+float SBuildingUnit::GetSightRange()
+{
+    if (Stored.Size != 1) {
+        if (P->BuildingType == 3 && !_110)
+            return Proto->Sight;                                  // SPUnit +0x84
+        return 0.0f;
+    }
+    int u = Stored.Array[0].Unit;                                 // +0x16c[0]
+    if (!g_World->Units.IsLive(u))
+        Logger.g->Panic("SHeapTRB::operator[]: invalid index (%d)", u);
+    return g_World->Units.Array[u].Unit->GetSightRange();         // +0x184
 }
 
 // PANZERS 0x54a250

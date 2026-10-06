@@ -334,12 +334,8 @@ int BuildingBetween(int unit, int exclude, const float* from, const float* to)
             continue;
         if (b->Parent != -1 && b->Parent == unit)
             continue;
-        // HD: building model +0xd8 (segment against the mesh); SIModel slot
-        // +0xd8 is not typed yet (agent E): no building blocks the shot.
-        (void)from;
-        (void)to;
-        STUB_LOG("BuildingBetween (0x5630c0) model +0xd8 segment test");
-        PZ_M3_TRACE("BuildingBetween (0x5630c0)");
+        if (b->Model->HitTestSegment(from, to))                  // model +0xd8 (0x6db550)
+            return i;
     }
     return -1;
 }
@@ -356,10 +352,19 @@ int SGameLogic::ProjectileHitTest(int shooter, SUnit* p)
     float px = p->Pos[0], pz = p->Pos[2];
     if (0.0f > px || px > (float)g_World->TerrainW || 0.0f > pz || pz > (float)g_World->TerrainH)
         return -1;
-    // HD walks the doodad grid +0x1b8 / +0x1bc (built by 0x564c20, agent O)
-    // and asks each doodad model +0xd0 whether it contains the projectile.
-    STUB_LOG("SGameLogic::ProjectileHitTest (0x562c20) doodad grid 0x564c20 / model +0xd0");
     PZ_M3_TRACE("SGameLogic::ProjectileHitTest (0x562c20)");
+    // The doodads of the projectile's 8x8 cell: one whose collision holds
+    // the projectile stops it (the projectile's own index is returned).
+    for (int k = DoodadGridHead(px, pz); k > -1; k = DoodadLinks[k].Next) {
+        if (k >= DoodadLinkCount)
+            Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "struct SGameLogic::SDoodadLink", k);
+        int d = DoodadLinks[k].Doodad;
+        if (!g_World->Doodads.IsLive(d))
+            Logger.g->Panic("SHeap<%s>::operator[]: invalid index (%d)", "struct SDoodad", d);
+        SIModel* m = g_World->Doodads.Array[d].Data.Model;
+        if (m && m->HitTestPoint(p->Pos))                          // +0xd0
+            return p->WorldIndex;
+    }
     int carrier = shooter < 0 ? -1 : LiveUnit(shooter)->Parent;
     for (int i = 0; i < p->SightUnits.Size; ++i) {
         int idx = p->SightUnits.Array[i].Unit;                // 0x5463d0
@@ -374,7 +379,8 @@ int SGameLogic::ProjectileHitTest(int shooter, SUnit* p)
         if (u->Parent != -1 && u->Parent == shooter)
             continue;
         if (ct == 9) {
-            STUB_LOG("SGameLogic::ProjectileHitTest (0x562c20) building model +0xd0");
+            if (u->Model->HitTestPoint(p->Pos))                    // +0xd0
+                return u->WorldIndex;
             continue;
         }
         float dz = u->Pos[2] - p->Pos[2];
@@ -399,8 +405,23 @@ void SGameLogic::DamageArea(float damage, int attacker, int exclude, float x, fl
     float r2 = radius * radius;
     if (0.0f > x || x > (float)g_World->TerrainW || 0.0f > z || z > (float)g_World->TerrainH)
         return;
-    STUB_LOG("SGameLogic::DamageArea (0x576490) doodad grid 0x564c20 (CrushDoodad 0x5e3c80)");
     PZ_M3_TRACE("SGameLogic::DamageArea (0x576490)");
+    // The demolishable doodads of the explosion's 8x8 cell not yet falling
+    // (+0xac < 0) within the radius (2D, around their centre) are crushed.
+    for (int k = DoodadGridHead(x, z); k > -1; k = DoodadLinks[k].Next) {
+        if (k >= DoodadLinkCount)
+            Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "struct SGameLogic::SDoodadLink", k);
+        int di = DoodadLinks[k].Doodad;
+        if (!g_World->Doodads.IsLive(di))
+            Logger.g->Panic("SHeap<%s>::operator[]: invalid index (%d)", "struct SDoodad", di);
+        const SDoodad& d = g_World->Doodads.Array[di].Data;
+        if (d.Demolishable == 0 && d.Demolishable2 == 0 && d.DemolishableFence == 0 && d.DemolishableWreck == 0)
+            continue;
+        if (d._ac >= 0)
+            continue;
+        if ((x - d.X) * (x - d.X) + (z - d.Z) * (z - d.Z) < r2)
+            g_World->CrushDoodad(di, x, y, z);                    // 0x5e3c80
+    }
     for (int i = 0; i < g_World->Units.Size; ++i) {
         if (!UnitLive(i))
             continue;

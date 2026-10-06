@@ -646,6 +646,34 @@ void SPanzersSquadMemberUnit::RefreshDead()
     }
 }
 
+// PANZERS 0x59dfe0
+// The squad after its last member died (SUnit::EC_Die from RemoveMember):
+// the vehicle it was going to enter (+0x18c) is released (+0x190), the
+// script id cleared; the first tick starts the death (+0x155, the squad
+// animation sets +0x15c = 1), the next removes the squad from the world.
+// The recompile had no override (SUnit 0x5bd900 is empty), so dead squads
+// stayed in the world.
+void SPanzersSquadUnit::RefreshDead()
+{
+    int v = _18c;
+    if (v > -1 && g_World->Units.IsLive(v)) {
+        WorldUnit(v)->_190 = false;
+        _18c = -1;
+    }
+    FreeSString(&ScriptID);                                   // operator delete +0x194, +0x198 = 0
+    if (_15c == 0) {
+        if (CurrentTarget)
+            ClearTargets();                                   // +0xc4
+        _154 = (unsigned short)((_154 & 0x00ff) | 0x0100);    // +0x155 = 1
+        return;
+    }
+    if (--_15c == 0) {
+        SetWreckModel();                                      // +0x28
+        Frozen = true;                                        // +0x153
+        g_World->RemoveUnit(WorldIndex);                      // 0x5f8060
+    }
+}
+
 // PANZERS 0x598070
 void SPanzersSquadMemberUnit::EC_ChangeActiveDriver(int driver)
 {
