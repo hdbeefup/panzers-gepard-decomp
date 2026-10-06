@@ -19,15 +19,15 @@
 #define PANZERS_TRAININGMENU_H
 
 #include "mainmenu.h"
+#include "radiobutton.h"
 
 enum PzTrainingAction {
     PZA_TRAINING_START  = 0x544d1,
     PZA_TRAINING_CANCEL = 0x544d2,
 };
 
-struct STrainingMenu : SRightMenu {
-    // Skeleton stand-in: SComplexButtons for the three radio buttons.
-    SComplexButton Nations[3];   // HD SRadioButton[3] at +0x58: German, Russian, Allied
+struct STrainingMenu : SDXWidget {
+    SRadioButton   Nations[3];   // HD +0x58 (stride 0x6c, 0x53e9f0): German, Russian, Allied
     SComplexButton Start;        // HD +0x19c
     SComplexButton Cancel;       // HD +0x210
     int            Nation;       // HD +0x284 (ctor 1 = Allied)

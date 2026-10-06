@@ -32,6 +32,11 @@ struct SBuildingUnit : SUnit {
     // Non-virtual (HD thiscall).
     bool IsOccupiedByTeam(int player);                           // 0x5468e0 (SBuildingAnimation 0x5cb650)
 
+    // M3 agent F (buildingunit_store.cpp): squads in buildings at map load.
+    bool StoreUnit(int unit, int mode) override;                 // vtbl +0x5c 0x54d380
+    void FindWindowPoints();                                     // 0x548660 (Init) +0x358, +0x364..+0x3e8, +0x3f4
+    bool ReadNodePoint(float* dst, const char* node);            // 0x548560 {x, z, dir} of a model node
+
     SPBuildingUnit* P;               // +0x340
     void*    BlockNode;              // +0x344 model +0xa8(4, "Block") footprint
     void*    IndoorNode;             // +0x348 (building type 6)

@@ -68,6 +68,7 @@ const char* PzStub_GetVersionString();             // SVersion::GetVersionString
 // M3 (superwindow_m3.cpp): the Training Camp flow, only with -m3 / PZ_M3=1.
 bool SuperWindowM3Action(SSuperWindow* sw, int action, int param);
 void M3RestoreMovedWorld();
+void M3OnMainMenu(SSuperWindow* sw);
 
 static pz::SUnitRegistry* s_UnitRegistry = nullptr;   // HD 0x929a4c (new 0x124)
 
@@ -540,6 +541,8 @@ void SSuperWindow::LoadMainMenu()
     MainMenu->SetPosition(0, 0, 0x400, 0x300);                     // vtbl +0x08
     MainMenu->Create();                                            // 0x6352f0
     Logger.g->Log(0, "SSuperWindow::LoadMainMenu: releasing scene");
+    if (pz::g_M3.Enabled)
+        M3OnMainMenu(this);                                        // recompile-only -m3 -packetplay replay start
 }
 
 // PANZERS 0x658300

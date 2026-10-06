@@ -34,73 +34,7 @@
 #include "world.h"
 #include "gamelogic.h"
 
-void SGameView::LoadMap()
-{
-    STUB_LOG("SGameView::LoadMap (0x6201c0)");
-    PZ_M3_TRACE("SGameView::LoadMap (0x6201c0)");
-    const char* map = pz::g_Campaign ? pz::g_Campaign->GetMapName() : "maps/harc_teszt.map";
-    Logger.g->Log(0, "Loading map: %s", map);
-    if (pz::g_M3.LoadMap) {
-        SStream* stream = FileSystem.OpenRead(map, nullptr);       // 0x65f420(name, 0)
-        if (!stream)
-            Logger.g->Panic("Can't load map: %s", map);
-        World = new pz::SWorld(0);                                 // new 0x7538, 0x5d2f90(0)
-        World->ShowLoadingIcon(GetFrame());                        // 0x5edca0(+0x48)
-        if (!World->LoadMap(stream, true, 0, 0))                   // 0x5f1990(stream, 1, 0, 0)
-            Logger.g->Panic("Can't load map: %s", map);
-        World->Initialize();                                       // 0x5eec90
-        World->LoadMapExtra_5e2d70();
-        World->LoadMapExtra_5debb0();
-        World->LoadMapExtra_607ad0();
-        stream->Release();
-        if (pz::g_Campaign)
-            pz::g_Campaign->LoadObjectives();                      // 0x593ba0 (0x593740 / 0x594140 not declared)
-        World->UpdateWaterMap();                                   // 0x608600
-        World->FixBridges();                                       // 0x5e65f0
-        // HD: new SGameLogic(0, +0x828, this +0x58 callback); the skeleton
-        // uses the menu arguments until agent F lifts the mission ctor path.
-        Logic = new pz::SGameLogic(0, -1, 0);                      // new 0x318, 0x55e440
-        World->HideLoadingIcon();                                  // 0x5dc7d0
-        pz::LogWorldStats("SGameView::LoadMap");
-    } else {
-        Logger.g->Log(0, "PZM3: PZ_M3_LOADMAP=0, map not loaded");
-    }
-    // HD: campaign +0xdc == 0, -packetplay, or no market -> MissionStart at
-    // once; else the "Click to continue" loading screen (+0x3890).
-    LoadingScreen = true;
-    LoadingFrame = Board->CreateFrame(FT_TEXT, GetFrame(), 0x200, 0x2e0, 0, 1);
-    Board->SetText(LoadingFrame, g_PzFont[PZF_SANS14], 2, GetText("panzers/GameView.cpp", "Click to continue"));
-    Board->ShowFrame(LoadingFrame, true);
-    Cursor = 0;
-}
-
-void SGameView::MissionStart()
-{
-    STUB_LOG("SGameView::MissionStart (0x6281a0)");
-    PZ_M3_TRACE("SGameView::MissionStart (0x6281a0)");
-    // HD order: Concert +0x80(1); the window scene = g_Scene; CreateSubViewports
-    // 0x61e500; release +0x3898 / +0x3894; clocks +0x45c/+0x460; PlaceAllUnits
-    // 0x571c70; SWorld 0x5f5b50; SetRunning(1) unless campaign +0xe4;
-    // 0x57f970; -packetrec / -packetplay; InitCameraSpline 0x609760;
-    // SetPanelMode(0); SaveGameStartMission("Start") unless multiplayer;
-    // -skipframes ticks; one Refresh.
-    if (pz::g_WindowScene)
-        pz::g_WindowScene->Release();
-    if (pz::g_Scene)
-        pz::g_Scene->AddRef();
-    pz::g_WindowScene = pz::g_Scene;
-    CreateSubViewports();
-    if (World)
-        World->StartEffects();
-    if (Logic && pz::g_Campaign && pz::g_Campaign->GetStartPaused() == 0)
-        Logic->SetRunning(1);                                      // 0x5802f0(1)
-    if (World)
-        World->InitCameraSpline("");
-    SetPanelMode(0);
-    if (pz::g_Campaign)
-        pz::g_Campaign->SaveGameStartMission("Start", "Start");
-    NextTick = (double)Timer.GetTickValue() / 1000.0;
-}
+// SGameView::LoadMap 0x6201c0 and MissionStart 0x6281a0: gameview_mission.cpp (agent F).
 
 void SGameView::OpenInGameMenu()
 {

@@ -20,6 +20,7 @@
 #include "blockmap.h"
 #include "drivermath.h"
 #include "gamelogic.h"
+#include "campaign.h"
 #include "stream.h"
 #include "properties.h"
 #include "logger.h"
@@ -142,7 +143,7 @@ int SWorld::CreateUnit(SUnitDef* def)
         }
         GetUnit(idx)->Slot_6C();                                  // vtbl +0x6c (tow; not lifted)
     }
-    // HD: campaign statistics (DAT_00929a0c), not on the menu path.
+    CampaignUnitCreated(idx, def->Player);                        // campaign statistics (DAT_00929a0c; M3 agent F)
     return idx;
 }
 
@@ -184,6 +185,7 @@ int SWorld::CreateUnit(int player, const char* className, const float* pos, floa
             GetUnit(c)->Unplace();                                // +0x4c
         }
     }
+    CampaignUnitCreated(idx, player);                             // campaign statistics (M3 agent F)
     if (type->ClassType == 9) {
         if (u->ScriptID.size == 0)
             Logger.g->Panic("SWorld::CreateUnit(): ScriptID is empty.");

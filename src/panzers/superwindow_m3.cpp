@@ -32,6 +32,8 @@
 #include "worldapi.h"
 #include "world.h"
 #include "gamelogic.h"
+#include "settings.h"
+#include <string.h>
 
 // HD 0x929f18 / 0x929f1c / 0x929f20: the mission world, logic and scene
 // while the market is up (LoadNextCampaignView case 1 -> ReleaseMultiView).
@@ -163,11 +165,70 @@ static void StartMission(SSuperWindow* sw)
     }
 }
 
+// HD action 0x494c2 (the cut Load Replay screen): nothing in the shipped
+// exe sends it (docs/M3_REPLAY.md).
+enum { PZA_LOAD_REPLAY = 0x494c2 };
+bool SuperWindowM3Action(SSuperWindow* sw, int action, int param);
+
+// SSuperWindow::OnAction 0x659250, case 0x494c2 (0x659d49..0x659e98): a
+// new game view, a new campaign that reads the replay header
+// (StartReplay 0x597510), -packetplay on, LoadMap (which starts the mission
+// at once because of -packetplay).
+static void LoadReplay(SSuperWindow* sw, const char* name)
+{
+    PZ_M3_TRACE("SSuperWindow::OnAction Load Replay (0x659250 / 0x494c2)");
+    if (!sw->GameView) {
+        if (sw->MainMenu) {                                        // +0xe8 vtbl +0 (1)
+            delete sw->MainMenu;
+            sw->MainMenu = nullptr;
+        }
+        sw->UnloadMenuBackground();                                // 0x65b940
+    }
+    DeleteGameView(sw);
+    SGameView* v = new SGameView();                                // new 0x3e98, 0x6181f0
+    sw->GameView = v;                                              // +0xe4
+    sw->InsertChild(v);                                            // vtbl +0x54
+    v->SetPosition(0, 0, 0x400, 0x300);                            // vtbl +0x08
+    v->Create();                                                   // 0x619c90
+    // HD: SDXWindow +0xd8 = 1.
+    delete pz::g_Campaign;                                         // 0x591350 + delete 0xb8c
+    pz::g_Campaign = new pz::SPanzersCampaign();                   // new 0xb8c, 0x590ec0
+    try {
+        pz::g_Campaign->StartReplay(name, (int)strlen(name));      // 0x597510 (SString by value)
+    } catch (const char* e) {
+        Logger.g->Panic("SPanzersCampaign::StartReplay: %s", e);   // (recompile) HD has no handler here
+    }
+    // HD Concert +0x80(1): not mapped yet.
+    Settings.PacketRec = false;                                    // word 0x929d34 = 0x100
+    Settings.PacketPlay = true;
+    v->LoadMap();                                                  // 0x6201c0
+    FocusWidget(v);
+}
+
+// Recompile-only test switch (docs/M3_REPLAY.md "Our build"): with -m3 and
+// "-packetplay Replays\<name>", the first main menu sends HD's dead action
+// 0x494c2 with <name>, so the recording's own header (nation, army) starts
+// the mission. Called by SSuperWindow::LoadMainMenu.
+void M3OnMainMenu(SSuperWindow* sw)
+{
+    static bool s_Done = false;
+    if (s_Done || !pz::g_M3.Enabled || !Settings.PacketPlay || Settings.PacketFile.size == 0 || getenv("PZ_M3_NAIVE_PLAY"))
+        return;
+    s_Done = true;
+    const char* f = Settings.PacketFile.buf;
+    if (_strnicmp(f, "Replays/", 8) == 0 || _strnicmp(f, "Replays\\", 8) == 0)
+        f += 8;
+    Logger.g->Log(0, "PZM3: -packetplay %s: Load Replay (0x494c2) of Replays/%s", Settings.PacketFile.buf, f);
+    SuperWindowM3Action(sw, PZA_LOAD_REPLAY, (int)(size_t)f);
+}
+
 // Returns true when the action was handled by the M3 path.
 bool SuperWindowM3Action(SSuperWindow* sw, int action, int param)
 {
-    (void)param;
     switch (action) {
+    case PZA_LOAD_REPLAY:                                          // 0x494c2
+        LoadReplay(sw, (const char*)(size_t)param);
+        return true;
     case PZA_MAIN_TRAINING: {                                      // 0x4d4d4
         PZ_M3_TRACE("SSuperWindow::OnAction Training Camp (0x659250 / 0x4d4d4)");
         STrainingMenu* t = new STrainingMenu();                    // new 0x288, 0x633b30

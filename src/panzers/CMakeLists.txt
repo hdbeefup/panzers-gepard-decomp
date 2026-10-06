@@ -1,4 +1,4 @@
-﻿# panzers â€” the lifted Panzers game layer: app shell (SSuperWindow, GameMain,
+# panzers — the lifted Panzers game layer: app shell (SSuperWindow, GameMain,
 # SSettings) and the main menu. bink.* is built separately as panzers_bink
 # (top-level CMakeLists.txt).
 add_library(panzersgame STATIC
@@ -21,6 +21,7 @@ add_library(panzersgame STATIC
     superwindow_m3.cpp
     gameview.h
     gameview.cpp
+    gameview_mission.cpp
     gameview_view.cpp
     hud.h
     hud.cpp

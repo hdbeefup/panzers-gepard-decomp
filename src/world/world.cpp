@@ -117,8 +117,9 @@ SWorld::SWorld(int p1)
         p[5] = 0;
         p[6] = i;
         p[11] = p[12] = p[13] = p[14] = p[15] = 0;
-        WorldTimerSeconds();           // HD 0x661800 (result unused)
-        p[16] = rand();                // HD 0x7669f1
+        // HD 0x661800 (timer), truncated by the CRT double -> int helper
+        // 0x7669f1 (not rand: no CRT draw here; docs/M3_INTERFACES.md 7).
+        p[16] = (int)WorldTimerSeconds();
         p[17] = 0;
     }
     *(int*)(Players[0] + 0x08) = 0;    // param_1[0x5e]

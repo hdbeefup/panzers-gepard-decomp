@@ -14,6 +14,7 @@ add_library(pzgame STATIC
     campaign.cpp
     packets.h
     packets.cpp
+    unitsave.h
     unitsave.cpp
     iunit.h
     idriver.h
@@ -21,6 +22,7 @@ add_library(pzgame STATIC
     gamelogic.h
     # L: logic + triggers
     gamelogic.cpp
+    gamelogic_mission.cpp
     triggers.cpp
     movementgroup.cpp
     logicextra.cpp
@@ -43,6 +45,7 @@ add_library(pzgame STATIC
     squadrefresh.cpp
     buildingunit.h
     buildingunit.cpp
+    buildingunit_store.cpp
     gunner.h
     gunner.cpp
     # P: drivers + path finding

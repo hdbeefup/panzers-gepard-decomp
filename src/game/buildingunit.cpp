@@ -71,6 +71,7 @@ void SBuildingUnit::Init(SUnitDef* def)
         Model->SetNodeVisible(Model->FindNode("Block"), false);   // +0x40 / +0x60
         if (P->BuildingType == 6 || P->UnitType == 0x1a)
             Model->SetNodeVisible(Model->FindNode("Indoor"), false);
+        FindWindowPoints();                                       // 0x548660 (M3 agent F, buildingunit_store.cpp)
     }
     if (P->BuildingType == 3)
         STUB_LOG("SBuildingUnit::Init (0x548f20) capture flag");

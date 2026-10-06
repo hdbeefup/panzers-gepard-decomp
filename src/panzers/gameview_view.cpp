@@ -636,7 +636,7 @@ bool SGameView::OnAction(SWidget* source, int action, int param)
     if (source && source == ModalBox) {
         delete ModalBox;
         ModalBox = nullptr;
-        if (pz::g_Campaign && pz::g_Campaign->GetStartPaused() == 0)   // 0x5920b0 (+0xe4)
+        if (pz::g_Campaign && pz::g_Campaign->GetMissionResult() == 0)   // 0x5920b0 (+0xe4)
             Logic->SetRunning(1);                                  // 0x5802f0(1)
         return true;
     }

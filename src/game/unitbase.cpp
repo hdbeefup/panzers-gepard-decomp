@@ -971,6 +971,14 @@ void SUnit::RestoreBehavior()
 // ---------------------------------------------------------------------------
 // Storage
 
+// HD 0x549ab0 (inline in many places): same team, or the same player when
+// the player has no team (World+0x17c + player * 0x48).
+static bool UnitsSameSide(int a, int b)
+{
+    int team = *(int*)(g_World->Players[a] + 0x0c);
+    return team != 0 ? team == *(int*)(g_World->Players[b] + 0x0c) : a == b;
+}
+
 // PANZERS 0x5b7040
 // Whether `unit` may get in: storage capacity, class, side and the hero seat.
 static bool CanStore(SUnit* self, int unit)
@@ -989,8 +997,20 @@ static bool CanStore(SUnit* self, int unit)
     if ((uct == 0 || uct == 0xb) && p->StorageType != 2 && p->StorageType != 1)
         return false;
     if (p->ClassType == 9) {
-        STUB_LOG("SUnit::StoreUnit (0x5b7040) buildings");
-        return false;
+        // M3 agent F (the Training Camp occupied buildings): HD 0x5b7040
+        // building part. Type 5 takes squads up to the capacity; otherwise
+        // not trains, a second squad only of the other side (Members2 at
+        // +0x408), and not when a "Block" point is on the static block map.
+        const SPBuildingUnit* bp = static_cast<const SPBuildingUnit*>(p);
+        if (bp->BuildingType == 5 && self->Stored.Size < p->StorageCapacity)
+            return true;
+        if (u->Proto->IsTrain)                                    // unit prototype +0xe8
+            return false;
+        if (self->Stored.Size == 1 &&
+            UnitsSameSide(WorldUnit(self->Stored.Array[0].Unit)->Player, u->Player))   // 0x546490, 0x549ab0
+            return false;
+        if (*((const unsigned char*)self + 0x454))                // SBuildingUnit OnStaticBlock
+            return false;
     }
     if (self->IsStored)
         return false;
@@ -1005,6 +1025,11 @@ static bool CanStore(SUnit* self, int unit)
             cap++;
     }
     return self->Stored.Size < cap;
+}
+
+bool SUnit::CanStoreUnit(int unit)
+{
+    return CanStore(this, unit);                                  // 0x5b7040
 }
 
 // PANZERS 0x5c30d0

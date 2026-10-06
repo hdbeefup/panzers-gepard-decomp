@@ -198,6 +198,135 @@ void SGameLogic::CastVisOctant(int player, float eye, int cell, int radius, int 
     }
 }
 
+// Scratch rows of 0x567280 (HD 0x928b00 / 0x928e00).
+static float s_HalfH[0xc0];
+static float s_HalfS[0xc0];
+
+// PANZERS 0x567280
+// CastVisOctant with bits 0xb, marking only the cells on the positive side
+// of the line through the eye: ring * cy + step * cx > 0.
+void SGameLogic::CastVisOctantHalf(int player, float eye, int cell, int radius, int outer, int inner, float cx, float cy)
+{
+    memset(&s_HalfS[1], 0, 0xbf * sizeof(float));
+    memset(&s_HalfH[1], 0, 0xbf * sizeof(float));
+    s_HalfH[0] = VisHeights[cell];
+    s_HalfS[0] = -10.0f;
+    int diag = (int)(float)((double)radius * 0.7071067811865);    // 0x7f7f48
+    int t = 0;
+    for (int d = 1; d < radius; ++d) {
+        int len = d;
+        if (d > diag) {
+            len = (int)sqrt((double)(radius * radius - d * d));   // cvttsd2si of the double
+            t += d - len;
+        }
+        cell += (len + 1) * inner + outer;
+        for (int k = len; k >= 0; --k) {
+            cell -= inner;
+            if (k == 0) {
+                s_HalfH[0] = s_HalfS[0] + s_HalfH[0];
+            } else {
+                float f = s_VisFrac[t];
+                float s0 = s_HalfS[k];
+                float s = (s_HalfS[k - 1] - s0) * f + s0;
+                s_HalfS[k] = s;
+                float h0 = s_HalfH[k];
+                s_HalfH[k] = (s_HalfH[k - 1] - h0) * f + h0 + s_VisSlopeLen[t] * s;
+            }
+            float h = VisHeights[cell];
+            bool mark;
+            if (h < s_HalfH[k]) {
+                mark = (double)s_HalfH[k] <= (double)h + 0.5;     // 0x7ea760
+            } else {
+                s_HalfH[k] = h;
+                s_HalfS[k] = (h - eye) * s_VisInvDist[t];
+                mark = true;
+            }
+            if (mark && 0.0f < (float)d * cy + (float)k * cx)
+                VisMap[player][cell] |= 0xb;
+            ++t;
+        }
+    }
+}
+
+static inline double WrapPiD(double a)
+{
+    if (a > 3.1415927410125732)                                   // 0x7f4560
+        return a - 6.2831854820251465;                            // 0x7f4570
+    if (a < -3.1415927410125732)                                  // 0x7f5aa0
+        return a + 6.2831854820251465;
+    return a;
+}
+
+// PANZERS 0x5664f0
+// A sight cone of `width` around `dir`: the 8 octants (from -pi in steps of
+// pi/4) entirely inside the cone are cast with 0x5662b0, the ones holding a
+// cone edge with 0x567280 limited by that edge.
+void SGameLogic::CastVisCone(int player, float eye, int cell, int radius, float dir, float width)
+{
+    const float kPiF = 3.1415927f, kTwoPiF = 6.2831855f;           // 0x7f4584, 0x7f458c
+    float a = (float)fmod((double)dir, 6.2831854820251465);       // 0x793cba
+    if (a > kPiF)
+        a -= kTwoPiF;
+    else if (!(a > -kPiF))                                        // 0x7f7fb8
+        a += kTwoPiF;
+    float half = width * 0.5f;                                    // 0x7f453c
+    float lo = (float)WrapPiD((double)a - (double)half);
+    float hi = (float)WrapPiD((double)half + (double)a);
+    const int W = VisW;
+    // {start, end, outer, inner}; the edge vectors (cx, cy) of the lo / hi
+    // edge in each octant, as HD computes them from sin / cos (0x78d640 /
+    // 0x78d480).
+    struct SOct { double S, E; int Outer, Inner; };
+    const double q = 0.7853981852531433, h2 = 1.5707963705062866, t3 = 2.35619455575943, pi = 3.1415927410125732;
+    const SOct oct[8] = {
+        { -pi, -t3, -W, -1 }, { -t3, -h2, -1, -W }, { -h2, -q, -1, W }, { -q, 0.0, W, -1 },
+        { 0.0, q, W, 1 },     { q, h2, 1, W },      { h2, t3, 1, -W },  { t3, pi, -W, 1 },
+    };
+    for (int o = 0; o < 8; ++o) {
+        const SOct& s = oct[o];
+        if (!(WrapPiD((double)lo - s.E) < 0.0))
+            continue;
+        float sl = (float)sin((double)lo), cl = (float)cos((double)lo);
+        float sh = (float)sin((double)hi), ch = (float)cos((double)hi);
+        float cx, cy;                                             // 0x567280 p8, p9
+        bool edge = true;
+        if (WrapPiD((double)lo - s.S) > 0.0) {
+            switch (o) {                                          // the lo edge
+            case 0: cx = -cl; cy = sl; break;
+            case 1: cx = sl;  cy = -cl; break;
+            case 2: cx = -sl; cy = -cl; break;
+            case 3: cx = -cl; cy = -sl; break;
+            case 4: cx = cl;  cy = -sl; break;
+            case 5: cx = -sl; cy = cl; break;
+            case 6: cx = sl;  cy = cl; break;
+            default: cx = cl; cy = sl; break;
+            }
+        } else {
+            if (!(WrapPiD((double)hi - s.S) > 0.0))
+                continue;
+            if (WrapPiD((double)hi - s.E) < 0.0) {
+                switch (o) {                                      // the hi edge
+                case 0: cx = ch;  cy = -sh; break;
+                case 1: cx = -sh; cy = ch; break;
+                case 2: cx = sh;  cy = ch; break;
+                case 3: cx = ch;  cy = sh; break;
+                case 4: cx = -ch; cy = sh; break;
+                case 5: cx = sh;  cy = -ch; break;
+                case 6: cx = -sh; cy = -ch; break;
+                default: cx = -ch; cy = -sh; break;
+                }
+            } else {
+                edge = false;
+                cx = cy = 0.0f;
+            }
+        }
+        if (edge)
+            CastVisOctantHalf(player, eye, cell, radius, s.Outer, s.Inner, cx, cy);
+        else
+            CastVisOctant(player, eye, cell, radius, s.Outer, s.Inner, 0xb);
+    }
+}
+
 // PANZERS 0x567180
 // The same octant walk without the horizon: every cell in range.
 void SGameLogic::FillVisOctant(int player, int cell, int radius, int outer, int inner, unsigned char bits)
@@ -260,10 +389,21 @@ void SGameLogic::AddUnitVision(int player, SIUnit* unit)
     if (u->Proto->ClassType == 9) {
         SBuildingUnit* b = static_cast<SBuildingUnit*>(u);
         if (b->WindowSets.Size != 0) {                            // +0x3ec
-            // HD: per window 0x5664f0 (a sight cone along the window
-            // direction, from max(cell height, +0x358) + 0.75). Not reached
-            // in the menu.
-            STUB_LOG("SGameLogic::AddUnitVision building windows (0x5664f0)");
+            // Per view set (+0x3e8, 0x48 each; 0x546330): a 3pi/4 cone
+            // along the view direction from max(cell height, +0x358) + 0.75
+            // (M3 agent F).
+            const float* views = (const float*)(const void*)b->WindowSets.Array;
+            for (int i = 0; i < b->WindowSets.Size; ++i) {
+                const float* v = views + i * (0x48 / 4);
+                int vx = (int)(v[0] * 2.0f);                      // fistp 0xc7f
+                int vz = (int)(v[1] * 2.0f);
+                int c = VisW * vz + vx;
+                VisMap[player][c] |= 0xb;
+                float e = VisHeights[c];
+                if (e <= b->InsideY)
+                    e = b->InsideY;
+                CastVisCone(player, e + 0.75f, c, sight, v[2], 2.3561945f);   // 0x4016cbe4
+            }
             return;
         }
         int cell = VisW * cz + cx;

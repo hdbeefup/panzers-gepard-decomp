@@ -291,3 +291,58 @@ Panther wreck:
 
 The fire sits 0.7 m above the ground, inside the hull. This is probably why
 the original menu shows only smoke there (not verified with the models).
+
+## Save games (`SaveGames/*.save`) and replays (`Replays/*.rec`)
+
+Agent F, M3. Read from HD `PANZERS.exe` (SPanzersCampaign::SaveGame 0x5966a0, SGameLogic
+0x57e110, SUnit::Save 0x5be320, WriteReplayHeader 0x596fc0) and checked against the original's own
+`SaveGames/TRNG-Start.save` (2,572,085 bytes) and `tc1.rec` (scratch `m3f\tools\savedump.py`
+parses both). Little-endian; strings are u16 length + bytes (no terminator); a chunk is a 4-byte tag,
+a u32 payload size, the payload (SStream::WriteChunkStart / End).
+
+### Stream signature and chunks
+
+`53 72 1a 1b 0d 0a 87 0a` (WriteSignature), then one `SAVE` chunk.
+
+### Variable lists (gSaveVariables 0x670c50 / gLoadVariables 0x670440)
+
+Self-describing: per descriptor entry `int type, string name, value`, then `int 0`. Values (0x670af0):
+1 byte, 2 int, 3 float, 4 3 floats, 5 string, 6 a `_mcl` chunk holding a member variable list,
+8 2 floats, 12 u16; 10 `int elemType, int count, elements`; 11 (dequeue) `int elemType, int count,
+int first, int last, elements`. The army records (SUnitDef, descriptor 0x8ddb48) are such lists:
+ClassName, Player, XP, Pos, Yrel, Dir, HP, Ammo, ScriptID, AIGroup, the four armours, Behavior,
+GlobalState_ActiveState, Slots[0..1], StoredUnits (type 10 of members), Cargo, the First* flags,
+TowedUnits, StoredSpecial.
+
+### Save game (`SAVE` payload, version 1)
+
+| Field | Source |
+|---|---|
+| `'v4pa'`, int 1 | |
+| string map, string mission code, string title | GetMapName 0x592040, [section] "Mission code" ("TRNG"), "Start - maps/training.map" |
+| int GameMode, Race, StartPrestige | campaign +0x10, +0x18, +0x28 |
+| int n, n army records | Army +0x2c |
+| int n, n army records | MissionArmy +0x3c |
+| int Prestige, string section, int +0xe4 (result), Difficulty, +0xf8, +0xfc, +0xb84 | |
+| int n, n x (u8 +4, int +0) | objectives +0x134 |
+| 12 x (12 x 4 ints, int, int) | campaign player records +0x140: for i 0..11 {+0x0c, +0x3c, +0x6c, +0x9c}[i], then +0xcc, +0xd4 (unit counters per category 0x56d6d0, counted by SWorld::CreateUnit) |
+| int score | +0xb60 |
+| game state 0x57e110 | 19 chunks: `PLY3` `AIGP` `UNIS` `EEFS` `CAM ` (20 bytes 0x5e6a70) `LOCS` `TRIG` (when World+0x7478) `RTRG` `TVAR` `ECHO` `CNTR` (+0x14c, +0x14d, +0x174, +0x178 as ints) `VARS` (logic variables, 0x8dba58) `SEED` (World+0x7518) `ODDD` `WIR3` `MGRP` `MGRP` `AMOD` `WTHR` `OBJT` |
+
+`UNIS` (0x5fb630): int heap size; per slot int live (0/1); a live one is a `UNIT` chunk: int
+`'v100'`, string class, then SUnit::Save: `vars` (the unit's class descriptor list, via vtbl +0x1c),
+`gunn` (int n, each gunner's list, vtbl +0x30), `driv` (int n, each driver's list, vtbl +0x50), and
+`targ` when any target is set (int n, the STarget lists, then target indices per gunner / driver).
+In the reference the units take 2,564,826 of the 2.5 MB.
+
+**Status of our autosave**: the campaign part (bytes 0..0x9ef, everything before the game state)
+is byte-identical to the original's for the tc1.rec mission start, except the `SAVE` size. The game
+state (0x57e110 and the per-class descriptor tables of SUnit::Save) is not written yet.
+
+### Replay (`-packetrec`)
+
+u8 3, the signature, a `SAVE` chunk (WriteReplayHeader 0x596fc0): `'v4pa'`, int 3, string map, int
+GameMode, Race, StartPrestige, int n + n army records (MissionArmy +0x3c), int Prestige, string
+section, int +0xe4, Difficulty, +0xf8, 12 x 5 ints (World players +0x19c..+0x1ac, the support calls).
+Then per logic frame and player the packet frames (docs/M3_REPLAY.md, packets.h). HD's StartReplay
+0x597510 reads this header without the version dword (see docs/M3_REPLAY.md).

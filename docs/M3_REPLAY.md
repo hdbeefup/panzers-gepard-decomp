@@ -79,6 +79,31 @@ Saved: `m3ref\tc1.rec`, `m3ref\tc1_crc_ref.txt` (frames 0..3902), `m3ref\playB_c
   restored, and the switch at 0x5739b8 applies the records. The recorded CRC is compared with the
   local CrcHistory and every mismatch logs "Inconsistency in frame %d with player %d.".
 
+## Our build: the command (agent F, works since 2026-10-06)
+
+```
+copy m3ref\tc1.rec <run>\Replays\tc1.rec
+set PZ_M2_CRC=1
+PZM3F.exe -nointro -m3 -packetplay Replays\tc1.rec
+```
+
+With `-m3`, the first main menu (SSuperWindow::LoadMainMenu -> `M3OnMainMenu`, superwindow_m3.cpp)
+sends HD's dead action 0x494c2 with the file name minus `Replays/`: a new game view and campaign,
+`SPanzersCampaign::StartReplay` 0x597510 reads the header (mode, race, prestige, the bought army
+into MissionArmy +0x3c) before the map loads, PacketPlay is set, `SGameView::LoadMap` starts the
+mission at once, `PlaceAllUnits` places the recorded army, and `StartPacketPlayback` 0x580540 opens
+the file for the frame records (SGameLogic +0x1b4, for agent O's ProcessPacket) after
+`ReadReplayHeader` 0x595780. The log then has the map-load frame 0 (346 units), `PZM3: mission
+start`, and the mission frames from frame 0 (358 units). Compare the lines after `PZM3: mission
+start` with `tc1_crc_ref.txt` (`m3f\tools\mdiff.py <log>`).
+
+Deviation: HD's StartReplay reads the map name right after `v4pa` and so misreads the version dword
+3 of every file -packetrec writes (and reads the player records one dword short); the recompile
+skips the version dword. `PZ_M3_REPLAY_HD=1` keeps HD's read (which fails on tc1.rec).
+
+Status: frame 0 equal at map load (`6365f6b2 09e7b075 346`) and at mission start (`737376f6
+141334d6 358`); frame 1 differs (docs/M3_STATUS.md).
+
 ## How our build uses the oracle
 
 1. **Start state.** Agent F lifts StartReplay 0x597510 / ReadReplayHeader 0x595780 and wires the

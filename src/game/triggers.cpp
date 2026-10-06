@@ -954,6 +954,33 @@ void SGameLogic::RunTriggers()
             }
             break;
         }
+        case 0xe: {
+            // M3 agent F. Not "end scenario": the found units attack-move
+            // (command 9) to the location centre, as case 2 with command 1.
+            // The Training Camp map sends its enemies to "start 1" with it.
+            if (rt->Found.Count == 0)
+                break;
+            const SLocation* l = LocationAt(a->P20);              // 0x5608c0
+            float target[2];
+            target[0] = (float)((double)(l->X2 + l->X1) * 0.5);   // mulsd 0.5 (0x7ea760)
+            target[1] = (float)((double)(l->Z2 + l->Z1) * 0.5);
+            GroupStats(&rt->Found);                               // 0x582770
+            if (!(target[0] >= 0.0f))
+                break;
+            float dx = target[0] - rt->Found.X;
+            float dz = target[1] - rt->Found.Z;
+            float d = dx * dx + dz * dz;
+            if (TrigTrace())
+                Logger.g->Log(0, "PZM2 TRIG t%d   ATTACK-MOVE %d units -> loc %d (%.1f, %.1f)", (int)g_M2Tick,
+                              rt->Found.Count, a->P20, (double)target[0], (double)target[1]);
+            if (rt->Found.RadiusSq <= d && d != rt->Found.RadiusSq) {
+                MoveFoundUnitsToLocation(&rt->Found, 9, target, false, false, false);   // 0x57efd0(found, 9, &target, 0)
+            } else {
+                // HD 0x57e8b0(found, 9, &target, 0): agent O.
+                STUB_LOG("SGameLogic::RunTriggers attack-move to location, near branch (0x57e8b0)");
+            }
+            break;
+        }
         case TA_SET_VARIABLE:                                     // 3
             g_World->SetTriggerVariableValue(a->P400, a->Num, true);   // World vtbl +8(P400, Num, 1)
             if (TrigTrace())

@@ -177,6 +177,7 @@ struct SUnit : SIUnit {
     // SaveGame 0x5966a0 -> per unit). Load runs only for Load Game.
     void Save(struct SStream* s);                                // 0x5be320 (1) SUnit::Save
     void Load(struct SStream* s);                                // 0x5bbd30 (1) SUnit::Load
+    bool CanStoreUnit(int unit);                                 // 0x5b7040 (agent F: SBuildingUnit::StoreUnit 0x54d380 calls it)
 
     // --- M2-I sub-agent UB (SUnit AI, targeting, orders, effects): add declarations here only.
     // Element types of the unit arrays decoded by UB (unitai.cpp).
