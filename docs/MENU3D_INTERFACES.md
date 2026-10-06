@@ -8,13 +8,15 @@ graph and the size of the job. All addresses are HD `PANZERS.exe` addresses.
 
 | What | How |
 |---|---|
-| Default build and run | `PZ_MENU_WORLD` is OFF. `panzers.exe -nointro` boots exactly as before; the world part of `LoadMenuBackground` is still the logged stub `PzStub_LoadMenuWorld`. |
-| Turn the world path on | `panzers.exe -nointro -menu3d`, or set `PZ_MENU3D=1`, or configure with `-DPZ_MENU_WORLD=ON` (then it is on by default and `PZ_MENU3D=0` turns it off). |
-| Per-call trace | `-menu3d` turns it on. `PZ_MENU3D_TRACE=1` / `0` overrides it. |
+| Default build and run | `PZ_MENU_WORLD` is ON (since M1-I). `panzers.exe -nointro` builds the menu world behind the main menu, as HD always does. |
+| Turn the world path off | `panzers.exe -nointro -nomenu3d`, or set `PZ_MENU3D=0`, or configure with `-DPZ_MENU_WORLD=OFF` (then `-menu3d` / `PZ_MENU3D=1` turn it on). The off path runs the logged stub `PzStub_LoadMenuWorld`. |
+| Per-call trace | `-menu3d` turns the world and the trace on. `PZ_MENU3D_TRACE=1` / `0` overrides the trace. |
 
-`-menu3d` is a recompile-only switch and is removed from argv before SSettings
-reads the command line (as `-nointro` is). `SSuperWindow::Initialize` logs
-`3D menu world on|off, trace on|off`.
+`-menu3d` and `-nomenu3d` are recompile-only switches and are removed from
+argv before SSettings reads the command line (as `-nointro` is).
+`SSuperWindow::Initialize` logs `3D menu world on|off, trace on|off`.
+An existing build directory keeps its cached `PZ_MENU_WORLD`; reconfigure
+with `-DPZ_MENU_WORLD=ON` to pick up the new default.
 
 Trace lines look like `PZ3D f300: SScene::RenderViewport (0x6acaf0)`.
 A frame is one `SViewport::Render`. Every call site is logged on frames 0, 1, 2
@@ -70,8 +72,8 @@ object over the same SWINE device:
 |---|---|
 | +0x0c CreateScene | `new pz::SScene(0)`, logs "Scene created" |
 | +0x10/+0x14/+0x18 Set/GetOption, GetCap | stored; GetCap(0) = 2 (PS 2.0 shadow technique, as optionsmenu.cpp assumes) |
-| +0x20 LoadModelPrototype | stub, returns -1 (agent A: SPModel heap + Load4DFile) |
-| +0x28 PurgeModelPrototypes | stub |
+| +0x20 LoadModelPrototype | SPModel heap + Load4DFile (agent A) |
+| +0x28 PurgeModelPrototypes | lifted (0x678210) |
 | +0x3c GetViewport(0) | the primary `pz::SViewport` |
 | +0x44/+0x48 Load/ReleaseTexture | forwarded to the SWINE texture table, so handles are shared with the board |
 | +0x5c GetPixie | `pz::SPixie`, AddRef'd |
@@ -166,10 +168,52 @@ entry points:
 - **Loading frame.** `SWorld::LoadMap` renders a loading frame with `Render(nullptr, 0)`. It goes through the same facade and draws only the board.
 - **The HD board clock is not mapped.** HD calls board +0xa0 with the elapsed milliseconds; the SWINE board keeps its own clock.
 
-## 8. Not verified
+- **SIModel +0x30 is `SetVisible(show, fade)`** (HD 0x6dafd0), not a sequence setter. `(0, 1)` fades a model out over 1 s. Sequences are +0x6c `PlaySequence(name, blend)` and +0x70 `AdvanceAnimation(seconds)`.
+- **Animated models go on the free heap.** `CreateModelFromPrototype(proto, 1)` as `SGameLogic::CreateAnimatedModel` 0x5649e0 does. With flag 0 the model sits on the main (doodad) heap, where `SModel` plays sequence 0 on the scene clock every frame.
+- **Flora is drawn by node 0 only**, with node 0's transform and a 0.005 scale (HD 0x886ed0), see `DrawFloraInstance` in `pzgepard.cpp`.
+
+## 8. Integration status (M1-I)
+
+Branch `m1-integrate` on `menu-3d` 20c87be. What connects the four parts:
+
+| Path | HD | Where |
+|---|---|---|
+| TLAY layers to the terrain: `tiles/<name>` (+0x04), `flora/<extra>/` scale 0.005 (+0x08), layer flags (+0x34) for 17 slots | 0x608360 | `SWorld::SetTerrainLayers` |
+| After LoadMap: layers, `Invalidate(0, 0, w + 1, h + 1)`, `UpdateDecals`, `UpdateRoad` / `UpdateRoadJunction` per entry | 0x6043a0 (from `SWorld::Initialize` 0x5eec90) | `SWorld::RebuildTerrain` |
+| ROD2 roads into World+0x73fc, `CreateRoad(tex, pts, step / 2, texH / 64, texW / 64, flags)`; end points with W bit 0 get a point 1.5 tangents further | 0x5f0a30, 0x5effd0, 0x601c10 (terrain part) | `SWorld::LoadRoads`, `SMapRoad::Build` |
+| RODJ junctions into World+0x7410, `CreateRoadJunction(tex, pt, texH / 128, texW / 128, flags)` when flags & 2 | 0x5f0b60, 0x5f1590, 0x5eec00, 0x5eff50, 0x6029b0 (terrain part) | `SWorld::LoadRoadJunctions`, `SMapRoadJunction::Build` |
+| Road / junction release (terrain +0x84 / +0x94, Gepard +0x48) | 0x5d5330, 0x5d5420, 0x5dd9a0, 0x5dd9f0 | `SMapRoad::Release`, `SWorld::ClearRoads` ... |
+| DECS: terrain +0x48 `AddDecal(index, tex, x, z, rot)`, +0x54 `SetDecalType`; +0x4c on release | 0x5edfd0, 0x5d6800 | `SDecal::Create` / `Release` |
+| EEFS: pixie +0x2c `CreateEffect(scene, proto, pos, dir)`, then +0x4c / +0x50; on clear +0x34 `StopEffect` and +0x20 `ReleaseEffectPrototype` | 0x5ee9f0, 0x6014e0, 0x5dd880 | `SEffectSite::Create` / `UpdatePosition`, `SWorld::ClearEffects` |
+| Particles collide with `STerrain::HeightAt` | 0x6e5dd0 -> 0x6f4c00 | `g_EffectGroundHeight` set by the STerrain ctor |
+| Scene dtor drops the scene's effects (pixie +0x44) | 0x6a0527 | `SScene::~SScene` |
+| Walker units: `PlaySequence("normal_stand", 0)`, `SetFlags(7)`, `SetVisible(1, 0)`; per 20 Hz tick `StoreInterpolationState` + `AdvanceAnimation(0.05)` | 0x5c93a0, 0x5c7f90, 0x5ce2a0 | `PlaceUnitModel`, `SUnit::RefreshModel` |
+| Building units hide "Block" (and "Indoor" for unit type 0x1a) | 0x548f20 | `PlaceUnitModel` |
+| Per tick: every unit's model and every doodad's `StoreInterpolationState` | part of 0x576d80 | `SWorld::RefreshModels`, called from the `SGameLogic::Refresh` stub |
+| Model effect-node prototypes released with the prototype | 0x68e4c0 | `SPModel::~SPModel` |
+
+Placed squads still use agent D's placeholder line formation (1.5 m apart,
+across the squad direction). HD's squad formation belongs to
+`SPanzersSquadUnit` and its driver (M2) and was not lifted.
+
+Remaining differences against the original menu (`p4scope/shots/menu_126.png`):
+- **No shadows.** The original runs with `Shadows = 2`, and so does our
+  `options.ini`. Not lifted: `SScene::GenerateShadowBuffer` 0x6aac20 (the
+  shadow render target from 0x678c70, the light-space fit 0x6a27f0 /
+  0x6a3c80), `SModel::RenderShadow` 0x6d9570, `SMesh::DrawShadow` 0x6cdb70,
+  the PS shadow combiners in 0x6cbe00, and the Gepard render options of
+  `SSuperWindow::Initialize` 0x657910 (still `PzStub_GepardRenderStates`,
+  so Gepard option 2 stays 0 and the scene renders as with `Shadows = 0`).
+- **No convoy and no marching squad.** Both are spawned and moved by the map
+  triggers (`SGameLogic::RunTriggers` 0x579ab0, M2).
+- **Smoke** over the Panther wreck is fainter and darker than in the
+  original; the fire effect is not visible in either.
+
+## 9. Not verified
 
 - Slot semantics marked "(name guessed)". The parameter lists of unnamed slots are only dword counts.
 - The `STerrainBuffers` field meanings beyond Heights/Blend/Diffuse.
 - The SPixie ctor refcount (assumed 1, like SScene and SModel).
-- The world path was run with the skeleton world only (no map data parsed). The SWINE board was drawn after an empty HD scene pass.
-- The Exit → Back reload and device loss with the world path on were not exercised.
+- Device loss with the world path on was not exercised.
+- The global-state name table of `GetGlobalStateStandText` 0x5c7f90 is not read: the placed units are assumed to be in state 0 = "normal". The idle-relax variants (`%s_idle_relax%d%s`, timer in 0x5cae80) are not played.
+- The SBuildingUnit "Indoor" rule for the type's +0x13c == 6 is not applied (the stand-in type has no such field).

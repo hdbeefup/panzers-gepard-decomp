@@ -7,6 +7,7 @@
 // (Slot_XX), the call is left out and marked "slot pending".
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "world.h"
@@ -204,11 +205,15 @@ SWorld::~SWorld()
     for (int i = Decals.Size - 1; i >= 0; --i)
         RemoveDecal(i);                                           // 0x5f7170
     ClearEffects();                                               // HD removes each (0x5f75c0)
-    // Rivers, roads, junctions, wires, locations and paths are kept as raw
-    // chunks in M1 (mapload.cpp).
+    ClearRoads();                                                 // 0x5dd9a0
+    ClearRoadJunctions();                                         // 0x5dd9f0
+    // Rivers, wires, locations and paths are kept as raw chunks in M1
+    // (mapload.cpp).
     FreeMapRawChunks();
-    if (WireTearFx >= 0) {
-        // HD: pixie +0x20(WireTearFx): slot pending (agent C).
+    if (g_Pixie) {
+        g_Pixie->ReleaseEffectPrototype(WireTearFx);              // pixie +0x20 (+0x7428)
+        g_Pixie->ReleaseEffectPrototype(SnowFx);                  // +0x644 (no snow effect playing)
+        g_Pixie->ReleaseEffectPrototype(RainFx);                  // +0x634
     }
     if (Terrain) {
         g_Scene->DestroyTerrain();                                // scene +0x68
@@ -232,6 +237,8 @@ SWorld::~SWorld()
     free(Units.Array);
     free(Decals.Array);
     free(Effects.Array);
+    free(Roads.Array);
+    free(Junctions.Array);
     if (Logger.g)
         Logger.g->Log(HdLogLevel(), "SWorld::~SWorld: releasing scene");
     if (g_Scene) {
@@ -326,8 +333,91 @@ void SWorld::Initialize()
         WireTearFx = g_Pixie->LoadEffectPrototype("effects/extras/wiretear.fx", false, false, 0, 0);
         g_WorldStats.EffectProtos += 3;
     }
-    // HD 0x6043a0 (unit/doodad visibility pass) and 0x5ecdf0 InitFlyingFox
-    // (983 insns): M2, not called.
+    RebuildTerrain();                                             // 0x6043a0
+    // HD 0x5ecdf0 InitFlyingFox (983 insns): M2, not called.
+}
+
+// PANZERS 0x608360
+// Hands the TLAY layers to the terrain: for each of the 17 layer slots the
+// base texture "tiles/<name>" (terrain +0x04; the terrain tries
+// "<base>_%d_a.tga", then "<base>_%d.tga"), and for i > 0 the flora directory
+// "flora/<extra>/" (terrain +0x08, scale 0.005, only when attr & 2 and the
+// name is set) and the layer flags (terrain +0x34). Slots past the TLAY count
+// are cleared. invalidate: terrain +0x20 over the whole map per layer.
+void SWorld::SetTerrainLayers(bool invalidate)
+{
+    if (!Terrain)
+        return;
+    for (int i = 0; i < 17; ++i) {
+        if (i < Layers.Size) {
+            STerrainLayer* l = &Layers.Array[i];
+            char base[300];
+            _snprintf(base, sizeof(base) - 1, "tiles/%s", SStr(l->Name));   // "tiles/" + name (0x52c4a0)
+            base[sizeof(base) - 1] = 0;
+            Terrain->LoadLayerTexture(i, base);                   // terrain +0x04
+            if (i > 0) {
+                if ((l->Attributes & 2) == 0 || l->Extra.size == 0) {
+                    Terrain->LoadFloraLayer(i - 1, nullptr, 0.005f);   // terrain +0x08 (0x3ba3d70a)
+                } else {
+                    char dir[300];
+                    _snprintf(dir, sizeof(dir) - 1, "flora/%s/", SStr(l->Extra));   // 0x52da80
+                    dir[sizeof(dir) - 1] = 0;
+                    Terrain->LoadFloraLayer(i - 1, dir, 0.005f);
+                }
+                Terrain->SetLayerFlags(i - 1, (int)l->Attributes);   // terrain +0x34
+            }
+            if (invalidate)
+                Terrain->Invalidate(0, 0, TerrainW, TerrainH);    // terrain +0x20
+        } else {
+            // HD calls these for i = 0 too (layer -1) when TLAY is empty;
+            // the recompile skips the negative layer.
+            Terrain->LoadLayerTexture(i, nullptr);
+            if (i > 0) {
+                Terrain->LoadFloraLayer(i - 1, nullptr, 0.005f);
+                Terrain->SetLayerFlags(i - 1, 0);
+            }
+        }
+    }
+}
+
+// PANZERS 0x6043a0
+// After the map is loaded (SWorld::Initialize): layers, a full terrain
+// invalidate (terrain +0x20(0, 0, w + 1, h + 1)), the map decals
+// (terrain +0x5c), every road (+0x88) and junction (+0x98). Rivers 0x608f40
+// and DWires 0x605930 are not in menu.map; the block-map dirty rectangle
+// (+0x7500..+0x7514) belongs to the M2 path finder.
+void SWorld::RebuildTerrain()
+{
+    PZ_TRACE("SWorld::RebuildTerrain (0x6043a0)");
+    if (!Terrain)
+        return;
+    SetTerrainLayers(false);                                      // 0x608360(0)
+    Terrain->Invalidate(0, 0, TerrainW + 1, TerrainH + 1);        // terrain +0x20
+    Terrain->UpdateDecals();                                      // terrain +0x5c
+    for (int i = 0; i < Roads.Size; ++i)
+        if (Roads.IsLive(i) && Roads.Array[i].Data.Road >= 0)
+            Terrain->UpdateRoad(Roads.Array[i].Data.Road);        // terrain +0x88
+    for (int i = 0; i < Junctions.Size; ++i)
+        if (Junctions.IsLive(i) && Junctions.Array[i].Data.Junction >= 0)
+            Terrain->UpdateRoadJunction(Junctions.Array[i].Data.Junction);   // terrain +0x98
+}
+
+// PANZERS 0x576d80 (M1 subset)
+// The model part of SGameLogic::Refresh, once per 20 Hz logic tick: every
+// unit (World+0x4d4; HD unit vtbl +0x2c -> the unit animation's UpdateModel)
+// and every doodad model (World+0x140, model vtbl +0x3c).
+void SWorld::RefreshModels()
+{
+    for (int i = 0; i < Units.Size; ++i)
+        if (Units.IsLive(i) && Units.Array[i].Unit)
+            Units.Array[i].Unit->RefreshModel();
+    for (int i = 0; i < Doodads.Size; ++i) {
+        if (Doodads.Array[i].Next != kHeapLive)
+            continue;
+        SDoodad& d = Doodads.Array[i].Data;
+        if (d.Model)
+            d.Model->StoreInterpolationState();                   // model +0x3c
+    }
 }
 
 // ---------------------------------------------------------------------------

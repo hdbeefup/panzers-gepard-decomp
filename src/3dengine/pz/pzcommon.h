@@ -29,8 +29,9 @@ enum HdSize : unsigned {
 
 // Runtime switches (src/3dengine/pz/pztrace.cpp).
 //   World: run the menu world (SWorld + LoadMap + SGameLogic) in
-//          SSuperWindow::LoadMenuBackground. Default = the PZ_MENU_WORLD
-//          CMake option (OFF); "-menu3d" or PZ_MENU3D=1 turns it on.
+//          SSuperWindow::LoadMenuBackground, as HD always does. Default =
+//          the PZ_MENU_WORLD CMake option (ON); "-nomenu3d" or PZ_MENU3D=0
+//          turns it off, "-menu3d" or PZ_MENU3D=1 turns it on.
 //   Trace: log every 3D interface call (rate-limited). "-menu3d" or
 //          PZ_MENU3D_TRACE=1 turns it on; PZ_MENU3D_TRACE=0 turns it off.
 struct SMenu3DSwitches {
@@ -39,7 +40,7 @@ struct SMenu3DSwitches {
 };
 extern SMenu3DSwitches g_Menu3D;
 
-// Reads the environment and removes "-menu3d" from argv (recompile-only
+// Reads the environment and removes "-menu3d" / "-nomenu3d" from argv (recompile-only
 // switch; HD would read an unknown argument as a map path). Call once,
 // before SSettings parses the command line.
 void Menu3DParseCommandLine(int* argc, char** argv);

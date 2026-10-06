@@ -111,6 +111,13 @@ struct SWorld {
     void RemoveDecal(int index);                               // 0x5f7170
     void ClearDecals(int newSize);                             // 0x5dc890
     void LoadEffects(SStream* s);                              // 0x5f08a0 EEFS
+    void LoadRoads(SStream* s);                                // 0x5f0a30 ROD2
+    void ClearRoads();                                         // 0x5dd9a0
+    void LoadRoadJunctions(SStream* s);                        // 0x5f0b60 RODJ
+    void ClearRoadJunctions();                                 // 0x5dd9f0
+    void SetTerrainLayers(bool invalidate);                    // 0x608360
+    void RebuildTerrain();                                     // 0x6043a0
+    void RefreshModels();                                      // 0x576d80 subset (per tick)
     void ClearEffects();                                       // 0x5dd880
     void LoadUnitDefinitions(SStream* s);                      // 0x5f33f0 UNDS
     void LoadUnits(SStream* s);                                // 0x5f3820 UNIS (saved games; logs only)
@@ -209,7 +216,10 @@ struct SWorld {
     unsigned char _648[0x73c4 - 0x648];
     SHdArray<SDecal> Decals;             // +0x73c4 (element 0x1c)
     SHeap<SEffectSite> Effects;          // +0x73d0 (element 0x2c)
-    unsigned char _73e4[0x7428 - 0x73e4];
+    unsigned char _73e4[0x73fc - 0x73e4];
+    SHeap<SMapRoad> Roads;               // +0x73fc ROD2 (element 0x48)
+    SHeap<SMapRoadJunction> Junctions;   // +0x7410 RODJ (element 0x68)
+    unsigned char _7424[4];
     int           WireTearFx;            // +0x7428 "effects/extras/wiretear.fx"
     unsigned char _742c[0x74bc - 0x742c];
     void*         Minimap;               // +0x74bc MINI bitmap (not decoded in M1)
@@ -268,6 +278,8 @@ static_assert(offsetof(SWorld, RainFx) == 0x634, "Initialize +0x634");
 static_assert(offsetof(SWorld, SnowFx) == 0x644, "Initialize +0x644");
 static_assert(offsetof(SWorld, Decals) == 0x73c4, "ENTS DECS +0x73c4");
 static_assert(offsetof(SWorld, Effects) == 0x73d0, "dtor param_1[0x1cf4]");
+static_assert(offsetof(SWorld, Roads) == 0x73fc, "0x6043a0 +0x73fc");
+static_assert(offsetof(SWorld, Junctions) == 0x7410, "0x6043a0 +0x7410");
 static_assert(offsetof(SWorld, WireTearFx) == 0x7428, "Initialize +0x7428");
 static_assert(offsetof(SWorld, Minimap) == 0x74bc, "LoadMap MINI +0x74bc");
 static_assert(offsetof(SWorld, LoadAborted) == 0x74d4, "LoadMap +0x74d4");

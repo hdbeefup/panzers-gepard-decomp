@@ -11,6 +11,7 @@
 #include "parcel.h"
 #include "pzscene.h"
 #include "pzviewport.h"
+#include "effect.h"
 #include "igepardhd.h"
 #include "core_common.h"
 #include "stream.h"
@@ -61,10 +62,21 @@ static inline int FloorInt(float f)
     return (int)floorf(f);
 }
 
+// The terrain the particles collide with. HD SParticles::GroundHeight
+// 0x6e5dd0 calls STerrain 0x6f4c00 (HeightAt) on the scene's terrain; the
+// effect code reaches it through g_EffectGroundHeight (effect.h).
+static STerrain* s_EffectTerrain = nullptr;
+static float EffectTerrainHeight(float x, float z)
+{
+    return s_EffectTerrain ? s_EffectTerrain->HeightAt(x, z) : 0.0f;
+}
+
 // PANZERS 0x6efde0
 STerrain::STerrain(SScene* scene, int width, int height, int p4)
 {
     PZ_TRACE("STerrain::STerrain (0x6efde0)");
+    s_EffectTerrain = this;
+    g_EffectGroundHeight = &EffectTerrainHeight;
     memset(&EffectDecals, 0, sizeof(STerrain) - offsetof(STerrain, EffectDecals));
     EffectDecals.FreeHead = -1;
     Roads.FreeHead = -1;
@@ -168,6 +180,10 @@ STerrain::STerrain(SScene* scene, int width, int height, int p4)
 STerrain::~STerrain()
 {
     PZ_TRACE("STerrain::~STerrain (0x6f06c0)");
+    if (s_EffectTerrain == this) {
+        s_EffectTerrain = nullptr;
+        g_EffectGroundHeight = nullptr;
+    }
     // Effect decals hold texture references (0x6f27c0 releases them).
     for (int i = HdHeapNext(&EffectDecals, -1); i >= 0; i = HdHeapNext(&EffectDecals, i))
         TerrainReleaseTexture(EffectDecals.Data[i].Texture);

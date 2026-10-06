@@ -43,7 +43,7 @@ struct SIModel {
     virtual void RotateAxis(float x, float y, float z, float angle) = 0; // +0x24 HD 0x6da9e0 (4 arg dwords)
     virtual void SetScale(float scale) = 0;                 // +0x28 HD 0x6dad20 (1 arg dword) +0x94
     virtual float GetScale() = 0;                           // +0x2c HD 0x6d7ee0 (0 arg dwords)
-    virtual void SetSequence(unsigned sequence, bool p2) = 0; // +0x30 HD 0x6dafd0 (2 arg dwords) NOT a sequence setter: HD SetVisible(bool show, bool fade) (+0xd4; fade in/out over 1 s). Name kept until the world callers are renamed; sequences are +0x6c PlaySequence
+    virtual void SetVisible(bool show, bool fade) = 0;      // +0x30 HD 0x6dafd0 (2 arg dwords) +0xd4 visible; fade = 1 s alpha fade in/out. Walkers: SWalkerAnimation::UpdateModel 0x5ce2a0 calls (1, 0) every tick; ruins (0, 0)
     virtual void Slot_34() = 0;                             // +0x34 HD 0x6d86d0 (0 arg dwords)
     virtual void Slot_38() = 0;                             // +0x38 HD 0x6db2a0 (3 arg dwords)
     virtual void StoreInterpolationState() = 0;             // +0x3c HD 0x6da0f0 (0 arg dwords) copies pose to the previous-tick slot; SGameLogic::Refresh per doodad

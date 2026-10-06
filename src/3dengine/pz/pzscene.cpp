@@ -73,6 +73,10 @@ SScene::~SScene()
         m->Scene = nullptr;
         m->Release();
     }
+    // HD 0x6a0527: the effect manager (0x92f104) drops every effect that
+    // still plays in this scene (pixie +0x44).
+    if (SIPixie* pixie = GepardPixie())
+        pixie->DestroySceneEffects(this);
     DestroyTerrain();
     Models.Free();
     FreeModels.Free();

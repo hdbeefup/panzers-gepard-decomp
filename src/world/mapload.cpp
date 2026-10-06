@@ -3,7 +3,7 @@
 // entities (doodads, decals, placed effects, unit definitions), weather,
 // players and camera. OWNER: agent D. Lifted from the HD exe only.
 //
-// Chunks M1 does not use (roads, junctions, rivers, locations, paths,
+// Chunks M1 does not use (rivers, locations, paths,
 // triggers, trigger variables, wires, ambient sounds, lakes, AI groups, the
 // minimap) are read whole and kept as raw copies for M2, with their counts
 // logged. HD parses them into SWorld containers.
@@ -417,7 +417,7 @@ void SDoodad::Initialize()
         if (RuinModel) {
             g_WorldStats.DoodadModelsOk++;
             RuinModel->SetFlags(0);
-            RuinModel->SetSequence(0, false);                     // model +0x30(0, 0)
+            RuinModel->SetVisible(false, false);                  // model +0x30(0, 0): hidden until demolished
         } else if (Logger.g) {
             Logger.g->Log(0, "SWorld::Initialize: Couldn't load object: %s (HD panics; agent A scene pending)", rb);
         }
@@ -450,8 +450,13 @@ void SDoodad::UpdatePosition()
 // PANZERS 0x5d4e50
 void SDoodad::Release()
 {
-    // HD: attached lights (0x5f82b0), pixie +0x20 for the two demolish
-    // effects (slot pending, agent C).
+    // HD: attached lights (0x5f82b0; none in menu.map), then pixie +0x20
+    // for the two demolish effect prototypes.
+    if (g_Pixie) {
+        g_Pixie->ReleaseEffectPrototype(DemolishEffect1);
+        g_Pixie->ReleaseEffectPrototype(DemolishEffect2);
+    }
+    DemolishEffect1 = DemolishEffect2 = -1;
     if (Model) {
         Model->Release();                                         // model +0x04
         Model = nullptr;
@@ -521,21 +526,31 @@ void SDecal::Load(SStream* s)
     s->ReadChunkValidate(0);
 }
 
+// HD 0x5e78b0: index of a decal in World+0x73c4.
+static int DecalIndex(const SDecal* d)
+{
+    return (int)(d - g_World->Decals.Array);
+}
+
 // PANZERS 0x5edfd0
 void SDecal::Create()
 {
+    int index = DecalIndex(this);                                 // 0x5e78b0
     Texture = PzGepard()->LoadTexture(SStr(Name), 1, true);       // Gepard +0x44(name, 1, 1)
-    // HD: terrain +0x48(index, Texture, A, B, C) and terrain +0x54(index,
-    // _18) place the decal: slots pending (agent B, SITerrain Slot_48/Slot_54).
+    if (SITerrain* t = g_World->Terrain) {
+        t->AddDecal(index, Texture, A, B, C);                     // terrain +0x48(index, tex, x, z, rotation)
+        t->SetDecalType(index, _18);                              // terrain +0x54
+    }
     g_WorldStats.Decals++;
 }
 
 // PANZERS 0x5d6800
 void SDecal::Release()
 {
-    // HD: terrain +0x4c(index) (slot pending, agent B), then Gepard +0x48.
-    if (Name.buf && Texture >= 0)
-        PzGepard()->ReleaseTexture(Texture);
+    if (SITerrain* t = g_World ? g_World->Terrain : nullptr)
+        t->RemoveDecal(DecalIndex(this));                         // terrain +0x4c
+    if (Texture >= 0 && Name.buf)
+        PzGepard()->ReleaseTexture(Texture);                      // Gepard +0x48
     Texture = 0;
     FreeSString(&Name);
 }
@@ -550,9 +565,10 @@ void SWorld::ClearEffects()
         SHeapElem<SEffectSite>* e = &Effects.Array[i];
         if (e->Next != kHeapLive)
             continue;
-        if (g_Pixie && e->Data.Effect >= 0)
+        if (g_Pixie) {
             g_Pixie->StopEffect(e->Data.Effect);                  // pixie +0x34
-        // HD: pixie +0x20(Prototype): slot pending (agent C).
+            g_Pixie->ReleaseEffectPrototype(e->Data.Prototype);   // pixie +0x20
+        }
         FreeSString(&e->Data.Name);
     }
     Effects.Size = 0;
@@ -612,13 +628,303 @@ void SEffectSite::Create()
     double inv = 1.0 / sqrt((double)(DirX * DirX + 1.0f + DirZ * DirZ));
     float dir[3] = { (float)((double)DirX * inv), (float)inv, (float)((double)DirZ * inv) };
     float pos[3] = { X, g_World->GetTerrainHeight(X, Z) + YOffset, Z };
-    // HD: Effect = pixie +0x2c(g_Scene, Prototype, pos, dir) (4 arg dwords),
-    // then 0x6014e0. Slot pending (agent C, SIPixie Slot_2C).
-    (void)dir; (void)pos;
+    if (g_Pixie) {
+        Effect = g_Pixie->CreateEffect(g_Scene, Prototype, pos, dir);   // pixie +0x2c
+        UpdatePosition();                                         // 0x6014e0
+    }
     g_WorldStats.Effects++;
     if (Logger.g)
         Logger.g->Log(0, "PZ3D world: effect %s proto %d at %.2f %.2f %.2f dir %.3f %.3f %.3f",
                       SStr(Name), Prototype, pos[0], pos[1], pos[2], dir[0], dir[1], dir[2]);
+}
+
+// PANZERS 0x6014e0
+// Re-places the effect on the terrain: pixie +0x4c position (terrain height
+// + YOffset) and +0x50 the normalised direction (DirX, 1, DirZ).
+void SEffectSite::UpdatePosition()
+{
+    if (!g_Pixie || Effect < 0)
+        return;
+    float pos[3] = { X, g_World->GetTerrainHeight(X, Z) + YOffset, Z };
+    g_Pixie->SetEffectPosition(Effect, pos);                      // pixie +0x4c
+    double inv = 1.0 / sqrt((double)(DirX * DirX + 1.0f + DirZ * DirZ));
+    float dir[3] = { (float)((double)DirX * inv), (float)inv, (float)((double)DirZ * inv) };
+    g_Pixie->SetEffectDirection(Effect, dir);                     // pixie +0x50
+}
+
+// ---------------------------------------------------------------------------
+// Roads and junctions
+
+// PANZERS 0x5d5330
+void SMapRoad::Release()
+{
+    if (Texture >= 0)
+        PzGepard()->ReleaseTexture(Texture);                      // Gepard +0x48
+    if (Road >= 0 && g_World && g_World->Terrain)
+        g_World->Terrain->DestroyRoad(Road);                      // terrain +0x84
+    free(PathPoints);
+    PathPoints = nullptr;
+    PathPointCount = PathPointMax = 0;
+    free(Points);
+    Points = nullptr;
+    PointCount = PointMax = 0;
+    free(TerrainPoints);
+    TerrainPoints = nullptr;
+    TerrainPointCount = TerrainPointMax = 0;
+    FreeSString(&Name);
+}
+
+// PANZERS 0x5dd9a0
+void SWorld::ClearRoads()
+{
+    for (int i = 0; i < Roads.Size; ++i)
+        if (Roads.Array[i].Next == kHeapLive)
+            Roads.Array[i].Data.Release();
+    Roads.Size = 0;
+    Roads.Free = -1;
+    Roads.Count = 0;
+}
+
+// PANZERS 0x5f0a30
+void SWorld::LoadRoads(SStream* s)
+{
+    ClearRoads();
+    unsigned n = (unsigned)s->ReadInt();
+    if (n > 0x1000000)
+        Throw("Invalid array size");
+    Roads.Size = (int)n;
+    if (Roads.Max < (int)n) {
+        Roads.Max = (int)n;
+        Roads.Array = (SHeapElem<SMapRoad>*)realloc(Roads.Array, n * 0x48);
+    }
+    memset(Roads.Array, 0, Roads.Max * 0x48);
+    Roads.Free = s->ReadInt();
+    Roads.Count = s->ReadInt();
+    for (int i = 0; i < Roads.Size; ++i) {
+        Roads.Array[i].Next = s->ReadInt();
+        if (Roads.Array[i].Next == kHeapLive)
+            Roads.Array[i].Data.Load(s);
+    }
+}
+
+void SMapRoad::Load(SStream* s)
+{
+    Texture = -1;
+    ReadWorldString(s, &Name);                                    // 0x56e7d0
+    Step = ReadF(s);
+    TexLength = ReadF(s);
+    Flags = (unsigned)s->ReadInt();
+    // PANZERS 0x5effd0: the control points.
+    unsigned n = (unsigned)s->ReadInt();
+    if (n > 0x1000000)
+        Throw("Invalid array size");
+    PointCount = (int)n;
+    if (PointMax < (int)n) {
+        PointMax = (int)n;
+        Points = (SRoadControlPoint*)realloc(Points, n * sizeof(SRoadControlPoint));
+    }
+    if (PointMax)
+        memset(Points, 0, PointMax * sizeof(SRoadControlPoint));
+    for (int i = 0; i < PointCount; ++i) {
+        SRoadControlPoint* p = &Points[i];
+        p->X = ReadF(s);
+        p->Z = ReadF(s);
+        p->DirX = ReadF(s);
+        p->DirZ = ReadF(s);
+        p->F14 = ReadF(s);
+        p->W = s->ReadInt();                                      // raw dword (0x5f0043)
+    }
+    Road = -1;
+    Texture = -1;
+    Build(Flags, true);                                           // 0x601c10(flags, 1)
+}
+
+// PANZERS 0x601c10 (terrain part)
+// HD first samples a Hermite spline through the control points into
+// PathPoints (step = Step, 0x601c10..0x602276) and fills each point's
+// Length: path-finder data (M2), not built here. The terrain gets the
+// control points themselves: x, z, tangent, Dirty = 1 and W; a point with
+// W bit 0 at either end adds an extra point 1.5 tangents beyond it. Then
+// terrain +0x78 CreateRoad(texture, points, Step / 2, Width / 2,
+// TexLength / 2, flags), or +0x7c SetRoad for an existing road.
+void SMapRoad::Build(unsigned flags, bool create)
+{
+    if (!create && (flags & 2) == 0)
+        return;
+    SITerrain* t = g_World->Terrain;
+    if (Texture < 0) {
+        Texture = PzGepard()->LoadTexture(SStr(Name), 1, true);   // Gepard +0x44(name, 1, 1)
+        int w = 0, h = 0;
+        PzGepard()->GetTextureSize(Texture, &w, &h);              // Gepard +0x50
+        Width = (float)h * 2.0f * 0.015625f;                      // +0x3c
+        TexLength = (float)w * 2.0f * 0.015625f;                  // +0x38
+    }
+    int n = PointCount;
+    int cap = n + 2;
+    if (TerrainPointMax < cap) {
+        TerrainPointMax = cap;
+        TerrainPoints = realloc(TerrainPoints, cap * sizeof(SRoadPoint));
+    }
+    memset(TerrainPoints, 0, TerrainPointMax * sizeof(SRoadPoint));
+    SRoadPoint* out = (SRoadPoint*)TerrainPoints;
+    int k = 0;
+    if (n > 0 && (Points[0].W & 1)) {
+        SRoadPoint& o = out[k++];                                 // 0x5ef090: insert at 0
+        o.X = Points[0].X - Points[0].DirX * 1.5f;
+        o.Z = Points[0].Z - Points[0].DirZ * 1.5f;
+        o.DirX = Points[0].DirX;
+        o.DirZ = Points[0].DirZ;
+        memcpy(&o.W, &Points[0].W, 4);
+        o.Dirty = 1;
+    }
+    for (int i = 0; i < n; ++i) {
+        SRoadPoint& o = out[k++];
+        o.X = Points[i].X;
+        o.Z = Points[i].Z;
+        o.DirX = Points[i].DirX;
+        o.DirZ = Points[i].DirZ;
+        memcpy(&o.W, &Points[i].W, 4);
+        o.Dirty = 1;
+    }
+    if (n > 0 && (Points[n - 1].W & 1)) {
+        SRoadPoint& o = out[k++];
+        o.X = Points[n - 1].X + Points[n - 1].DirX * 1.5f;
+        o.Z = Points[n - 1].Z + Points[n - 1].DirZ * 1.5f;
+        o.DirX = Points[n - 1].DirX;
+        o.DirZ = Points[n - 1].DirZ;
+        memcpy(&o.W, &Points[n - 1].W, 4);
+        o.Dirty = 1;
+    }
+    TerrainPointCount = k;
+    if (!t)
+        return;
+    SRoadPointArray arr = { out, TerrainPointCount, TerrainPointMax };
+    if (Road < 0)
+        Road = t->CreateRoad(Texture, &arr, Step * 0.5f, Width * 0.5f, TexLength * 0.5f, flags);   // terrain +0x78
+    else
+        t->SetRoad(Road, Texture, &arr, Step * 0.5f, Width * 0.5f, TexLength * 0.5f, flags);       // terrain +0x7c
+}
+
+// PANZERS 0x5d5420
+void SMapRoadJunction::Release()
+{
+    if (Texture >= 0)
+        PzGepard()->ReleaseTexture(Texture);                      // Gepard +0x48
+    if (Junction >= 0 && g_World && g_World->Terrain)
+        g_World->Terrain->DestroyRoadJunction(Junction);          // terrain +0x94
+    free(Connections);
+    Connections = nullptr;
+    ConnectionCount = ConnectionMax = 0;
+    FreeSString(&Name);
+}
+
+// PANZERS 0x5dd9f0
+void SWorld::ClearRoadJunctions()
+{
+    for (int i = 0; i < Junctions.Size; ++i)
+        if (Junctions.Array[i].Next == kHeapLive)
+            Junctions.Array[i].Data.Release();
+    Junctions.Size = 0;
+    Junctions.Free = -1;
+    Junctions.Count = 0;
+}
+
+// PANZERS 0x5f0b60
+void SWorld::LoadRoadJunctions(SStream* s)
+{
+    ClearRoadJunctions();
+    unsigned n = (unsigned)s->ReadInt();
+    if (n > 0x1000000)
+        Throw("Invalid array size");
+    Junctions.Size = (int)n;
+    if (Junctions.Max < (int)n) {
+        Junctions.Max = (int)n;
+        Junctions.Array = (SHeapElem<SMapRoadJunction>*)realloc(Junctions.Array, n * 0x68);
+    }
+    memset(Junctions.Array, 0, Junctions.Max * 0x68);
+    Junctions.Free = s->ReadInt();
+    Junctions.Count = s->ReadInt();
+    for (int i = 0; i < Junctions.Size; ++i) {
+        Junctions.Array[i].Next = s->ReadInt();
+        if (Junctions.Array[i].Next == kHeapLive)
+            Junctions.Array[i].Data.Load(s);
+    }
+}
+
+// PANZERS 0x5f1590
+void SMapRoadJunction::Load(SStream* s)
+{
+    Texture = -1;
+    ReadWorldString(s, &Name);
+    HalfX = ReadF(s);
+    HalfZ = ReadF(s);
+    Flags = (unsigned)s->ReadInt();
+    X = ReadF(s);
+    Z = ReadF(s);
+    DirX = ReadF(s);
+    DirZ = ReadF(s);
+    F3c = ReadF(s);
+    I48 = s->ReadInt();
+    if (Name.size != 0) {
+        // PANZERS 0x5eec00: reset the handles and build. HD also resets 12
+        // default connections first (path finder, M2).
+        Junction = -1;
+        Texture = -1;
+        Build(Flags);                                             // 0x6029b0
+    }
+    // PANZERS 0x5eff50: the connections (road index, bool), 0x34 each.
+    unsigned nc = (unsigned)s->ReadInt();
+    if (nc > 0x1000000)
+        Throw("Invalid array size");
+    ConnectionCount = (int)nc;
+    if (ConnectionMax < (int)nc) {
+        ConnectionMax = (int)nc;
+        Connections = realloc(Connections, nc * 0x34);
+    }
+    if (ConnectionMax)
+        memset(Connections, 0, ConnectionMax * 0x34);
+    for (int i = 0; i < ConnectionCount; ++i) {
+        unsigned char* c = (unsigned char*)Connections + i * 0x34;
+        *(int*)(c + 0x28) = s->ReadInt();
+        c[0x30] = s->ReadByte() != 0;
+    }
+}
+
+// PANZERS 0x6029b0 (terrain part)
+// Only with flags & 2. HD also computes the 12 connection end points around
+// the junction for the path finder (M2). The terrain gets the centre and the
+// direction: terrain +0x8c CreateRoadJunction(texture, point,
+// texture height / 128, texture width / 128, flags), or +0x90 to update.
+void SMapRoadJunction::Build(unsigned flags)
+{
+    if ((flags & 2) == 0)
+        return;
+    if (Texture < 0) {
+        Texture = PzGepard()->LoadTexture(SStr(Name), 1, true);   // Gepard +0x44(name, 1, 1)
+        int w = 0, h = 0;
+        PzGepard()->GetTextureSize(Texture, &w, &h);              // Gepard +0x50
+        HalfX = (float)h * 0.015625f;                             // +0x58
+        HalfZ = (float)w * 0.015625f;                             // +0x5c
+    }
+    PointX = X;
+    PointZ = Z;
+    PointDirX = DirX;
+    PointDirZ = DirZ;
+    PointValid = 1;
+    SITerrain* t = g_World->Terrain;
+    if (!t)
+        return;
+    SRoadJunctionPoint pt;
+    memset(&pt, 0, sizeof(pt));
+    pt.X = PointX;
+    pt.Z = PointZ;
+    pt.DirX = PointDirX;
+    pt.DirZ = PointDirZ;
+    pt.Valid = PointValid;
+    if (Junction < 0)
+        Junction = t->CreateRoadJunction(Texture, &pt, HalfX * 0.5f, HalfZ * 0.5f, flags);      // terrain +0x8c
+    else
+        t->SetRoadJunction(Junction, Texture, &pt, HalfX * 0.5f, HalfZ * 0.5f, flags);           // terrain +0x90
 }
 
 // ---------------------------------------------------------------------------
@@ -786,8 +1092,8 @@ bool SWorld::LoadMap(SStream* stream, bool p2, int p3, int p4)
                 LoadCamera(cam);                                  // 0x5fd7c0
             break;
         }
-        case 0x32444f52:     // ROD2 (0x5f0a30; roads go to the terrain)
-            KeepRawChunk(s, tag, "roads");
+        case 0x32444f52:     // ROD2
+            LoadRoads(s);                                         // 0x5f0a30
             break;
         case 0x32594c50:     // PLY2 (0x5f2f50)
             KeepRawChunk(s, tag, "players (v2)");
@@ -847,7 +1153,9 @@ bool SWorld::LoadMap(SStream* stream, bool p2, int p3, int p4)
         }
         case 0x4a444f52:     // RODJ (0x5f0b60, then 0x5f7fa0 per junction)
             LoadAborted = false;
-            KeepRawChunk(s, tag, "road junctions");
+            LoadRoadJunctions(s);                                 // 0x5f0b60
+            // HD then checks every live junction with 0x5f7fa0 (removes
+            // the invalid ones through RemoveRoadJunction 0x5f7770).
             break;
         case 0x48544150:     // PATH (0x5f07b0)
             KeepRawChunk(s, tag, "paths");

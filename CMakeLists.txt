@@ -105,9 +105,11 @@ add_subdirectory(src/common)
 add_subdirectory(src/stubs)
 
 # HD 3D path for the main-menu background (docs/MENU3D_INTERFACES.md).
-# PZ_MENU_WORLD=ON runs the menu world (SWorld + LoadMap + SGameLogic) by
-# default; OFF (default) runs it only with -menu3d or PZ_MENU3D=1.
-option(PZ_MENU_WORLD "Run the 3D menu world (maps/menu.map) by default" OFF)
+# PZ_MENU_WORLD=ON (default) runs the menu world (SWorld + LoadMap +
+# SGameLogic) behind the main menu, as HD always does; -nomenu3d or
+# PZ_MENU3D=0 turns it off at run time. OFF runs it only with -menu3d or
+# PZ_MENU3D=1.
+option(PZ_MENU_WORLD "Run the 3D menu world (maps/menu.map) by default" ON)
 add_subdirectory(src/3dengine/pz)
 add_subdirectory(src/world)
 

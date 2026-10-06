@@ -4,6 +4,7 @@
 #include <string.h>
 #include "gamelogic.h"
 #include "worldapi.h"
+#include "world.h"
 #include "stub_log.h"
 
 namespace pz {
@@ -36,6 +37,10 @@ int SGameLogic::Refresh()
 {
     STUB_LOG("SGameLogic::Refresh (0x576d80)");
     PZ_TRACE("SGameLogic::Refresh (0x576d80)");
+    // M1: only the model part of the tick (unit animations, doodad
+    // interpolation state). Triggers, units, AI and the rest are M2.
+    if (g_World)
+        g_World->RefreshModels();
     return 0;
 }
 

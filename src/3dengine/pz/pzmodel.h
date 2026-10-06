@@ -64,7 +64,7 @@ struct SModel : SIModel, SIAttachable {
     void RotateAxis(float x, float y, float z, float angle) override;
     void SetScale(float scale) override;
     float GetScale() override;
-    void SetSequence(unsigned sequence, bool p2) override;
+    void SetVisible(bool show, bool fade) override;
     void Slot_34() override;
     void Slot_38() override;
     void StoreInterpolationState() override;

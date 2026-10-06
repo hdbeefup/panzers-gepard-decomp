@@ -94,8 +94,12 @@ SPModel::~SPModel()
                       Str(FileName));
     for (int i = 0; i < NodeCount; ++i) {
         SPModelNode* n = &Nodes[i];
-        // HD: pixie +0x20 (release effect prototype n->Effect); effects are
-        // agent C's, so the reference is left to the pixie heap.
+        // HD: pixie +0x20 releases the ':' node's effect prototype.
+        if (n->Effect >= 0) {
+            if (SIPixie* pixie = GepardPixie())
+                pixie->ReleaseEffectPrototype(n->Effect);
+            n->Effect = -1;
+        }
         delete n->Mesh;
         delete n->Collision;
         operator delete(n->Bones);

@@ -78,6 +78,39 @@ agents or by M2, in call order:
 
 Not hit: `SWorld::Slot_04/08/0C/10`, `SWorld::ComputeCamera modes 1/2`.
 
+## M1-I: integration, 3D menu on by default
+
+Branch `m1-integrate` on `menu-3d` 20c87be. Census
+`746 lifted + 1331 SWINE-shared + 154 stubs (23 shell, 131 menu3d skeleton)`
+(was `728 + 1331 + 154`). The 3D menu world is now the default; `-nomenu3d`
+or `PZ_MENU3D=0` turns it off (docs/MENU3D_INTERFACES.md section 1).
+
+Runs from `scratchpad\m1i\run\` (`m1i_panzers.exe -nointro`, windowed):
+three runs of boot -> menu -> Options -> Esc -> Credits -> Esc -> Exit
+(exit code 0 each, no `crash.txt`), and a 5-minute idle at the menu
+(private bytes 104.9-105.4 MB, 594-599 handles, sampled every 30 s).
+
+Stubs hit on the default path (first-call names):
+
+| Stub | Owner | When |
+|---|---|---|
+| `SSuperWindow::Initialize Gepard render options (Gepard +0x10)` | shell | Initialize. Also why the scene renders as with `Shadows = 0` (Gepard option 2 stays 0) |
+| `DrawDebugPickerOverlayFromGepard`, `SVersion::GetVersionString (0x65c070)` | shell | as before |
+| `SScene::ClearSkybox (0x6aa9a0)` | A | KSYB (empty in menu.map) |
+| `SPSoundEffect (EffectType 5, 0x6ec900)`, `SPRain (EffectType 2, 0x6ea820)`, `SPSnowfall (EffectType 3, 0x6eb5e0)` | C | effect prototypes (sound, Rain.fx, Snowfall.fx in Initialize) |
+| `SGameLogic::SGameLogic (0x55e440)`, `SetRunning (0x5802f0)`, `~SGameLogic (0x55fe00)` | M2 | LoadMenuBackground / Exit |
+| `SGameLogic::Refresh (0x576d80)` | M2 | every 20 Hz tick; only its model part runs (`SWorld::RefreshModels`) |
+| `SGameLogic::UpdateUnitVisuals (0x5638f0)` | M2 | every frame |
+| `SScene::DrawSea (0x6b04d0)`, `DrawSkybox (0x6b7920)`, `DrawTerrainDecals (0x6ad0e0)`, `DrawTrails (0x6acf20)`, `DrawLakes (0x6ad740)`, `DrawWires (0x6b8b10)`, `DrawDecals2 (0x6b7b30)` | A | every frame (nothing to draw in menu.map, except the wires and the trails of moving units in M2) |
+
+No longer hit since M1-D: `SPixie::SPixie`, `SScene::SScene`, the scene
+light setters, `SGepard::LoadModelPrototype`, `SScene::CreateTerrain`,
+`CreateModelFromFile`, `SPixie::LoadEffectPrototype`,
+`PurgeModelPrototypes`, `SViewport::SetCamera` / `SetProjection` and the
+scene frame functions (all lifted by agents A and C). The world now also
+loads ROD2 / RODJ (no longer kept raw) and creates the EEFS effects, the
+map decals and the terrain layers (MENU3D_INTERFACES.md section 8).
+
 These stubs exist but were **not** hit on the boot-to-menu path:
 `SSettings::CHECKCDKEY (0x64d390)`;
 `CreateHostFromCommandLine (0x6576f0)`; `ConnectToHostFromCommandLine

@@ -28,11 +28,15 @@ static bool EnvFlag(const char* name, bool* value)
 
 void Menu3DParseCommandLine(int* argc, char** argv)
 {
-    bool menu3d = false;
+    bool menu3d = false, nomenu3d = false;
     int w = 1;
     for (int r = 1; r < *argc; ++r) {
         if (argv[r] && !_stricmp(argv[r], "-menu3d")) {
             menu3d = true;
+            continue;
+        }
+        if (argv[r] && !_stricmp(argv[r], "-nomenu3d")) {
+            nomenu3d = true;
             continue;
         }
         argv[w++] = argv[r];
@@ -44,6 +48,8 @@ void Menu3DParseCommandLine(int* argc, char** argv)
         g_Menu3D.World = true;
         g_Menu3D.Trace = true;
     }
+    if (nomenu3d)
+        g_Menu3D.World = false;
     if (EnvFlag("PZ_MENU3D", &v))
         g_Menu3D.World = v;
     if (EnvFlag("PZ_MENU3D_TRACE", &v))

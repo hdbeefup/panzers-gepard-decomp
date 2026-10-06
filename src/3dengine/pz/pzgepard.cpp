@@ -80,17 +80,33 @@ SGepardHDState& HD()
     return s_HD;
 }
 
-// Grass instances (agent B's flora pass): draw every mesh of the prototype
-// with the instance matrix (HD: prototype heap -> SPModel -> mesh vtbl +4).
+// PANZERS 0x6f33c0 (flora instance part, 0x6f3880..0x6f3a40)
+// Grass instances (agent B's flora pass). HD draws only node 0's mesh
+// (prototype -> Nodes[0] +0x44, mesh vtbl +4) with
+//   node 0 transform (+0x14, 3x4) [x Y<->Z when FlyZ] x scale 0.005
+//   (the constant 3x4 at 0x886ed0) x the instance rotation and position.
+// Without the node transform and the scale the grass was drawn 200 times
+// too large and covered the whole menu scene.
 static void DrawFloraInstance(SScene* scene, int proto, const float world[16])
 {
     SPModel* p = GepardModelPrototype(proto);
-    if (!p || !HD().Device)
+    if (!p || !HD().Device || p->NodeCount < 1 || !p->Nodes[0].Mesh)
         return;
-    HD().Device->SetTransform(D3DTS_WORLD, (const D3DMATRIX*)world);
-    for (int i = 0; i < p->NodeCount; ++i)
-        if (p->Nodes[i].Mesh)
-            p->Nodes[i].Mesh->Draw(scene);
+    float m[12];
+    memcpy(m, p->Nodes[0].Transform, sizeof(m));
+    if (p->FlyZ) {
+        static const float kFlyZ[12] = { 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0 };   // 0x8df834 (Y<->Z)
+        Mat34Mul(m, m, kFlyZ);
+    }
+    static const float kScale[12] = { 0.005f, 0, 0, 0, 0.005f, 0, 0, 0, 0.005f, 0, 0, 0 };   // 0x886ed0
+    Mat34Mul(m, m, kScale);
+    const float inst[12] = { world[0], world[1], world[2], world[4], world[5], world[6],
+                             world[8], world[9], world[10], world[12], world[13], world[14] };
+    Mat34Mul(m, m, inst);
+    float w44[16];
+    Mat34To44(w44, m);
+    HD().Device->SetTransform(D3DTS_WORLD, (const D3DMATRIX*)w44);
+    p->Nodes[0].Mesh->Draw(scene);
 }
 
 SIGepardHD* PzGepard()

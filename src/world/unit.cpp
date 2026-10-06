@@ -83,7 +83,7 @@ SUnit* SUnitType::CreateUnit(int worldIndex)
 
 SUnit::SUnit(SUnitType* type, int worldIndex)
     : Type(type), WorldIndex(worldIndex), Player(0), Dir(0.0f), Stored(false),
-      Model(nullptr), MemberCount(0)
+      Model(nullptr), MemberCount(0), Walker(false)
 {
     Pos[0] = Pos[1] = Pos[2] = 0.0f;
     for (int i = 0; i < 16; ++i)
@@ -103,14 +103,53 @@ static void PlaceUnitModel(SUnit* u)
     g_WorldStats.UnitModels++;
     if (u->Type->ModelProto < 0)
         return;
-    u->Model = g_Scene->CreateModelFromPrototype(u->Type->ModelProto, 0);   // scene +0x58
+    // Flag 1: a free-heap model. Flag 0 puts it on the scene's main heap
+    // (static doodads sorted into terrain cells), where SModel plays
+    // sequence 0 on the scene clock and soldiers lay down in their first
+    // sequence. HD animated models use 1 (SGameLogic::CreateAnimatedModel
+    // 0x5649e0, the walker attachments in 0x5ce2a0).
+    u->Model = g_Scene->CreateModelFromPrototype(u->Type->ModelProto, 1);   // scene +0x58
     if (!u->Model)
         return;
     g_WorldStats.UnitModelsOk++;
     u->Model->SetPosition(u->Pos[0], u->Pos[1], u->Pos[2]);       // model +0x18
     u->Model->SetRotation(u->Dir, 0.0f, 0.0f);                    // model +0x1c
-    if (u->Type->AnimationType == 2)                              // walker
-        u->Model->SetSequence(0, true);                           // idle: sequence 0 (assumed, M1)
+    if (u->Type->AnimationType == 2) {                            // walker
+        // SWalkerAnimation::InitModel 0x5c93a0: PlaySequence of
+        // GetGlobalStateStandText 0x5c7f90 ("%s_stand" over the unit's
+        // global state name; state 0 = "normal" for the placed menu units),
+        // no blend, then model +0x94 SetFlags(7) (interpolate position,
+        // nodes, and accumulate the animation per tick).
+        u->Model->PlaySequence("normal_stand", false);            // model +0x6c
+        u->Model->SetFlags(7);                                    // model +0x94
+        u->Walker = true;
+    }
+    if (u->Type->ClassType == UC_BUILDING) {
+        // SBuildingUnit init 0x548f20: the "Block" node (block-map
+        // footprint) is hidden, and "Indoor" for unit type 0x1a. (HD also
+        // hides "Indoor" when the type's +0x13c is 6; that field is not in
+        // the stand-in type.)
+        u->Model->SetNodeVisible(u->Model->FindNode("Block"), false);      // model +0x40 / +0x60
+        if (u->Type->UnitType == 0x1a)
+            u->Model->SetNodeVisible(u->Model->FindNode("Indoor"), false);
+    }
+    u->Model->SetVisible(true, false);                            // model +0x30(1, 0), UpdateModel 0x5ce2a0
+}
+
+// PANZERS 0x5ce2a0 (M1 subset)
+// SWalkerAnimation::UpdateModel, the idle path of one logic tick: the model
+// is shown (+0x30(1, 0): no fog of war on the menu, World+0x4d0 / no
+// SGameLogic visibility) and the stand sequence advances by one tick,
+// +0x70(0.05) (LAB_005ce5d7). Vehicles (SVehicleAnimation) only keep their
+// pose. The previous-tick pose is stored first, as SGameLogic::Refresh does
+// for doodads (model +0x3c), so the render interpolates between ticks.
+void SUnit::RefreshModel()
+{
+    if (!Model)
+        return;
+    Model->StoreInterpolationState();                             // model +0x3c
+    if (Walker)
+        Model->AdvanceAnimation(0.05f);                           // model +0x70
 }
 
 void SUnit::Initialize(SUnitDef* def)

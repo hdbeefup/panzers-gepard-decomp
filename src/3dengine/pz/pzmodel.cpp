@@ -389,10 +389,9 @@ float SModel::GetScale()
 // PANZERS 0x6dafd0
 // HD SetVisible(show, fade): +0xd4 visible; with fade, a 1 s alpha fade
 // (FadeState/FadeAlpha, finished in UpdateFade 0x6dc4f0).
-void SModel::SetSequence(unsigned sequence, bool fade)
+void SModel::SetVisible(bool show, bool fade)
 {
     PZ_TRACE("SModel::SetVisible (0x6dafd0)");
-    bool show = (char)sequence != 0;
     if (!fade) {
         if (Visible != show) {
             Visible = show;
@@ -732,7 +731,7 @@ void SModel::UpdateFade()
         float a = 1.0f - (now - FadeStart);
         FadeAlpha = a;
         if (a <= 0.0f)
-            SetSequence(0, false);   // vtbl +0x30: hide
+            SetVisible(false, false);   // vtbl +0x30: hide
     }
     if (NodeFadeState == 1) {
         float a = now - NodeFadeStart;

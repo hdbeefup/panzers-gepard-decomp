@@ -131,7 +131,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nS
         }
         __argc = w;
     }
-    // Recompile-only "-menu3d" (and PZ_MENU3D / PZ_MENU3D_TRACE): 3D menu
+    // Recompile-only "-menu3d" / "-nomenu3d" (and PZ_MENU3D / PZ_MENU3D_TRACE): 3D menu
     // world test hook, src/3dengine/pz/pztrace.cpp.
     pz::Menu3DParseCommandLine(&__argc, __argv);
 

@@ -167,6 +167,7 @@ struct SUnit {
     explicit SUnit(SUnitType* type, int worldIndex);
     virtual ~SUnit();
     void Initialize(SUnitDef* def);         // HD vtbl +0x08 (model placement only)
+    void RefreshModel();                    // HD 0x5ce2a0 subset (idle tick)
 
     SUnitType* Type;
     int        WorldIndex;
@@ -177,6 +178,7 @@ struct SUnit {
     struct SIModel* Model;
     int        Members[16];                 // squad members (world unit indices)
     int        MemberCount;
+    bool       Walker;                      // unit type Animation 2 (SWalkerAnimation)
 };
 
 } // namespace pz

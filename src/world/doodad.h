@@ -87,6 +87,74 @@ struct SEffectSite {
 
     void Load(SStream* s);          // 0x5f13e0 EFFE v100
     void Create();                  // 0x5ee9f0
+    void UpdatePosition();          // 0x6014e0
+};
+
+// ROD2 control point (0x5effd0, element 0x24).
+struct SRoadControlPoint {
+    float    X;                     // +0x00
+    float    Y;                     // +0x04 (not in the file)
+    float    Z;                     // +0x08
+    float    DirX;                  // +0x0c tangent
+    float    DirZ;                  // +0x10
+    float    F14;                   // +0x14
+    float    Length;                // +0x18 path length at this point (0x601c10)
+    int      _1c;
+    int      W;                     // +0x20 raw dword; bit 0 extends the road end by 1.5 x tangent
+};
+
+// HD road (World+0x73fc heap, element 0x48; ROD2 0x5f0a30).
+struct SMapRoad {
+    SString  Name;                  // +0x00 texture (no extension: Gepard +0x44 with alpha adds .tga)
+    int      Road;                  // +0x08 terrain +0x78 handle, -1
+    int      Texture;               // +0x0c Gepard +0x44(name, 1, 1), -1
+    void*    TerrainPoints;         // +0x10 SDArray<SRoadPoint> for the terrain
+    int      TerrainPointCount;     // +0x14
+    int      TerrainPointMax;       // +0x18
+    SRoadControlPoint* Points;      // +0x1c SDArray<SRoadControlPoint>
+    int      PointCount;            // +0x20
+    int      PointMax;              // +0x24
+    void*    PathPoints;            // +0x28 SDArray (0x14) Hermite samples for the path finder (M2)
+    int      PathPointCount;        // +0x2c
+    int      PathPointMax;          // +0x30
+    float    Step;                  // +0x34 file; terrain step = Step / 2
+    float    TexLength;             // +0x38 file, then texture width * 2 / 64
+    float    Width;                 // +0x3c texture height * 2 / 64
+    unsigned Flags;                 // +0x40
+
+    void Load(SStream* s);          // 0x5f0a30 element body
+    void Build(unsigned flags, bool create);   // 0x601c10 (terrain part)
+    void Release();                 // 0x5d5330
+};
+
+// HD road junction (World+0x7410 heap, element 0x68; RODJ 0x5f0b60 / 0x5f1590).
+struct SMapRoadJunction {
+    SString  Name;                  // +0x00 texture
+    int      Junction;              // +0x08 terrain +0x8c handle, -1
+    int      Texture;               // +0x0c
+    float    PointX, PointZ;        // +0x10 SRoadJunctionPoint handed to the terrain
+    float    PointDirX, PointDirZ;  // +0x18
+    unsigned char PointValid;       // +0x20
+    unsigned char _21[3];
+    int      _24;
+    float    X;                     // +0x28
+    float    Y;                     // +0x2c
+    float    Z;                     // +0x30
+    float    DirX;                  // +0x34
+    float    DirZ;                  // +0x38
+    float    F3c;                   // +0x3c
+    int      _40, _44;
+    int      I48;                   // +0x48
+    void*    Connections;           // +0x4c SDArray (0x34): road index +0x28, bool +0x30 (path finder, M2)
+    int      ConnectionCount;       // +0x50
+    int      ConnectionMax;         // +0x54
+    float    HalfX;                 // +0x58 file, then texture height / 64
+    float    HalfZ;                 // +0x5c file, then texture width / 64
+    unsigned Flags;                 // +0x60
+
+    void Load(SStream* s);          // 0x5f1590
+    void Build(unsigned flags);     // 0x6029b0 (terrain part)
+    void Release();                 // 0x5d5420
 };
 
 #if defined(_M_IX86)
@@ -100,6 +168,14 @@ static_assert(offsetof(SDoodad, LightCount) == 0xa4, "0x5d4e50 param_1[0x29]");
 static_assert(offsetof(SDoodad, _ac) == 0xac, "0x5f1100 +0xac");
 static_assert(sizeof(SDecal) == 0x1c, "DECS element 0x1c");
 static_assert(sizeof(SEffectSite) == 0x28, "EEFS element 0x2c");
+static_assert(sizeof(SRoadControlPoint) == 0x24, "ROD2 point 0x24");
+static_assert(sizeof(SMapRoad) == 0x44, "ROD2 element 0x48");
+static_assert(offsetof(SMapRoad, Step) == 0x34, "0x601c10 +0x34");
+static_assert(offsetof(SMapRoad, Flags) == 0x40, "0x5f0a30 elem +0x44");
+static_assert(sizeof(SMapRoadJunction) == 0x64, "RODJ element 0x68");
+static_assert(offsetof(SMapRoadJunction, X) == 0x28, "0x5f1590 +0x28");
+static_assert(offsetof(SMapRoadJunction, Connections) == 0x4c, "0x5eec00 +0x4c");
+static_assert(offsetof(SMapRoadJunction, Flags) == 0x60, "0x5f1590 +0x60");
 #endif
 
 // Helpers shared by the map readers: HD 0x5625a0 (file part of a path) and
