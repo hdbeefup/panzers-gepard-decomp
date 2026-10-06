@@ -1,0 +1,8 @@
+targets:
+  PANZERS:
+    filename: PANZERS.exe
+    source-root: src
+    hash:
+      sha256: 953ab3c6d5e540e974d092ac7c2f6912e6d9e03cee625e44d92d588e34ec3741
+    data-sources:
+      - reccmp-functions.csv

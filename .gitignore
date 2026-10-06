@@ -24,3 +24,6 @@ crash.txt
 # Python
 __pycache__/
 *.pyc
+
+# reccmp: machine-specific path to the original PANZERS.exe
+reccmp-user.yml

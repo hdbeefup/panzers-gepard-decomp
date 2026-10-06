@@ -50,8 +50,34 @@ src/core/mods.h. Build a mod build in a separate build directory:
   "SWidget::~SWidget: Children widgets should be removed first" (HD's
   SSuperWindow::OnDestroy forgets to delete the credits screen).
 
+Comparing with the original
+---------------------------
+
+reccmp (pip install reccmp) scores every lifted function against the HD
+PANZERS.exe. One-time setup: create `reccmp-user.yml` (gitignored) with the path
+to your original exe:
+
+    targets:
+      PANZERS:
+        path: 'D:/path/to/a/copy/of/PANZERS.exe'
+
+Optionally export the original's function extents once (Ghidra + pyghidra), which
+makes the scores more accurate:
+
+    python tools/ghidra/funcbounds.py --exe D:/path/to/PANZERS.exe --out build/pz_funcs.tsv
+
+Then, after a Release build:
+
+    python tools/reccmp_run.py
+
+This regenerates reccmp-functions.csv from the `// PANZERS 0xADDR` markers
+(tools/reccmp_gen.py), runs reccmp (build/reccmp-report.html/.json) and writes
+build/reccmp-rescore.tsv, the per-function drift table, worst first. See
+docs/RECCMP.md for how to read it.
+
 Docs:
-- docs/re/TRIAGE.md       HD exe triage: boot path, libraries, symbol sources
+- docs/RECCMP.md          reccmp setup, similarity buckets, worst functions, SWINE reuse check
+- docs/re/TRIAGE.md      HD exe triage: boot path, libraries, symbol sources
 - docs/FORMATS.md         pak, ini and menu.ini string table
 - docs/ENGINE_DIFF.md     Panzers HD vs SWINE engine: struct/vtable drift, renderer, sound
 - docs/MENU3D_INTERFACES.md  3D menu background: HD interfaces, Gepard facade, owners, -menu3d

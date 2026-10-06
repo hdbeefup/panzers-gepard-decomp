@@ -1,0 +1,5 @@
+project: reccmp-project.yml
+targets:
+  PANZERS:
+    path: build/src/main/Release/panzers.exe
+    pdb: build/src/main/Release/panzers.pdb
