@@ -34,6 +34,7 @@
 #include "worldapi.h"
 #include "world.h"
 #include "gamelogic.h"
+#include "pzunitregistry.h"
 
 #include "milesconcert.h"
 #if PANZERS_HAVE_BINK
@@ -57,14 +58,12 @@ void PzStub_LoadMapFromCommandLine(const char* map); // 0x5944d0 path in Play
 bool PzStub_CheckCDKey(const char* key);           // SSettings::CHECKCDKEY 0x64d390
 void PzStub_LoadMultiPreMenu();                    // 0x658a30
 void PzStub_LoadChatRoomView();                    // 0x658050
-void* PzStub_CreateUnitRegistry();                 // 0x5cfe30 -> SUnitRegistry::LoadUnitFiles 0x5d1050
-void PzStub_DestroyUnitRegistry(void* reg);        // 0x5d0c10
 void PzStub_LoadMenuWorld(SSuperWindow* sw);       // maps/menu.map world in 0x658690 (-menu3d off)
 void PzStub_SuperWindowAction(int action);         // OnAction cases beyond the main menu
 const char* PzStub_GetVersionString();             // SVersion::GetVersionString 0x65c070
 void PzStub_GepardRenderStates();                  // Gepard +0x10 render options in Initialize
 
-static void* s_UnitRegistry = nullptr;   // HD 0x929a4c (new 0x124)
+static pz::SUnitRegistry* s_UnitRegistry = nullptr;   // HD 0x929a4c (new 0x124)
 
 // ---------------------------------------------------------------------------
 
@@ -395,7 +394,11 @@ void SSuperWindow::Initialize()
                   pz::g_Menu3D.World ? "on" : "off", pz::g_Menu3D.Trace ? "on" : "off");
     if (pz::g_Menu3D.World)
         pz::g_Pixie = pz::PzGepard()->GetPixie();                  // Gepard +0x5c
-    s_UnitRegistry = PzStub_CreateUnitRegistry();   // new 0x124, 0x5cfe30
+    // HD: new 0x124, SUnitRegistry ctor 0x5cfe30 (LoadUnitFiles 0x5d1050 on
+    // units/, buildings/, units/ingame/). Only the 3D menu world reads unit
+    // data, so the default path (world off) does not scan the .unit files.
+    if (pz::g_Menu3D.World)
+        s_UnitRegistry = new pz::SUnitRegistry();
     if (!Settings.StartMultiFromCommandLine)
         LoadMenuBackground(true);            // 0x658690(1)
     if (SplashFrame >= 0) {
@@ -406,7 +409,7 @@ void SSuperWindow::Initialize()
 }
 
 // World part of SSuperWindow::LoadMenuBackground 0x658690 (taken when the 3D
-// menu world is on). OWNER: agent D; the callee bodies are skeletons.
+// menu world is on). OWNER: agent D.
 void SSuperWindow::LoadMenuWorld()
 {
     const char* map = "maps/menu.map";                             // 0x51de30
@@ -422,6 +425,7 @@ void SSuperWindow::LoadMenuWorld()
     MenuGameLogic = new pz::SGameLogic(0, -1, 0);                  // new 0x318, 0x55e440(0, -1, 0)
     MenuGameLogic->SetRunning(1);                                  // 0x5802f0(1)
     MenuWorld->HideLoadingIcon();                                  // 0x5dc7d0
+    pz::LogWorldStats("LoadMenuBackground");                       // recompile: M1 verification totals
 }
 
 // PANZERS 0x658690
@@ -720,7 +724,7 @@ void SSuperWindow::OnDestroy()
     for (int i = 0; i < 6; ++i)
         if (g_PzFont[i] >= 0) { Board->ReleaseFont(g_PzFont[i]); g_PzFont[i] = -1; }
     if (s_UnitRegistry) {
-        PzStub_DestroyUnitRegistry(s_UnitRegistry);   // 0x5d0c10 + delete 0x124
+        delete s_UnitRegistry;                     // 0x5d0c10 + delete 0x124
         s_UnitRegistry = nullptr;
     }
     if (Board && RootFrame >= 0) {

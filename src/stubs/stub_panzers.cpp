@@ -69,23 +69,6 @@ void PzStub_LoadChatRoomView()
     STUB_LOG("SSuperWindow::LoadChatRoomView (0x658050)");
 }
 
-// HD 0x5cfe30 (new 0x124): unit registry ctor, which calls
-// SUnitRegistry::LoadUnitFiles 0x5d1050 (exported). The main menu does not
-// read unit data; returns a dummy non-null handle.
-void* PzStub_CreateUnitRegistry()
-{
-    STUB_LOG("SUnitRegistry ctor + LoadUnitFiles (0x5cfe30 / 0x5d1050)");
-    static int dummy;
-    return &dummy;
-}
-
-// HD 0x5d0c10: unit registry dtor.
-void PzStub_DestroyUnitRegistry(void* reg)
-{
-    STUB_LOG("SUnitRegistry dtor (0x5d0c10)");
-    (void)reg;
-}
-
 // HD 0x658690 world part: maps/menu.map -> SWorld 0x5d2f90 (0x7538),
 // SWorld::LoadMap 0x5f1990, SGameLogic::SGameLogic 0x55e440 (0x318). The 3D
 // scene behind the main menu. Taken when the 3D menu world is off (default);

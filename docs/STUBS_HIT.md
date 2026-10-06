@@ -18,13 +18,13 @@ these runs from `scratchpad\p2d\run\` (windowed, HD data, no cutscene paks):
 | Stub (first-call name) | HD address it stands in for | When | Runs |
 |---|---|---|---|
 | `SSuperWindow::Initialize Gepard render options (Gepard +0x10)` | Gepard +0x10 calls in `SSuperWindow::Initialize` 0x657910 | Initialize | 2, 3 |
-| `SUnitRegistry ctor + LoadUnitFiles (0x5cfe30 / 0x5d1050)` | 0x5cfe30 and `SUnitRegistry::LoadUnitFiles` 0x5d1050 | Initialize | 2, 3 |
+| ~~`SUnitRegistry ctor + LoadUnitFiles (0x5cfe30 / 0x5d1050)`~~ (lifted in M1-D, see below) | 0x5cfe30 and `SUnitRegistry::LoadUnitFiles` 0x5d1050 | Initialize | 2, 3 |
 | `SSuperWindow::LoadMenuBackground maps/menu.map world (...)` | world part of 0x658690: 0x5d2f90 SWorld, 0x5f1990 SWorld::LoadMap, 0x55e440 SGameLogic::SGameLogic (not the camera) | Initialize / LoadMainMenu | 2, 3 |
 | `SVersion::GetVersionString (0x65c070)` | 0x65c070 (exported) over 0x65bbf0; returns "1.25" | LoadMenuBackground | 2, 3 |
 | `DrawDebugPickerOverlayFromGepard` | SWINE editor overlay (no HD counterpart) | every frame, SGepard::RenderScene | 2, 3 |
 | `SSuperWindow::OnAction unhandled action (0x659250)` | `SSuperWindow::OnAction` 0x659250, cases the shell does not handle | menu clicks: New Game, Load Game, Multiplayer, Tutorial, Training Camp (Options lifted in P3-Y, Credits in P3-X) | 2 |
 | `SSuperWindow::OnAction 0x4f564 Gepard/board graphics options (0x659250)` | renderer part of the 0x4f564 case: Gepard +0x10 SetOption 2/3/8/9/10, scene +0x104, board +0xc8 | Options > Graphics > Apply or Restore | P3-Y |
-| `SUnitRegistry dtor (0x5d0c10)` | 0x5d0c10 | OnDestroy on quit | 3 |
+| ~~`SUnitRegistry dtor (0x5d0c10)`~~ (lifted in M1-D) | 0x5d0c10 | OnDestroy on quit | 3 |
 
 P3-Y (branch `p3y-options`) lifted the Options screens. Its runs from
 `scratchpad\p3y\run\` (`p3y_panzers.exe -nointro`) went Options > Game
@@ -33,6 +33,50 @@ Autosave, pressed Graphics > Apply, used Esc, and quit through Exit. The only
 new stub hit is the graphics-options one above. `SSettings::Save (0x64fdd0)`
 is no longer a stub (lifted in `src/panzers/settings.cpp`), and Options no
 longer reaches the unhandled-action stub.
+
+
+## M1-D: the menu world (`-menu3d`)
+
+Branch `m1d-world` (agent D) on `menu-3d` 8643076. Census
+`336 lifted + 1331 SWINE-shared + 281 stubs (23 shell, 258 menu3d skeleton)`
+(was `275 + 1331 + 289 (25 shell, 264 menu3d)`).
+
+Runs from `scratchpad\m1d\run\` (`m1d_panzers.exe -nointro -menu3d`,
+windowed): boot to the menu, Credits, Esc back to the menu, Exit, click
+through the quit screens; exit code 0. A second run without `-menu3d` showed
+the default path unchanged (world off; it still hits the
+`SSuperWindow::LoadMenuBackground maps/menu.map world` stub).
+
+Removed: `SUnitRegistry ctor + LoadUnitFiles (0x5cfe30 / 0x5d1050)` and
+`SUnitRegistry dtor (0x5d0c10)`, now `pz::SUnitRegistry`
+(`src/world/unitregistry.cpp`). The registry is built only when the 3D menu
+world is on (611 unit types); the default path does not scan the `.unit`
+files. The `src/world` skeleton stubs `SWorld::SWorld`, `~SWorld`,
+`ShowLoadingIcon`, `HideLoadingIcon`, `LoadMap`, `Initialize` and
+`ComputeCamera` are lifted (`world.cpp`, `mapload.cpp`, `unit.cpp`).
+
+Stubs hit on the `-menu3d` path (first-call names), all owned by other
+agents or by M2, in call order:
+
+| Stub | Owner | When |
+|---|---|---|
+| `SPixie::SPixie (0x6941e0)` | C | Initialize (Gepard +0x5c) |
+| `SScene::SScene (0x69faf0)` | A | SWorld ctor (Gepard +0x0c) |
+| `SScene::SetAmbientLight` / `SetSunLight` / `SetFog` | A | SWorld ctor, WTHR (weather lights 0x6088f0) |
+| `SGepard::LoadModelPrototype (0x67db20)` | A | hero flags, unit types (returns -1) |
+| `SScene::ClearSkybox (0x6aa9a0)` | A | KSYB |
+| `SScene::CreateTerrain (0x6a9dd0)` | A/B | TERR HMAP (returns null; the world keeps its own buffers) |
+| `SScene::CreateModelFromFile (0x6a8d50)` | A | 144 doodads (returns null) |
+| `SPixie::LoadEffectPrototype (0x69dc80)` | C | doodad demolish effects, EEFS, Initialize |
+| `SPzGepard::PurgeModelPrototypes (0x678210)` | A | end of LoadMap |
+| `SGameLogic::SGameLogic (0x55e440)`, `SetRunning (0x5802f0)` | D (M2) | LoadMenuBackground |
+| `SGameLogic::Refresh (0x576d80)`, `UpdateUnitVisuals (0x5638f0)` | D (M2) | OnIdle (logged stubs by design) |
+| `SViewport::SetCamera (0x68d370)`, `SetProjection (0x68cfd0)` | A | ComputeCamera |
+| `SScene::PrepareViewport` / `UpdateViewport` / `RenderViewport` | A | frame |
+| `SGameLogic::~SGameLogic`, `SScene::~SScene`, `SPixie::~SPixie` | D (M2) / A / C | Exit / OnDestroy |
+| `SSuperWindow::Initialize Gepard render options`, `DrawDebugPickerOverlayFromGepard`, `SVersion::GetVersionString` | shell | as before |
+
+Not hit: `SWorld::Slot_04/08/0C/10`, `SWorld::ComputeCamera modes 1/2`.
 
 These stubs exist but were **not** hit on the boot-to-menu path:
 `SSettings::CHECKCDKEY (0x64d390)`;

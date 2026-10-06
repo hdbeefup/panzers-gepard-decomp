@@ -7,6 +7,11 @@ add_library(pzworld STATIC
     worldapi.cpp
     world.h
     world.cpp
+    doodad.h
+    mapload.cpp
+    pzunitregistry.h
+    unitregistry.cpp
+    unit.cpp
     gamelogic.h
     gamelogic.cpp
 )
