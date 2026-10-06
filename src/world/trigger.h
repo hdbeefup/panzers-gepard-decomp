@@ -134,11 +134,37 @@ struct STrigger {
     STriggerArray<STriggerAction>    Actions;      // +0x20 (0x5f01e0)
 };
 
-// SGameLogic+0x268 array element. Layout not decoded yet (agent L):
-// found-unit group, current action index, wait counter (+0x08), flags (|2 =
-// preserved, action 0x0a).
+// Found-unit group element (0x0c; SDArray 0x560d80 / 0x560790).
+struct SFoundUnit {
+    bool Flag;            // +0x00 cleared by 0x582770
+    unsigned char _01[3];
+    int  _04;             // +0x04
+    int  Unit;            // +0x08 world unit index
+};
+
+// Found-unit group (0x20): the units the conditions selected, and their
+// centre, spread and leader as computed by 0x582770. Running trigger +0x14.
+struct SFoundUnits {
+    float X;              // +0x00 mean position
+    float Z;              // +0x04
+    float RadiusSq;       // +0x08 4 * max squared distance from the centre (1048576 = too spread)
+    int   Kind;           // +0x0c 0xff, or the triggering unit's +0xd8 flags (conditions 6/10)
+    int   Leader;         // +0x10 unit picked by class priority (0x582770), -1 = none
+    SFoundUnit* Units;    // +0x14 SDArray
+    int   Count;          // +0x18
+    int   Max;            // +0x1c
+};
+
+// SGameLogic+0x268 array element (0x34). Built on the stack by the event
+// dispatchers (0x570cc0, 0x571280, ...), copied in by CheckConditions
+// 0x580600 when every condition holds, executed by RunTriggers 0x579ab0.
 struct SRunningTrigger {
-    unsigned char _00[0x34];
+    int   Trigger;        // +0x00 World+0x7474 index
+    int   Action;         // +0x04 next action (RunTriggers runs actions until a wait or the end)
+    int   Wait;           // +0x08 ticks left to wait
+    int   Unit;           // +0x0c triggering unit (events 1..8), -1
+    int   Unit2;          // +0x10 second unit (attacker, building), -1
+    SFoundUnits Found;    // +0x14
 };
 
 // Loads the whole TRIG chunk into World+0x7474 (0x5f0140). Agent L.
@@ -159,6 +185,10 @@ static_assert(offsetof(STriggerAction, Str1000) == 0x50, "0x5b2010 param_1[0x14]
 static_assert(offsetof(STriggerAction, P200000) == 0x60, "0x5b2010 param_1[0x18]");
 static_assert(offsetof(STrigger, Event) == 0x0c, "0x5f0140 +0x0c");
 static_assert(offsetof(STrigger, Actions) == 0x20, "0x5f01e0 +0x20");
+static_assert(sizeof(SFoundUnit) == 0x0c, "0x560790 stride 0x0c");
+static_assert(sizeof(SFoundUnits) == 0x20, "0x5604d0 copy");
+static_assert(offsetof(SRunningTrigger, Found) == 0x14, "0x580600 param_2 + 5");
+static_assert(offsetof(SRunningTrigger, Found.Count) == 0x2c, "0x579ab0 +0x2c");
 #endif
 
 } // namespace pz

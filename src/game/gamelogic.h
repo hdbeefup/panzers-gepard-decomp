@@ -24,12 +24,48 @@
 #include <stddef.h>
 #include "pz/pzcommon.h"
 #include "m2common.h"
+#include "string2.h"
 
 namespace pz {
 
 struct SIViewport;
 struct STrigger;
 struct SIUnit;
+struct SIModel;
+struct SRunningTrigger;
+struct SFoundUnits;
+
+// Movement group (SGameLogic+0x2dc SHeap element 0x28 = Next + 0x24). Agent L.
+struct SMovementGroupMember {
+    int   Unit;          // +0x00 world unit index
+    float DX;            // +0x04 offset from the group centre at order time
+    float DZ;            // +0x08
+    float DistSq;        // +0x0c squared distance to the target (0x56ff30 p5)
+};
+struct SMovementGroupElem {
+    int   Next;          // +0x00 kHeapLive = 0x7fffffff
+    SMovementGroupMember* Members; // +0x04 SDArray (0x10 each)
+    int   MemberCount;   // +0x08
+    int   MemberMax;     // +0x0c
+    float MoveSpeed;     // +0x10 GetMovementGroupMoveSpeed (slowest member)
+    int   SquadsGlobalState; // +0x14 lowest squad +0xec, 0 if not all squads (0x5800d0)
+    int   BossUnit;      // +0x18 world unit index (0x56adc0)
+    int   BiggestUnit;   // +0x1c world unit index (0x56acf0)
+    int   FormationDir2; // +0x20 SetMovementGroupFormationDir 0x57ffc0
+    bool  B24;           // +0x24 SetMovementGroupFormationDir 0x57ff40
+    bool  Convoy;        // +0x25 GetMovementGroupConvoy
+    unsigned char _26[2];
+};
+
+// Animated one-shot model (SGameLogic+0x2fc, 0x24 bytes; 0x5649e0 / 0x5822a0).
+struct SAnimatedModel {
+    SString Name;        // +0x00 model file
+    float   Pos[3];      // +0x08
+    float   Dir;         // +0x14 model +0x1c SetRotation(Dir, 0, 0)
+    SIModel* Model;      // +0x18
+    float   Time;        // +0x1c += 0.05 per tick
+    float   Duration;    // +0x20 the model's animation length
+};
 
 struct SGameLogic {
     SGameLogic(int p1, int p2, int p3);   // 0x55e440 (menu: 0, -1, 0); sets g_GameLogic
@@ -42,60 +78,103 @@ struct SGameLogic {
     // --- M2 (agent L). Steady-loop functions of the original menu.
     void RefreshM2();                     // the 0x576d80 single-player path (recompile split)
     void Tick_578b00();                   // per tick, before the frame loop
-    void Tick_578a70();                   // per tick
+    void Tick_578a70();                   // per tick: message lines (+0x5c/+0x78/+0x7c)
     void ProcessPacket(int frame, int p2);// 0x5737c0 per frame (SMulti absent: local frame)
-    void BeginFrame();                    // 0x571840 "Frame %d started with server CRC" (log level 1, MP only)
+    void BeginFrame();                    // 0x571840 new frame stream, world CRC into CrcHistory
     unsigned ComputeWorldCRC();           // 0x56aa10 rotl-xor over the live units (see iunit.h) ^ World+0x7518
-    void Tick_579390();                   // per frame
+    void Tick_579390();                   // 0x579390 CrcHistory.RemoveBottom
     void Tick_57dfe0();                   // per tick
-    void Tick_568af0();                   // per tick
-    void Tick_565e10(int p1);             // per tick, argument from table 0x7f6220[frame % 12]
-    void Tick_5822a0();                   // per tick, after the unit loop
+    void Tick_568af0();                   // per tick (scripted sequence, +0x2b8 only)
+    void Tick_565e10(int player);         // per tick, player from table 0x7f6220[frame % 12]
+    void Tick_5822a0();                   // 0x5822a0 animated models (+0x2fc): advance, drop when done
+    void CreateAnimatedModel(const char* file, float x, float y, float z, float dir);   // 0x5649e0
     int  GetFrame();                      // 0x56d1a0 (+0x08)
     bool IsPaused();                      // 0x56e150 (+0x288 || +0x2b8) (name guessed)
     bool CanSeeGroundUnit(int player, SIUnit* unit);   // 0x562760
 
     // Triggers (triggers.cpp).
-    void DispatchEverySecond();           // 0x570cc0 event 0
+    void DispatchEverySecond();           // 0x570cc0 event 0 (and Value += Step of every variable)
     void DispatchEnterLocation(int unit, int location);   // 0x571280 event 2
     void DispatchLeaveLocation(int unit, int location);   // 0x571470 event 3
     void Dispatch_571380(int p1, int p2); // 0x571380 (an event dispatcher; crew enters the jeep?)
-    void UpdateActiveLocations(int p1, int p2);           // 0x582080
-    bool CheckConditions(STrigger* trigger);              // 0x580600 (15 condition types)
-    void StartRunningTrigger(int p1);     // 0x579510 (name guessed)
+    void CollectActiveLocations();        // 0x5640b0 locations used by events 2/3 (+0x2f0)
+    void UpdateActiveLocations(SIUnit* unit, bool dispatch);   // 0x582080 (called by SUnit::ServerRefresh 0x5bee90)
+    void UpdateActiveLocationsAt(int unit, bool dispatch);     // 0x582080 by heap index (recompile)
+    void CheckConditions(SRunningTrigger* rt);            // 0x580600 (15 condition types); starts the trigger
+    void RemoveRunningTrigger(int index); // 0x579170
     void RunTriggers();                   // 0x579ab0 (76 action cases; menu: 1, 2, 3, 8, 0xa, 0x1e, 0x1f, 0x26, 0x29)
 
     // Orders and movement groups (movementgroup.cpp).
-    void GroupOrder(int p1, int p2, int p3, int p4, int p5, int p6);          // 0x56ff30
-    void MoveFoundUnitsToLocation(int p1, int p2, int p3, int p4, int p5, int p6);   // 0x57efd0
-    void ConvoyAlongPath(int p1, int p2); // 0x57e600
+    int  GroupOrder(bool convoy, int p3, SFoundUnits* group, bool p5, float x, float z);   // 0x56ff30
+    void MoveFoundUnitsToLocation(SFoundUnits* group, int command, const float* target, bool p4, bool queue, bool marker);   // 0x57efd0
+    void ConvoyAlongPath(int group, int path);            // 0x57e600
+    void RemoveUnitFromMovementGroup(int unit);           // 0x579510
     void SendConvoyMovementGroupFollowers(int group);     // 0x57e6f0
     int  GetMovementGroupConvoy(int group);               // 0x56af10
     float GetMovementGroupMoveSpeed(SIUnit* unit);        // 0x56b010
-    int  GetMovementGroupSquadsGlobalState(int group);    // 0x56b090
-    void GetMovementGroupUnitFormationPos(int unit, float* out);   // 0x56b240
+    int  GetMovementGroupBossUnit(int group);             // 0x56adc0 (unit index; HD returns the pointer)
+    int  GetMovementGroupBiggestUnit(int group);          // 0x56acf0 (unit index; HD returns the pointer)
+    int  GetMovementGroupSquadsGlobalState(int unit);     // 0x56b090 (HD takes the unit pointer)
+    void GetMovementGroupUnitFormationPos(int unit, float* out);   // 0x56b240 (HD takes the unit pointer)
     void SetMovementGroupBiggestUnit(int group);          // 0x57faf0
-    void SetMovementGroupBossUnit(int group, int p2, int p3, int p4);   // 0x57fcb0
+    void SetMovementGroupBossUnit(int group, int p2, float x, float z);   // 0x57fcb0
     void SetMovementGroupFormationDir(int group, int p2); // 0x57ff40
     void SetMovementGroupFormationDir2(int group, int p2);// 0x57ffc0 (same symbol in HD)
-    void RefreshMovementGroup(int group, int p2);         // 0x5800d0
+    void RefreshMovementGroup(int p3, int group);         // 0x5800d0
     void UpdateMovementGroupSlowestMoveSpeed(int group);  // 0x5824b0
 
     // Fields (HD offsets). Decoded so far:
-    int           Mode;              // +0x000 (non-zero: multiplayer/replay branches in Refresh)
-    int           Running;           // +0x004 SetRunning
+    int           Mode;              // +0x000 ctor p4 (non-zero: multiplayer/replay branches in Refresh)
+    int           Running;           // +0x004 SetRunning; logic frames per Refresh call
     int           Frame;             // +0x008 logic tick (GetFrame 0x56d1a0)
-    unsigned char _00c[0x020 - 0x00c];
-    void*         FrameObject;       // +0x020 per-tick object (new 0x30) of BeginFrame
-    unsigned char _024[0x02c - 0x024];
-    unsigned*     CrcHistory;        // +0x02c SDEQueue of world CRCs (+0x34 size, +0x38, +0x3c/+0x40 bounds)
-    unsigned char _030[0x268 - 0x030];
-    void*         RunningTriggers;   // +0x268 SDArray<SRunningTrigger> (0x34 each)
-    unsigned char _26c[0x288 - 0x26c];
+    int           _00c;              // +0x00c ctor 0
+    int           _010;              // +0x010 ctor 0
+    int           _014;              // +0x014 ctor -0x12f
+    int           TargetRingFx;      // +0x018 "effects/target_ring.fx" (pixie +0x10)
+    int           TankDustFx;        // +0x01c "effects/smoke/tank_goz.fx"
+    void*         FrameObject;       // +0x020 per-tick SStreamBuffer (new 0x30) of BeginFrame
+    bool          InFrameSync;       // +0x024 MP frame loop flag
+    unsigned char _025[3];
+    int           FramesSent;        // +0x028 +1 per BeginFrame in Refresh
+    unsigned*     CrcHistory;        // +0x02c SDEQueue<unsigned> of world CRCs (0x5610a0 push, 0x579390 pop)
+    int           CrcCount;          // +0x030
+    int           CrcMax;            // +0x034
+    int           CrcBase;           // +0x038
+    int           CrcTop;            // +0x03c (ctor -1)
+    int           CrcBottom;         // +0x040
+    unsigned char _044[0x05c - 0x044];
+    int           MessagePlayer;     // +0x05c ctor p2 (menu -1)
+    unsigned char _060[0x078 - 0x060];
+    int           MessageCount;      // +0x078 (0x578a70)
+    int           MessageTimer;      // +0x07c ctor 400
+    unsigned char _080[0x17c - 0x080];
+    int           MinimapFrame;      // +0x17c ctor p3 (menu -1: no minimap)
+    unsigned char _180[0x234 - 0x180];
+    int           PlayerTable[12];   // +0x234 ctor -1, then 0x565e10 per player
+    unsigned char _264[0x268 - 0x264];
+    SRunningTrigger* RunningTriggers;// +0x268 SDArray<SRunningTrigger> (0x34 each)
+    int           RunningTriggerCount; // +0x26c
+    int           RunningTriggerMax; // +0x270
+    unsigned char _274[0x288 - 0x274];
     bool          Flag288;           // +0x288 (IsPaused)
     unsigned char _289[0x2b8 - 0x289];
-    bool          Flag2b8;           // +0x2b8 (IsPaused)
-    unsigned char _2b9[0x318 - 0x2b9];
+    bool          Flag2b8;           // +0x2b8 (IsPaused; scripted sequence running)
+    unsigned char _2b9[0x2dc - 0x2b9];
+    SMovementGroupElem* MovementGroups; // +0x2dc SHeap<SMovementGroup> (element 0x28)
+    int           MovementGroupSize; // +0x2e0
+    int           MovementGroupMax;  // +0x2e4
+    int           MovementGroupFree; // +0x2e8 ctor -1
+    int           MovementGroupCount;// +0x2ec
+    int*          ActiveLocations;   // +0x2f0 SDArray<int> (0x5640b0, at most 32)
+    int           ActiveLocationCount; // +0x2f4
+    int           ActiveLocationMax; // +0x2f8
+    SAnimatedModel* AnimatedModels;  // +0x2fc SDArray<SAnimatedModel> (0x24 each, 0x5649e0 / 0x5822a0)
+    int           AnimatedModelCount;// +0x300
+    int           AnimatedModelMax;  // +0x304
+    int           _308;              // +0x308 ctor -1
+    unsigned char _30c[0x310 - 0x30c];
+    int           ShellFallFx;       // +0x310 "effects/sound/s_shell_fall.fx"
+    unsigned char _314[0x318 - 0x314];
 };
 PZ_HD_SIZE(SGameLogic, kHdSizeSGameLogic);
 #if defined(_M_IX86)
@@ -104,6 +183,15 @@ static_assert(offsetof(SGameLogic, FrameObject) == 0x020, "0x571840 +0x20");
 static_assert(offsetof(SGameLogic, CrcHistory) == 0x02c, "0x571840 +0x2c");
 static_assert(offsetof(SGameLogic, RunningTriggers) == 0x268, "RunTriggers +0x268");
 static_assert(offsetof(SGameLogic, Flag2b8) == 0x2b8, "0x56e150 +0x2b8");
+static_assert(offsetof(SGameLogic, CrcBottom) == 0x040, "0x5610a0 param_1[5]");
+static_assert(offsetof(SGameLogic, MessageTimer) == 0x07c, "0x578a70 +0x7c");
+static_assert(offsetof(SGameLogic, PlayerTable) == 0x234, "ctor param_1 + 0x8d");
+static_assert(offsetof(SGameLogic, MovementGroups) == 0x2dc, "0x579510 +0x2dc");
+static_assert(offsetof(SGameLogic, ActiveLocations) == 0x2f0, "0x582080 +0x2f0");
+static_assert(offsetof(SGameLogic, AnimatedModels) == 0x2fc, "0x5822a0 +0x2fc");
+static_assert(offsetof(SGameLogic, ShellFallFx) == 0x310, "ctor param_1[0xc4]");
+static_assert(sizeof(SMovementGroupElem) == 0x28, "SHeap<SMovementGroup> stride 0x28");
+static_assert(sizeof(SAnimatedModel) == 0x24, "0x5822a0 stride 0x24");
 #endif
 
 } // namespace pz

@@ -14,6 +14,7 @@
 #include "world.h"
 #include "worldapi.h"
 #include "pzunitregistry.h"
+#include "trigger.h"
 #include "pz/igepardhd.h"
 #include "pz/iscene.h"
 #include "pz/iviewport.h"
@@ -1077,7 +1078,7 @@ bool SWorld::LoadMap(SStream* stream, bool p2, int p3, int p4)
         g_WorldStats.Chunks++;
         switch (tag) {
         case 0x47495254:     // TRIG (0x5f0140; executed by SGameLogic in M2)
-            KeepRawChunk(s, tag, "triggers");
+            LoadTriggers(reinterpret_cast<STriggerArray<STrigger>*>(&Triggers), s);   // trigger.cpp (L)
             break;
         case 0x33524957:     // WIR3 (0x5f3d60 SWorld::LoadWires)
             KeepRawChunk(s, tag, "wires");
@@ -1133,8 +1134,8 @@ bool SWorld::LoadMap(SStream* stream, bool p2, int p3, int p4)
         case 0x52524554:     // TERR
             LoadTerrain(s);
             break;
-        case 0x53434f4c:     // LOCS (0x5f0690)
-            KeepRawChunk(s, tag, "locations");
+        case 0x53434f4c:     // LOCS
+            LoadLocations(s);                                     // 0x5f0690 (trigger.cpp, L)
             break;
         case 0x53544e45:     // ENTS
             LoadEntities(s);
@@ -1157,14 +1158,14 @@ bool SWorld::LoadMap(SStream* stream, bool p2, int p3, int p4)
             // HD then checks every live junction with 0x5f7fa0 (removes
             // the invalid ones through RemoveRoadJunction 0x5f7770).
             break;
-        case 0x48544150:     // PATH (0x5f07b0)
-            KeepRawChunk(s, tag, "paths");
+        case 0x48544150:     // PATH
+            LoadPaths(s);                                         // 0x5f07b0 (trigger.cpp, L)
             break;
         case 0x494e494d:     // MINI (0x669ca0 bitmap, 0x66ea40 load)
             KeepRawChunk(s, tag, "minimap bitmap");
             break;
-        case 0x52415654:     // TVAR (0x56e440)
-            KeepRawChunk(s, tag, "trigger variables");
+        case 0x52415654:     // TVAR
+            LoadTriggerVariables(s);                              // 0x56e440 (trigger.cpp, L)
             break;
         default: {
             char t[5];

@@ -84,6 +84,38 @@ struct SWeather {
     int Lite[20];          // +0x08
 };
 
+// HD map location (LOCS 0x5f0690, SHeap element 0x28 = Next + 0x24). The
+// rectangle is in world units, stored as ints; the triggers test
+// X1 < x < X2 and Z1 < z < Z2 (0x581ae0, 0x582080). Agent L.
+struct SLocation {
+    int     X1;            // +0x04 (element offsets)
+    int     Z1;            // +0x08
+    int     X2;            // +0x0c
+    int     Z2;            // +0x10
+    SString Name;          // +0x14
+    int     SceneObject;   // +0x1c -1 (scene +0x70 removes it, 0x5dd650)
+    int     Effect;        // +0x20 -1 (pixie +0x0c removes it)
+    int     Color;         // +0x24 (read; editor colour?)
+};
+
+// HD map path (PATH 0x5f07b0, SHeap element 0x20). Agent L.
+struct SPathPoint { float X, Z; };
+struct SPath {
+    SString Name;          // +0x04
+    int     P0c;           // +0x0c
+    bool    Closed;        // +0x10 (name guessed)
+    unsigned char _11[3];
+    SHdArray<SPathPoint> Points;   // +0x14 (0x5efd30)
+};
+
+// HD trigger variable (TVAR 0x56e440, SHeap element 0x14). Every second
+// (0x570cc0) Value += Step; trigger actions 3/8 set Value/Step. Agent L.
+struct STriggerVariable {
+    SString Name;          // +0x04
+    int     Value;         // +0x0c SWorld vtbl +4/+8 Get/SetTriggerVariableValue
+    int     Step;          // +0x10 added once per second
+};
+
 // pack(4): the double at +0x68 would make MSVC pad the vfptr to 8 bytes.
 #pragma pack(push, 4)
 struct SWorld {
@@ -128,6 +160,17 @@ struct SWorld {
     void SetWeather(int index, int blend);                     // 0x5fdc80
     void LoadPlayers(SStream* s);                              // 0x5f2ed0 PLY3
     void LoadCamera(const float* cam);                         // 0x5fd7c0 CAM
+    void LoadLocations(SStream* s);                            // 0x5f0690 LOCS (agent L, trigger.cpp)
+    void LoadPaths(SStream* s);                                // 0x5f07b0 PATH (agent L, trigger.cpp)
+    void LoadTriggerVariables(SStream* s);                     // 0x56e440 TVAR (agent L, trigger.cpp)
+
+    // Trigger variables (agent L, triggers.cpp). HD vtbl +4 / +8 (Slot_04 /
+    // Slot_08 above); the recompile calls these non-virtual bodies. Indices
+    // 0x40000014..0x40000027 are the per-player support counters.
+    int  GetTriggerVariableValue(int index, bool special);     // 0x5ec2a0
+    void SetTriggerVariableValue(int index, int value, bool special);   // 0x5fec80
+    void UpdateSpeech();                                       // 0x607f50 (agent L)
+    void RefreshBlockMapDirtyRect();                           // 0x604620 (agent L; name guessed)
 
     // Units (unit.cpp).
     int  CreateUnit(struct SUnitDef* def);                     // 0x5e2da0
@@ -196,7 +239,8 @@ struct SWorld {
     unsigned char _13d[3];
     SHeap<SDoodad> Doodads;              // +0x140 (element 200 bytes)
     SProperties*  ObjectsIni;            // +0x154 "objects.ini"
-    unsigned char _158[0x170 - 0x158];
+    unsigned char _158[0x16c - 0x158];
+    int           LocalPlayer;           // +0x16c the player at this machine (0x5737c0, 0x5638f0)
     unsigned char Players[12][0x48];     // +0x170 PLY3 (12 player slots)
     unsigned char _4d0[4];
     SUnitHeap     Units;                 // +0x4d4
@@ -224,7 +268,9 @@ struct SWorld {
     int           WireTearFx;            // +0x7428 "effects/extras/wiretear.fx"
     unsigned char _742c[0x7474 - 0x742c];
     SHdArray<STrigger> Triggers;         // +0x7474 TRIG (0x5f0140, element 0x2c; src/world/trigger.h)
-    unsigned char _7480[0x74bc - 0x7480];
+    SHeap<SLocation> Locations;          // +0x7480 LOCS (0x5f0690, element 0x28)
+    SHeap<SPath>     Paths;              // +0x7494 PATH (0x5f07b0, element 0x20)
+    SHeap<STriggerVariable> TriggerVariables; // +0x74a8 TVAR (0x56e440, element 0x14)
     void*         Minimap;               // +0x74bc MINI bitmap (not decoded in M1)
     int           LoadParam3;            // +0x74c0
     int           LoadParam4;            // +0x74c4
@@ -287,6 +333,12 @@ static_assert(offsetof(SWorld, Junctions) == 0x7410, "0x6043a0 +0x7410");
 static_assert(offsetof(SWorld, WireTearFx) == 0x7428, "Initialize +0x7428");
 static_assert(offsetof(SWorld, Triggers) == 0x7474, "TRIG 0x5f0140 +0x7474");
 static_assert(offsetof(SWorld, RandomSeed) == 0x7518, "0x56aa10 +0x7518");
+static_assert(offsetof(SWorld, Locations) == 0x7480, "LoadMap LOCS +0x7480");
+static_assert(offsetof(SWorld, Paths) == 0x7494, "LoadMap PATH +0x7494");
+static_assert(offsetof(SWorld, TriggerVariables) == 0x74a8, "LoadMap TVAR +0x74a8");
+static_assert(sizeof(SHeapElem<SLocation>) == 0x28, "LOCS stride 0x28");
+static_assert(sizeof(SHeapElem<SPath>) == 0x20, "PATH stride 0x20");
+static_assert(sizeof(SHeapElem<STriggerVariable>) == 0x14, "TVAR stride 0x14");
 static_assert(offsetof(SWorld, Minimap) == 0x74bc, "LoadMap MINI +0x74bc");
 static_assert(offsetof(SWorld, LoadAborted) == 0x74d4, "LoadMap +0x74d4");
 static_assert(offsetof(SWorld, LoadIconSet) == 0x74d8, "0x5edca0 +0x74d8");
