@@ -1,45 +1,11 @@
 // src/game/unit.cpp
-// pz::SUnit, the HD unit base class (0x5b2800..0x5c6300). OWNER: agent U.
+// pz::SUnit: the slots not lifted yet (logged stubs). OWNER: agent U.
+// The lifted bodies are in unitbase.cpp.
 
 #include "unit.h"
 #include "stub_log.h"
 
 namespace pz {
-
-SUnit::SUnit()
-{
-    PZ_M2_TRACE("SUnit::SUnit");
-}
-
-SUnit::~SUnit()
-{
-    STUB_LOG("SUnit::~SUnit (0x5b3730)");
-    PZ_M2_TRACE("SUnit::~SUnit (0x5b3730)");
-}
-
-void SUnit::Uninit()
-{
-    STUB_LOG("SUnit::Uninit (0x5b7e40)");
-    PZ_M2_TRACE("SUnit::Uninit (0x5b7e40)");
-}
-
-void SUnit::Init(SUnitDef* def)
-{
-    STUB_LOG("SUnit::Init (0x5ba8e0)");
-    PZ_M2_TRACE("SUnit::Init (0x5ba8e0)");
-    (void)def;
-}
-
-void SUnit::InitNew(int p1, int p2, int p3, int p4, int p5)
-{
-    STUB_LOG("SUnit::InitNew (0x5bace0)");
-    PZ_M2_TRACE("SUnit::InitNew (0x5bace0)");
-    (void)p1;
-    (void)p2;
-    (void)p3;
-    (void)p4;
-    (void)p5;
-}
 
 void SUnit::Slot_10()
 {
@@ -65,65 +31,16 @@ void SUnit::Slot_1C()
     PZ_M2_TRACE("SUnit::Slot_1C (0x5ba220)");
 }
 
-void SUnit::Hook20(int p1)
-{
-    STUB_LOG("SUnit::Hook20 (0x54cd40)");
-    PZ_M2_TRACE("SUnit::Hook20 (0x54cd40)");
-    (void)p1;
-}
-
-void SUnit::SetPosition(float x, float z, int p3, int p4)
-{
-    STUB_LOG("SUnit::SetPosition (0x5c1980)");
-    PZ_M2_TRACE("SUnit::SetPosition (0x5c1980)");
-    (void)x;
-    (void)z;
-    (void)p3;
-    (void)p4;
-}
-
 void SUnit::Slot_28()
 {
     STUB_LOG("SUnit::Slot_28 (0x5be2b0)");
     PZ_M2_TRACE("SUnit::Slot_28 (0x5be2b0)");
 }
 
-void SUnit::ServerRefresh(int frame)
-{
-    STUB_LOG("SUnit::ServerRefresh (0x5bee90)");
-    PZ_M2_TRACE("SUnit::ServerRefresh (0x5bee90)");
-    (void)frame;
-}
-
 void SUnit::Slot_30()
 {
     STUB_LOG("SUnit::Slot_30 (0x5bd900)");
     PZ_M2_TRACE("SUnit::Slot_30 (0x5bd900)");
-}
-
-void SUnit::RefreshTargeting()
-{
-    STUB_LOG("SUnit::RefreshTargeting (0x5bd600)");
-    PZ_M2_TRACE("SUnit::RefreshTargeting (0x5bd600)");
-}
-
-void SUnit::RefreshMisc()
-{
-    STUB_LOG("SUnit::RefreshMisc (0x5bdee0)");
-    PZ_M2_TRACE("SUnit::RefreshMisc (0x5bdee0)");
-}
-
-void SUnit::RefreshModel()
-{
-    STUB_LOG("SUnit::RefreshModel (0x5c6130)");
-    PZ_M2_TRACE("SUnit::RefreshModel (0x5c6130)");
-}
-
-void SUnit::UpdateVisuals(SIViewport* vp)
-{
-    STUB_LOG("SUnit::UpdateVisuals (0x5b76c0)");
-    PZ_M2_TRACE("SUnit::UpdateVisuals (0x5b76c0)");
-    (void)vp;
 }
 
 void SUnit::Slot_44()
@@ -138,21 +55,6 @@ void SUnit::Slot_48()
     PZ_M2_TRACE("SUnit::Slot_48 (0x5bcb60)");
 }
 
-void SUnit::Unplace()
-{
-    STUB_LOG("SUnit::Unplace (0x5ba850)");
-    PZ_M2_TRACE("SUnit::Unplace (0x5ba850)");
-}
-
-void SUnit::Place(float x, float z, float dir)
-{
-    STUB_LOG("SUnit::Place (0x5c5160)");
-    PZ_M2_TRACE("SUnit::Place (0x5c5160)");
-    (void)x;
-    (void)z;
-    (void)dir;
-}
-
 void SUnit::Slot_54()
 {
     STUB_LOG("SUnit::Slot_54 (0x546ab0)");
@@ -163,14 +65,6 @@ void SUnit::Slot_58()
 {
     STUB_LOG("SUnit::Slot_58 (0x5468d0)");
     PZ_M2_TRACE("SUnit::Slot_58 (0x5468d0)");
-}
-
-void SUnit::StoreUnit(int unit, int p2)
-{
-    STUB_LOG("SUnit::StoreUnit (0x5c30d0)");
-    PZ_M2_TRACE("SUnit::StoreUnit (0x5c30d0)");
-    (void)unit;
-    (void)p2;
 }
 
 void SUnit::Slot_60()
@@ -197,13 +91,6 @@ void SUnit::Slot_6C()
     PZ_M2_TRACE("SUnit::Slot_6C (0x5c2390)");
 }
 
-void SUnit::Remove(bool p1)
-{
-    STUB_LOG("SUnit::Remove (0x5c2df0)");
-    PZ_M2_TRACE("SUnit::Remove (0x5c2df0)");
-    (void)p1;
-}
-
 void SUnit::Slot_74()
 {
     STUB_LOG("SUnit::Slot_74 (0x5b5c10)");
@@ -222,24 +109,10 @@ void SUnit::Slot_7C()
     PZ_M2_TRACE("SUnit::Slot_7C (0x55ce60)");
 }
 
-bool SUnit::HasWoundedMember()
-{
-    STUB_LOG("SUnit::HasWoundedMember (0x54a240)");
-    PZ_M2_TRACE("SUnit::HasWoundedMember (0x54a240)");
-    return false;
-}
-
 void SUnit::Slot_84()
 {
     STUB_LOG("SUnit::Slot_84 (0x5c0fa0)");
     PZ_M2_TRACE("SUnit::Slot_84 (0x5c0fa0)");
-}
-
-int SUnit::GetRank()
-{
-    STUB_LOG("SUnit::GetRank (0x5b9e60)");
-    PZ_M2_TRACE("SUnit::GetRank (0x5b9e60)");
-    return 0;
 }
 
 void SUnit::Slot_8C()
@@ -272,13 +145,6 @@ void SUnit::Slot_9C()
     PZ_M2_TRACE("SUnit::Slot_9C (0x5c1d40)");
 }
 
-void SUnit::SetCurrentTarget(STarget* target)
-{
-    STUB_LOG("SUnit::SetCurrentTarget (0x5c0d10)");
-    PZ_M2_TRACE("SUnit::SetCurrentTarget (0x5c0d10)");
-    (void)target;
-}
-
 void SUnit::Slot_A4()
 {
     STUB_LOG("SUnit::Slot_A4 (0x5b8ab0)");
@@ -291,56 +157,16 @@ void SUnit::Slot_A8()
     PZ_M2_TRACE("SUnit::Slot_A8 (0x5ba3e0)");
 }
 
-void SUnit::EC_Move(int p1, int p2, int p3, bool p4, int p5)
-{
-    STUB_LOG("SUnit::EC_Move (0x5b8ea0)");
-    PZ_M2_TRACE("SUnit::EC_Move (0x5b8ea0)");
-    (void)p1;
-    (void)p2;
-    (void)p3;
-    (void)p4;
-    (void)p5;
-}
-
 void SUnit::Slot_B0()
 {
     STUB_LOG("SUnit::Slot_B0 (0x5b8d20)");
     PZ_M2_TRACE("SUnit::Slot_B0 (0x5b8d20)");
 }
 
-void SUnit::EC_MoveAlongPath(int path, int p2, int p3)
-{
-    STUB_LOG("SUnit::EC_MoveAlongPath (0x5b8e20)");
-    PZ_M2_TRACE("SUnit::EC_MoveAlongPath (0x5b8e20)");
-    (void)path;
-    (void)p2;
-    (void)p3;
-}
-
-void SUnit::EC_Follow(int unit, int p2)
-{
-    STUB_LOG("SUnit::EC_Follow (0x5b8ba0)");
-    PZ_M2_TRACE("SUnit::EC_Follow (0x5b8ba0)");
-    (void)unit;
-    (void)p2;
-}
-
 void SUnit::Slot_BC()
 {
     STUB_LOG("SUnit::Slot_BC (0x5b9370)");
     PZ_M2_TRACE("SUnit::Slot_BC (0x5b9370)");
-}
-
-void SUnit::Stop()
-{
-    STUB_LOG("SUnit::Stop (0x5b91b0)");
-    PZ_M2_TRACE("SUnit::Stop (0x5b91b0)");
-}
-
-void SUnit::ClearTargets()
-{
-    STUB_LOG("SUnit::ClearTargets (0x5b90b0)");
-    PZ_M2_TRACE("SUnit::ClearTargets (0x5b90b0)");
 }
 
 void SUnit::Slot_C8()
@@ -395,12 +221,6 @@ void SUnit::Slot_E8()
 {
     STUB_LOG("SUnit::Slot_E8 (0x5b8440)");
     PZ_M2_TRACE("SUnit::Slot_E8 (0x5b8440)");
-}
-
-void SUnit::StopGunners()
-{
-    STUB_LOG("SUnit::StopGunners (0x5b9110)");
-    PZ_M2_TRACE("SUnit::StopGunners (0x5b9110)");
 }
 
 void SUnit::Slot_F0()
@@ -493,13 +313,6 @@ void SUnit::Slot_128()
     PZ_M2_TRACE("SUnit::Slot_128 (0x5b88d0)");
 }
 
-void SUnit::SetBehavior(int behavior)
-{
-    STUB_LOG("SUnit::SetBehavior (0x5b8960)");
-    PZ_M2_TRACE("SUnit::SetBehavior (0x5b8960)");
-    (void)behavior;
-}
-
 void SUnit::Slot_130()
 {
     STUB_LOG("SUnit::Slot_130 (0x54cd50)");
@@ -590,12 +403,6 @@ void SUnit::Slot_168()
     PZ_M2_TRACE("SUnit::Slot_168 (0x5b9360)");
 }
 
-void SUnit::StoreInterpolationState()
-{
-    STUB_LOG("SUnit::StoreInterpolationState (0x5b5ad0)");
-    PZ_M2_TRACE("SUnit::StoreInterpolationState (0x5b5ad0)");
-}
-
 void SUnit::Slot_170()
 {
     STUB_LOG("SUnit::Slot_170 (0x5b9e30)");
@@ -614,36 +421,6 @@ void SUnit::Slot_178()
     PZ_M2_TRACE("SUnit::Slot_178 (0x5b9d90)");
 }
 
-float SUnit::GetMaxRange(int weapon)
-{
-    STUB_LOG("SUnit::GetMaxRange (0x5b9f60)");
-    PZ_M2_TRACE("SUnit::GetMaxRange (0x5b9f60)");
-    (void)weapon;
-    return 0.0f;
-}
-
-float SUnit::GetMinRange(int weapon)
-{
-    STUB_LOG("SUnit::GetMinRange (0x5b9f90)");
-    PZ_M2_TRACE("SUnit::GetMinRange (0x5b9f90)");
-    (void)weapon;
-    return 0.0f;
-}
-
-float SUnit::GetSightRange()
-{
-    STUB_LOG("SUnit::GetSightRange (0x5ba240)");
-    PZ_M2_TRACE("SUnit::GetSightRange (0x5ba240)");
-    return 0.0f;
-}
-
-float SUnit::GetExtra188()
-{
-    STUB_LOG("SUnit::GetExtra188 (0x548230)");
-    PZ_M2_TRACE("SUnit::GetExtra188 (0x548230)");
-    return 0.0f;
-}
-
 void SUnit::Slot_18C()
 {
     STUB_LOG("SUnit::Slot_18C (0x548380)");
@@ -660,70 +437,6 @@ void SUnit::Slot_194()
 {
     STUB_LOG("SUnit::Slot_194 (0x55e330)");
     PZ_M2_TRACE("SUnit::Slot_194 (0x55e330)");
-}
-
-void SUnit::SetOnBlockMap(bool on)
-{
-    STUB_LOG("SUnit::SetOnBlockMap (0x5bc660)");
-    PZ_M2_TRACE("SUnit::SetOnBlockMap (0x5bc660)");
-    (void)on;
-}
-
-void SUnit::Slot_19C()
-{
-    STUB_LOG("SUnit::Slot_19C (0x5b74c0)");
-    PZ_M2_TRACE("SUnit::Slot_19C (0x5b74c0)");
-}
-
-void SUnit::MarkBlockMap(bool on, int p2, int p3, int p4, short p5)
-{
-    STUB_LOG("SUnit::MarkBlockMap (0x5bc6d0)");
-    PZ_M2_TRACE("SUnit::MarkBlockMap (0x5bc6d0)");
-    (void)on;
-    (void)p2;
-    (void)p3;
-    (void)p4;
-    (void)p5;
-}
-
-int SUnit::TestBlockMapPath(int p1, int p2, int p3, int p4, short p5, int p6, int p7)
-{
-    STUB_LOG("SUnit::TestBlockMapPath (0x5b7520)");
-    PZ_M2_TRACE("SUnit::TestBlockMapPath (0x5b7520)");
-    (void)p1;
-    (void)p2;
-    (void)p3;
-    (void)p4;
-    (void)p5;
-    (void)p6;
-    (void)p7;
-    return 0;
-}
-
-int SUnit::TestBlockMap(int p1, int p2, int p3, int p4, short p5)
-{
-    STUB_LOG("SUnit::TestBlockMap (0x5b7500)");
-    PZ_M2_TRACE("SUnit::TestBlockMap (0x5b7500)");
-    (void)p1;
-    (void)p2;
-    (void)p3;
-    (void)p4;
-    (void)p5;
-    return 0;
-}
-
-void SUnit::RestoreBehavior()
-{
-    STUB_LOG("SUnit::RestoreBehavior (0x546ac0)");
-    PZ_M2_TRACE("SUnit::RestoreBehavior (0x546ac0)");
-}
-
-float SUnit::GetMoveSpeed(int p1)
-{
-    STUB_LOG("SUnit::GetMoveSpeed (0x5b9ed0)");
-    PZ_M2_TRACE("SUnit::GetMoveSpeed (0x5b9ed0)");
-    (void)p1;
-    return 0.0f;
 }
 
 void SUnit::Slot_1B4()
@@ -749,19 +462,6 @@ void SUnit::ServerRefreshMedic(float dt)
     STUB_LOG("SUnit::ServerRefreshMedic (0x5bfa50)");
     PZ_M2_TRACE("SUnit::ServerRefreshMedic (0x5bfa50)");
     (void)dt;
-}
-
-void SUnit::SetUnitSize()
-{
-    STUB_LOG("SUnit::SetUnitSize (0x5c21d0)");
-    PZ_M2_TRACE("SUnit::SetUnitSize (0x5c21d0)");
-}
-
-void SUnit::GetCenterPosition(float* out)
-{
-    STUB_LOG("SUnit::GetCenterPosition (0x5b9d40)");
-    PZ_M2_TRACE("SUnit::GetCenterPosition (0x5b9d40)");
-    (void)out;
 }
 
 } // namespace pz

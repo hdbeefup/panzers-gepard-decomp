@@ -48,13 +48,13 @@ struct SIUnit {
     virtual ~SIUnit() {}                                // +0x00 HD 0x5b3730 (1 arg dwords) [menu: periodic<1/s via SSingleUnit 0x5aaa00] scalar deleting dtor
     virtual void Uninit() = 0;                                   // +0x04 HD 0x5b7e40 (0 arg dwords) [menu: periodic<1/s] (name guessed) once per removed unit (159 calls = SWorld::RemoveUnit count); stops the unit effects (pixie +0x34)
     virtual void Init(SUnitDef* def) = 0;                        // +0x08 HD 0x5ba8e0 (1 arg dwords) [menu: periodic<1/s] SSingleUnit::Init (0x5ad150); placed (UNDS) and CREATEd units
-    virtual void InitNew(int p1, int p2, int p3, int p4, int p5) = 0; // +0x0c HD 0x5bace0 (5 arg dwords) [menu: periodic<1/s] SSingleUnit::Init (0x5ad9f0), the second overload; squad members and crews
+    virtual void InitNew(int player, const float* pos, float dir, int p4, float hp) = 0; // +0x0c HD 0x5bace0 (5 arg dwords) [menu: periodic<1/s] SSingleUnit::Init (0x5ad9f0), the second overload; squad members and crews (SWorld::CreateUnit 0x5e3170)
     virtual void Slot_10() = 0;                                  // +0x10 HD 0x5bc2d0 (2 arg dwords) symbol: SUnit::MakeDescription
     virtual void Slot_14() = 0;                                  // +0x14 HD 0x5bb1c0 (0 arg dwords)
     virtual void Slot_18() = 0;                                  // +0x18 HD 0x5baf30 (0 arg dwords)
     virtual void Slot_1C() = 0;                                  // +0x1c HD 0x5ba220 (2 arg dwords)
     virtual void Hook20(int p1) = 0;                             // +0x20 HD 0x54cd40 (1 arg dwords) [menu: periodic<1/s] (name guessed) empty in every menu class; 30 calls
-    virtual void SetPosition(float x, float z, int p3, int p4) = 0; // +0x24 HD 0x5c1980 (4 arg dwords) [menu: periodic<1/s] teleport: RunTriggers case 0x26 calls unit +0x24
+    virtual void SetPosition(float x, float z, int dirBits, int yrelBits) = 0; // +0x24 HD 0x5c1980 (4 arg dwords) [menu: periodic<1/s] teleport: RunTriggers case 0x26 calls unit +0x24 (block map off, pos +0x8c/+0x94, dir +0xb0, +0x88, +0x3c, +0x16c, block map on)
     virtual void Slot_28() = 0;                                  // +0x28 HD 0x5be2b0 (0 arg dwords)
     virtual void ServerRefresh(int frame) = 0;                   // +0x2c HD 0x5bee90 (1 arg dwords) [menu: >=20/s] SUnit::ServerRefresh; per tick from SGameLogic::Refresh (returns at once if +0x84 == frame)
     virtual void Slot_30() = 0;                                  // +0x30 HD 0x5bd900 (0 arg dwords)
@@ -68,7 +68,7 @@ struct SIUnit {
     virtual void Place(float x, float z, float dir) = 0;         // +0x50 HD 0x5c5160 (3 arg dwords) [menu: periodic<1/s] (name guessed) +0x168 = 0, pos +0x8c/+0x94, dir +0xb0, then +0x3c and +0x16c; CREATE
     virtual void Slot_54() = 0;                                  // +0x54 HD 0x546ab0 (0 arg dwords)
     virtual void Slot_58() = 0;                                  // +0x58 HD 0x5468d0 (1 arg dwords)
-    virtual void StoreUnit(int unit, int p2) = 0;                // +0x5c HD 0x5c30d0 (2 arg dwords) [menu: periodic<1/s] SUnit::StoreUnit (crew into the jeep)
+    virtual bool StoreUnit(int unit, int mode) = 0;              // +0x5c HD 0x5c30d0 (2 arg dwords) [menu: periodic<1/s] SUnit::StoreUnit (crew into the jeep); false when the unit does not fit
     virtual void Slot_60() = 0;                                  // +0x60 HD 0x5468c0 (1 arg dwords)
     virtual void Slot_64() = 0;                                  // +0x64 HD 0x5c51d0 (1 arg dwords)
     virtual void Slot_68() = 0;                                  // +0x68 HD 0x5c6000 (0 arg dwords)
@@ -85,10 +85,10 @@ struct SIUnit {
     virtual void Slot_94() = 0;                                  // +0x94 HD 0x5c4080 (7 arg dwords) symbol: SUnit::TakeDamage
     virtual void Slot_98() = 0;                                  // +0x98 HD 0x5c5050 (1 arg dwords)
     virtual void Slot_9C() = 0;                                  // +0x9c HD 0x5c1d40 (1 arg dwords)
-    virtual void SetCurrentTarget(STarget* target) = 0;          // +0xa0 HD 0x5c0d10 (2 arg dwords) [menu: periodic<1/s] SPanzersSquadUnit::SetCurrentTarget (0x59f580)
+    virtual void SetCurrentTarget(STarget* target, int p2) = 0;  // +0xa0 HD 0x5c0d10 (2 arg dwords) [menu: periodic<1/s] SPanzersSquadUnit::SetCurrentTarget (0x59f580); takes a reference into +0x1f4
     virtual void Slot_A4() = 0;                                  // +0xa4 HD 0x5b8ab0 (2 arg dwords) symbol: SSingleUnit::EC_Default
     virtual void Slot_A8() = 0;                                  // +0xa8 HD 0x5ba3e0 (1 arg dwords)
-    virtual void EC_Move(int p1, int p2, int p3, bool p4, int p5) = 0; // +0xac HD 0x5b8ea0 (5 arg dwords) [menu: periodic<1/s] (name guessed) new STarget (0x38) at a position
+    virtual void EC_Move(int xBits, int zBits, int p3, bool p4, int p5) = 0; // +0xac HD 0x5b8ea0 (5 arg dwords) [menu: periodic<1/s] (name guessed) new STarget (0x38) type 2 at (x, z) (type 3 + p5 when p4) into +0x1f8, then +0xa0(target, p3)
     virtual void Slot_B0() = 0;                                  // +0xb0 HD 0x5b8d20 (5 arg dwords)
     virtual void EC_MoveAlongPath(int path, int p2, int p3) = 0; // +0xb4 HD 0x5b8e20 (3 arg dwords) [menu: periodic<1/s] (name guessed) new STarget type 2 (+0x30 path, +0x34), STarget::ConsumePath; convoy
     virtual void EC_Follow(int unit, int p2) = 0;                // +0xb8 HD 0x5b8ba0 (2 arg dwords) [menu: periodic<1/s] SUnit::EC_Follow

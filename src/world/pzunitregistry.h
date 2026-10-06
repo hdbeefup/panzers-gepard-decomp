@@ -1,13 +1,11 @@
 // src/world/pzunitregistry.h
-// SUnitRegistry (HD 0x124 bytes, global HD 0x929a4c), its unit types and the
-// map's unit definitions (UNTD). OWNER: agent D. Lifted from the HD exe.
+// SUnitRegistry (HD 0x124 bytes, global HD 0x929a4c), the map's unit
+// definitions (UNTD) and the typed variable loader. OWNER: agent U (M2;
+// lifted by agent D in M1). Lifted from the HD exe.
 //
-// M1 scope: the registry (file scan, entries, sorting, side by name prefix,
-// GetPUnit) is lifted. The HD unit type classes (SPUnit family, 0x140..0x178
-// bytes, ctors 0x5a4900..0x5a4db0, Load through the property tree of agent C's
-// SPropertyStruct) are NOT lifted yet: SUnitType below is a reduced stand-in
-// that keeps the HD fields the menu needs at their HD offsets and reads the
-// model names straight from the .unit SProperties file.
+// The registry entries hold the HD unit prototypes (pz::SPUnit family,
+// src/game/punit.h), loaded from the .unit property trees
+// (src/game/unitprops.h).
 
 #ifndef PZ_UNITREGISTRY_H
 #define PZ_UNITREGISTRY_H
@@ -15,13 +13,13 @@
 #include <stddef.h>
 #include "pz/pzcommon.h"
 #include "string2.h"
+#include "punit.h"
 
 struct SStream;
 struct SProperties;
 
 namespace pz {
 
-struct SMenuUnit;
 struct SUnitDef;
 
 // HD unit class types (Unit.Common.ClassType; switch in LoadUnitFiles).
@@ -37,36 +35,15 @@ enum EUnitClass {
     UC_10 = 10,              // new 0x14c, 0x5a4b30
 };
 
-// M1 stand-in for the HD SPUnit family. HD offsets are kept for the fields the
-// registry touches (+0x40 class type, +0x48 side, +0x60 name, +0x68/+0x70
-// units.ini names, +0xdd loaded). Not HD-sized.
+// Recompile-only legacy declaration: the M1 stand-in prototype. Nothing
+// creates it any more (the registry holds SPUnit); it stays declared because
+// agent L's stand-in code path (triggersunits.h, compiled but never taken
+// once the heap holds SUnit) names its fields. No definitions exist.
 struct SUnitType {
-    SUnitType();
-    virtual ~SUnitType();                      // HD vtbl +0x00 (scalar deleting dtor)
-    virtual void LoadHeader(SProperties* p);    // HD vtbl +0x04 (property tree "Unit")
-    virtual void Load(SProperties* p);          // HD vtbl +0x08 (full load: models, weapons, ...)
-    virtual SMenuUnit* CreateUnit(int worldIndex);  // HD vtbl +0x10
-
-    unsigned char _04[0x40 - 0x04];
-    int      ClassType;           // +0x40 Unit.Common.ClassType
-    int      UnitType;            // +0x44 Unit.Common.UnitType
-    int      Side;                // +0x48 0 Ge/Hu, 1 US/GB/Fr, 2 SU/Yu, 4 Pl, 6 none
-    unsigned char _4c[0x60 - 0x4c];
-    SString  Name;                // +0x60
-    SString  IniName68;           // +0x68 units.ini section (Building: GetText "Building")
-    SString  IniName70;           // +0x70
-    unsigned char _78[0xdd - 0x78];
-    bool     Loaded;              // +0xdd set by Load
-    unsigned char _de[2];
-
-    // M1 data (recompile only, read from the .unit file in Load).
-    SString  ModelName;           // Unit.Common.ModelName
-    SString  WreckModelName;      // Unit.Common.WreckModelName
-    SString  SquadMemberName;     // ...Panzers Squad Unit.SquadMemberName
-    int      SquadMaxUnits;       // ...Panzers Squad Unit.MaxNumberOfUnits
-    int      AnimationType;       // Unit.Animation (2 walker, 4 squad, 5 building, ...)
-    int      ModelProto;          // Gepard +0x20 (ModelName)
-    int      WreckProto;          // Gepard +0x20 (WreckModelName)
+    int      ClassType;
+    int      UnitType;
+    SString  Name;
+    int      AnimationType;
 };
 
 // HD registry entry (SDArray element 0x20).
@@ -74,7 +51,7 @@ struct SUnitRegistryEntry {
     SString    Name;              // +0x00 file name without extension ("US Sherman")
     SString    FileName;          // +0x08 file name with extension
     SString    Path;              // +0x10 dir + file name (sort key)
-    SUnitType* Type;              // +0x18
+    SPUnit*    Type;              // +0x18 prototype (CreatePUnit by Unit.Common.ClassType)
     bool       Enabled;           // +0x1c
     bool       InGame;            // +0x1d LoadUnitFiles param 2 ("units/ingame/")
     unsigned char _1e[2];
@@ -84,12 +61,49 @@ struct SUnitRegistry {
     SUnitRegistryEntry* Entries;  // +0x00 SDArray {array, size, max}
     int  Count;                   // +0x04
     int  Max;                     // +0x08
-    unsigned char _0c[0x124 - 0x0c];   // unitvariables.ini [Game] constants (damage, XP, prices; M2)
+    // unitvariables.ini [Game] constants (0x5cfe30), ranges already * 0.5.
+    float DamageBulletToUnarmoured;    // +0x0c
+    float DamageBulletToArmoured;      // +0x10
+    float DamageBulletToBuilding;      // +0x14
+    float DamageATToInfantry;          // +0x18
+    float DamageATToBuilding;          // +0x1c
+    float DamageHEToInfantry;          // +0x20
+    float DamageHEToArmoured;          // +0x24
+    float DamageHEToBuilding;          // +0x28
+    float DamageFireToUnarmoured;      // +0x2c
+    float DamageFireToArmoured;        // +0x30
+    float DamageFireToBuilding;        // +0x34
+    float ThermoOut;                   // +0x38
+    float ThermoIn;                    // +0x3c
+    float ThermoDecrease;              // +0x40
+    int   XpLevel[4];                  // +0x44 XpLevel_1..4 (SUnit::GetRank 0x5b9e60)
+    int   SquadHpLevel[5];             // +0x54
+    int   HearingRange[5];             // +0x68
+    float SquadDamageBonus[5];         // +0x7c
+    float CrewDamageBonus[5];          // +0x90
+    int   PriceGrenade;                // +0xa4
+    int   PriceMolotov;                // +0xa8
+    int   PriceBoat;                   // +0xac
+    int   PriceTankMine;               // +0xb0
+    int   PriceMineDetector;           // +0xb4
+    int   PriceExplosives;             // +0xb8
+    int   PriceMagneticMine;           // +0xbc
+    int   PriceBinoculars;             // +0xc0
+    int   GrenadeMaxRange[5];          // +0xc4
+    int   CarriedMine[5];              // +0xd8
+    int   MineDetectorRange[4];        // +0xec
+    float ExplosivesDamageBonus[4];    // +0xfc
+    int   BinocularsRange;             // +0x10c (SUnit::GetSightRange 0x5ba240)
+    int   RainHearing;                 // +0x110
+    int   AllUnitsMaxNumber;           // +0x114
+    int   TankMaxNumber;               // +0x118
+    int   ArtilleryMaxNumber;          // +0x11c
+    int   SupportMaxNumber;            // +0x120
 
     SUnitRegistry();                                        // 0x5cfe30
     ~SUnitRegistry();                                       // 0x5d0c10
     void LoadUnitFiles(const char* dir, bool inGame);       // 0x5d1050 (exported)
-    SUnitType* GetPUnit(const char* name, bool load);       // 0x5d0e70
+    SPUnit* GetPUnit(const char* name, bool load);          // 0x5d0e70
     void RemoveEntry(int index);                            // 0x5d1c40
 };
 PZ_HD_SIZE(SUnitRegistry, 0x124);
@@ -160,28 +174,22 @@ void LoadVariables(SStream* s, void* obj, const SVarDesc* desc);   // 0x670440
 void LoadSingleVariable(SStream* s, void* dst, int type, const SVarDesc* members);   // 0x670300
 void SkipSingleVariable(SStream* s, int type);                     // 0x670e10
 
-// M1 stand-in for HD SUnit (115-slot vtables; SSingleUnit, SPanzersSquadUnit,
-// SPanzersSquadMemberUnit, SBuildingUnit). Only places the unit's model in the
-// scene; no driver, no AI, no Refresh. Renamed from SUnit in M2-P0 so the HD
-// name is free for the real class (src/game/unit.h); agent U replaces it.
+// Recompile-only legacy declaration of the M1 stand-in unit (see SUnitType
+// above): the heap holds pz::SUnit (src/game/unit.h). No definitions exist.
 struct SMenuUnit {
-    explicit SMenuUnit(SUnitType* type, int worldIndex);
-    virtual ~SMenuUnit();
-    void Initialize(SUnitDef* def);         // HD vtbl +0x08 (model placement only)
-    void RefreshModel();                    // HD 0x5ce2a0 subset (idle tick)
-
     SUnitType* Type;
-    int        WorldIndex;
     int        Player;
     float      Pos[3];
     float      Dir;
     bool       Stored;
     struct SIModel* Model;
-    int        Members[16];                 // squad members (world unit indices)
+    int        Members[16];
     int        MemberCount;
-    bool       Walker;                      // unit type Animation 2 (SWalkerAnimation)
 };
 
 } // namespace pz
+
+// The unit classes (the heap holds pz::SUnit*).
+#include "unit.h"
 
 #endif // PZ_UNITREGISTRY_H

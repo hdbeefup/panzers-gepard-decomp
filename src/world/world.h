@@ -22,7 +22,8 @@ namespace pz {
 
 struct SIViewport;
 struct SITerrain;
-struct SMenuUnit;
+struct SUnit;         // src/game/unit.h (agent U)
+struct SUnitDef;
 struct STrigger;
 
 // HD SHeap<T> (0x14 bytes): {array, size, max, free head, live count}.
@@ -47,10 +48,12 @@ struct SHeap {
 };
 
 // HD SHeapTRB (units, World+0x4d4): elements {int Next; SUnit* Unit}, plus
-// the free-list tail and a reuse barrier (a freed slot is only reused after
-// a number of frames).
+// the free-list tail and a reuse barrier. A freed slot stores the frame it
+// was freed in (Unit field) and goes to the tail of the free list; Alloc
+// (0x5d94b0) takes the head only while Frame <= freed frame + ReuseDelay
+// (unsigned compare), otherwise it appends a new slot.
 struct SUnitHeap {
-    struct Elem { int Next; SMenuUnit* Unit; };
+    struct Elem { int Next; SUnit* Unit; };
     Elem* Array;           // +0x00 (World+0x4d4)
     int Size;              // +0x04
     int Max;               // +0x08
@@ -176,7 +179,12 @@ struct SWorld {
     int  CreateUnit(struct SUnitDef* def);                     // 0x5e2da0
     int  AllocUnitSlot();                                      // 0x5d94b0
     void RemoveUnit(int index);                                // 0x5f8060
-    SMenuUnit* GetUnit(int index);
+    SUnit* GetUnit(int index);
+    int  CreateUnit(int player, const char* className, const float* pos, float dir, int p5,
+                    float hp, int parent, bool crew, const char* scriptId);   // 0x5e3170
+    bool FindEmptySpace(float x, float z, float dir, int size, unsigned short flags, bool p6, float* out); // 0x5e58d0
+    bool FindEmptySpaceNear(float x, float z, float ux, float uz, int size, unsigned short flags, float* out); // 0x5e5700
+    void UnitStored(int unit, int player);                     // 0x5ef760 (StoreUnit: units targeting it stop)
 
     // Camera and terrain queries.
     void ResetCamera();                                        // 0x5ecc20

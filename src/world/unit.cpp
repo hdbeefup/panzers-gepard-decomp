@@ -1,12 +1,12 @@
 // src/world/unit.cpp
-// Units of the menu world: UNDS loading (HD 0x5f33f0), SWorld::CreateUnit
-// (0x5e2da0), the unit heap (0x5d94b0 / 0x5f8060) and the M1 stand-ins for
-// the HD unit type and unit classes. OWNER: agent D. Lifted from the HD exe
-// only; SWINE world/ and game/ are banned.
+// The world side of the units: the unit heap (SHeapTRB at World+0x4d4,
+// AllocUnitSlot 0x5d94b0 / SHeapTRB::Remove 0x5f7920), SWorld::CreateUnit
+// (0x5e2da0 from a UNTD definition, 0x5e3170 by class name), RemoveUnit
+// 0x5f8060, FindEmptySpace 0x5e58d0 / 0x5e5700, 0x5ef760 and the UNDS
+// loader 0x5f33f0. OWNER: agent U. Lifted from the HD exe.
 //
-// M1 limits (see unitregistry.h): SUnitType / SUnit only load the unit's
-// model prototypes and place a model instance at the UNTD position and
-// direction. No drivers, weapons, AI or SGameLogic::Refresh.
+// The units themselves are pz::SUnit and subclasses (src/game/unit.h); the
+// prototypes are the registry's SPUnit (src/game/punit.h).
 
 #include <math.h>
 #include <stdlib.h>
@@ -14,189 +14,24 @@
 #include "world.h"
 #include "worldapi.h"
 #include "pzunitregistry.h"
-#include "pz/igepardhd.h"
-#include "pz/iscene.h"
-#include "pz/imodel.h"
+#include "unit.h"
+#include "gunner.h"
+#include "unitextern.h"
+#include "gamelogic.h"
 #include "stream.h"
 #include "properties.h"
 #include "logger.h"
+#include "stub_log.h"
 
 namespace pz {
-
-// ---------------------------------------------------------------------------
-// SUnitType (stand-in)
-
-SUnitType::SUnitType()
-{
-    memset((unsigned char*)this + sizeof(void*), 0, sizeof(*this) - sizeof(void*));
-    ModelProto = -1;
-    WreckProto = -1;
-    SquadMaxUnits = 0;
-}
-
-SUnitType::~SUnitType()
-{
-    if (ModelProto >= 0)
-        PzGepard()->ReleaseModelPrototype(ModelProto);            // Gepard +0x24
-    if (WreckProto >= 0)
-        PzGepard()->ReleaseModelPrototype(WreckProto);
-    FreeSString(&Name);
-    FreeSString(&IniName68);
-    FreeSString(&IniName70);
-    FreeSString(&ModelName);
-    FreeSString(&WreckModelName);
-    FreeSString(&SquadMemberName);
-}
-
-void SUnitType::LoadHeader(SProperties* p)
-{
-    ClassType = p->GetInt("Unit", "Unit.Common.ClassType", 0);
-    UnitType = p->GetInt("Unit", "Unit.Common.UnitType", 0);
-}
-
-void SUnitType::Load(SProperties* p)
-{
-    LoadHeader(p);
-    ModelName = p->GetString("Unit", "Unit.Common.ModelName", "");
-    WreckModelName = p->GetString("Unit", "Unit.Common.WreckModelName", "");
-    AnimationType = p->GetInt("Unit", "Unit.Animation", 0);
-    if (ClassType == UC_SQUAD) {
-        SquadMemberName = p->GetString("Unit", "Unit.Common.ClassType.Panzers Squad Unit.SquadMemberName", "");
-        SquadMaxUnits = p->GetInt("Unit", "Unit.Common.ClassType.Panzers Squad Unit.MaxNumberOfUnits", 1);
-    }
-    Loaded = true;                                                // +0xdd
-    if (ModelName.size)
-        ModelProto = WorldLoadModelPrototype(SStr(ModelName));
-    if (WreckModelName.size)
-        WreckProto = WorldLoadModelPrototype(SStr(WreckModelName));
-    if (ClassType == UC_SQUAD && SquadMemberName.size && g_UnitRegistry)
-        g_UnitRegistry->GetPUnit(SStr(SquadMemberName), true);
-}
-
-SMenuUnit* SUnitType::CreateUnit(int worldIndex)
-{
-    return new SMenuUnit(this, worldIndex);
-}
-
-// ---------------------------------------------------------------------------
-// SUnit (stand-in)
-
-SMenuUnit::SMenuUnit(SUnitType* type, int worldIndex)
-    : Type(type), WorldIndex(worldIndex), Player(0), Dir(0.0f), Stored(false),
-      Model(nullptr), MemberCount(0), Walker(false)
-{
-    Pos[0] = Pos[1] = Pos[2] = 0.0f;
-    for (int i = 0; i < 16; ++i)
-        Members[i] = -1;
-}
-
-SMenuUnit::~SMenuUnit()
-{
-    if (Model) {
-        Model->Release();
-        Model = nullptr;
-    }
-}
-
-static void PlaceUnitModel(SMenuUnit* u)
-{
-    g_WorldStats.UnitModels++;
-    if (u->Type->ModelProto < 0)
-        return;
-    // Flag 1: a free-heap model. Flag 0 puts it on the scene's main heap
-    // (static doodads sorted into terrain cells), where SModel plays
-    // sequence 0 on the scene clock and soldiers lay down in their first
-    // sequence. HD animated models use 1 (SGameLogic::CreateAnimatedModel
-    // 0x5649e0, the walker attachments in 0x5ce2a0).
-    u->Model = g_Scene->CreateModelFromPrototype(u->Type->ModelProto, 1);   // scene +0x58
-    if (!u->Model)
-        return;
-    g_WorldStats.UnitModelsOk++;
-    u->Model->SetPosition(u->Pos[0], u->Pos[1], u->Pos[2]);       // model +0x18
-    u->Model->SetRotation(u->Dir, 0.0f, 0.0f);                    // model +0x1c
-    if (u->Type->AnimationType == 2) {                            // walker
-        // SWalkerAnimation::InitModel 0x5c93a0: PlaySequence of
-        // GetGlobalStateStandText 0x5c7f90 ("%s_stand" over the unit's
-        // global state name; state 0 = "normal" for the placed menu units),
-        // no blend, then model +0x94 SetFlags(7) (interpolate position,
-        // nodes, and accumulate the animation per tick).
-        u->Model->PlaySequence("normal_stand", false);            // model +0x6c
-        u->Model->SetFlags(7);                                    // model +0x94
-        u->Walker = true;
-    }
-    if (u->Type->ClassType == UC_BUILDING) {
-        // SBuildingUnit init 0x548f20: the "Block" node (block-map
-        // footprint) is hidden, and "Indoor" for unit type 0x1a. (HD also
-        // hides "Indoor" when the type's +0x13c is 6; that field is not in
-        // the stand-in type.)
-        u->Model->SetNodeVisible(u->Model->FindNode("Block"), false);      // model +0x40 / +0x60
-        if (u->Type->UnitType == 0x1a)
-            u->Model->SetNodeVisible(u->Model->FindNode("Indoor"), false);
-    }
-    u->Model->SetVisible(true, false);                            // model +0x30(1, 0), UpdateModel 0x5ce2a0
-}
-
-// PANZERS 0x5ce2a0 (M1 subset)
-// SWalkerAnimation::UpdateModel, the idle path of one logic tick: the model
-// is shown (+0x30(1, 0): no fog of war on the menu, World+0x4d0 / no
-// SGameLogic visibility) and the stand sequence advances by one tick,
-// +0x70(0.05) (LAB_005ce5d7). Vehicles (SVehicleAnimation) only keep their
-// pose. The previous-tick pose is stored first, as SGameLogic::Refresh does
-// for doodads (model +0x3c), so the render interpolates between ticks.
-void SMenuUnit::RefreshModel()
-{
-    if (!Model)
-        return;
-    Model->StoreInterpolationState();                             // model +0x3c
-    if (Walker)
-        Model->AdvanceAnimation(0.05f);                           // model +0x70
-}
-
-void SMenuUnit::Initialize(SUnitDef* def)
-{
-    SWorld* w = g_World;
-    Player = def->Player;
-    Stored = def->Stored;
-    Dir = def->Dir;
-    Pos[0] = def->Pos[0];
-    Pos[2] = def->Pos[1];
-    Pos[1] = w->GetTerrainHeight(Pos[0], Pos[2]) + def->Yrel;
-    if (Stored)
-        return;                                                   // inside a vehicle: no model
-    if (Type->ClassType != UC_SQUAD) {
-        PlaceUnitModel(this);
-        return;
-    }
-    // Squad: the members are units of their own (SPanzersSquadMemberUnit).
-    // M1 placeholder formation: a line across the squad's direction, 1.5 m
-    // apart (HD formations are not lifted).
-    SUnitType* mt = Type->SquadMemberName.size ? g_UnitRegistry->GetPUnit(SStr(Type->SquadMemberName), true) : nullptr;
-    if (!mt)
-        return;
-    int n = Type->SquadMaxUnits;
-    if (n > 16)
-        n = 16;
-    float rx = cosf(Dir), rz = -sinf(Dir);
-    for (int k = 0; k < n; ++k) {
-        int idx = w->AllocUnitSlot();
-        SMenuUnit* m = mt->CreateUnit(idx);
-        w->Units.Array[idx].Unit = m;
-        float off = ((float)k - (float)(n - 1) * 0.5f) * 1.5f;
-        m->Player = Player;
-        m->Dir = Dir;
-        m->Pos[0] = Pos[0] + rx * off;
-        m->Pos[2] = Pos[2] + rz * off;
-        m->Pos[1] = w->GetTerrainHeight(m->Pos[0], m->Pos[2]) + def->Yrel;
-        PlaceUnitModel(m);
-        Members[MemberCount++] = idx;
-        g_WorldStats.UnitsTotal++;
-    }
-}
 
 // ---------------------------------------------------------------------------
 // The unit heap
 
 // PANZERS 0x5d94b0
+// The free-list head is reused only while Frame <= freed frame + ReuseDelay
+// (unsigned); a freed slot carries its frame in the Unit field. Otherwise a
+// new slot is appended (growth 16, then * 6 / 5).
 int SWorld::AllocUnitSlot()
 {
     Units.Count++;
@@ -217,11 +52,29 @@ int SWorld::AllocUnitSlot()
     return Units.Size++;
 }
 
-SMenuUnit* SWorld::GetUnit(int index)
+SUnit* SWorld::GetUnit(int index)
 {
     if (!Units.IsLive(index))
         Logger.g->Panic("SHeapTRB::operator[]: invalid index (%d)", index);
     return Units.Array[index].Unit;
+}
+
+// PANZERS 0x5f7920
+static void HeapRemove(SUnitHeap* h, int index)
+{
+    if (!h->IsLive(index))
+        Logger.g->Panic("SHeapTRB::Remove: invalid index (%d)", index);
+    h->Array[index].Next = -1;
+    h->Array[index].Unit = (SUnit*)(size_t)h->Frame;
+    if (h->Free >= 0) {
+        h->Array[h->FreeTail].Next = index;
+        h->Count--;
+        h->FreeTail = index;
+        return;
+    }
+    h->Count--;
+    h->Free = index;
+    h->FreeTail = index;
 }
 
 // PANZERS 0x5f8060
@@ -229,35 +82,36 @@ void SWorld::RemoveUnit(int index)
 {
     if (!Units.IsLive(index))
         return;
-    SMenuUnit* u = Units.Array[index].Unit;
+    SUnit* u = Units.Array[index].Unit;
     if (u && Logger.g)
         Logger.g->Log(1, "Remove unit from player %d class %s WorldIdx %d x: %g z: %g",
-                      u->Player, SStr(u->Type->Name), index, (double)u->Pos[0], (double)u->Pos[2]);
-    // HD: unit vtbl +0x04 (detach), then the scalar deleting dtor.
-    delete u;
-    Units.Array[index].Unit = nullptr;
-    // HD 0x5f7920 (SHeapTRB::Remove): link the slot at the tail of the free
-    // list, stamped with the current frame.
-    Units.Array[index].Next = -1;
-    Units.Array[index].Unit = (SMenuUnit*)(size_t)Units.Frame;
-    if (Units.Free < 0)
-        Units.Free = index;
-    else
-        Units.Array[Units.FreeTail].Next = index;
-    Units.Count--;
-    Units.FreeTail = index;
+                      u->Player, SStr(u->Proto->Name), index, (double)u->Pos[0], (double)u->Pos[2]);
+    if (u)
+        u->Uninit();                                              // vtbl +0x04
+    u = Units.Array[index].Unit;
+    if (u) {
+        delete u;                                                 // vtbl +0 (1)
+        Units.Array[index].Unit = nullptr;
+    }
+    HeapRemove(&Units, index);                                    // 0x5f7920
 }
+
+// ---------------------------------------------------------------------------
+// Creation
 
 // PANZERS 0x5e2da0
 int SWorld::CreateUnit(SUnitDef* def)
 {
-    SUnitType* type = g_UnitRegistry ? g_UnitRegistry->GetPUnit(SStr(def->ClassName), true) : nullptr;
+    SPUnit* type = g_UnitRegistry ? g_UnitRegistry->GetPUnit(SStr(def->ClassName), true) : nullptr;
     if (!type)
         return -1;
     int idx = AllocUnitSlot();
-    SMenuUnit* unit = type->CreateUnit(idx);                          // type vtbl +0x10
-    Units.Array[idx].Unit = unit;
-    unit->Initialize(def);                                        // unit vtbl +0x08
+    if (!Units.IsLive(idx))
+        Logger.g->Panic("SHeapTRB::operator[]: invalid index (%d)", idx);
+    Units.Array[idx].Unit = static_cast<SUnit*>(type->CreateUnit(idx));   // type vtbl +0x10
+    if (!Units.Array[idx].Unit)
+        Logger.g->Panic("SWorld::CreateUnit: %s cannot be created (class %d)", SStr(def->ClassName), type->ClassType);
+    Units.Array[idx].Unit->Init(def);                             // unit vtbl +0x08
     g_WorldStats.UnitsTotal++;
     if (Logger.g)
         Logger.g->Log(g_Menu3D.Trace ? 0 : 1, "Creating unit for player %d class %s WorldIdx %d x: %g z: %g",
@@ -270,19 +124,170 @@ int SWorld::CreateUnit(SUnitDef* def)
         if (c == -1) {
             if (Logger.g)
                 Logger.g->Warning("SWorld::CreateUnit: Cannot create stored unit '%s'", SStr(sd->ClassName));
-        } else {
-            GetUnit(c)->Player = unit->Player;                    // child +0x80 = parent +0x80
-            // HD: parent vtbl +0x5c(c, child +0x188) stores the unit (M2).
+            continue;
         }
+        SUnit* child = GetUnit(c);
+        SUnit* parent = GetUnit(idx);
+        child->AIGroup = parent->AIGroup;                         // child +0x80 = parent +0x80
+        parent->StoreUnit(c, child->StoreMode);                   // vtbl +0x5c(c, child +0x188)
     }
     for (int i = 0; i < def->TowedCount; ++i) {
         int c = CreateUnit(&def->TowedUnits[i]);
-        if (c == -1 && Logger.g)
-            Logger.g->Warning("SWorld::CreateUnit: Cannot create towed unit '%s'", SStr(def->TowedUnits[i].ClassName));
-        // HD: parent vtbl +0x6c (tow, M2).
+        if (c == -1) {
+            if (Logger.g)
+                Logger.g->Warning("SWorld::CreateUnit: Cannot create towed unit '%s'", SStr(def->TowedUnits[i].ClassName));
+            continue;
+        }
+        GetUnit(idx)->Slot_6C();                                  // vtbl +0x6c (tow; not lifted)
     }
     // HD: campaign statistics (DAT_00929a0c), not on the menu path.
     return idx;
+}
+
+// PANZERS 0x5e3170
+// By class name: the slot, the unit (+0x10), the container (+0x78), InitNew
+// (+0x0c), the script ID (+0x194), then the crew ("XX Crew Squad", the first
+// two letters of the class) when asked for and the type takes only crews.
+int SWorld::CreateUnit(int player, const char* className, const float* pos, float dir, int p5,
+                       float hp, int parent, bool crew, const char* scriptId)
+{
+    if (!isfinite(pos[0]) || !isfinite(pos[1]) || !isfinite(pos[2]))   // 0x793d6c
+        Logger.g->Panic("SWorld::CreateUnit: Unit position is not finite!");
+    SPUnit* type = g_UnitRegistry ? g_UnitRegistry->GetPUnit(className, true) : nullptr;   // 0x5d0e70(name, 1)
+    if (!type)
+        Logger.g->Panic("SWorld::CreateUnit: unknown unit type %s", className);   // HD dereferences null
+    int idx = AllocUnitSlot();
+    SUnit* u = static_cast<SUnit*>(type->CreateUnit(idx));       // +0x10
+    Units.Array[idx].Unit = u;
+    if (!u)
+        Logger.g->Panic("SWorld::CreateUnit: %s cannot be created (class %d)", className, type->ClassType);
+    u->Parent = parent;                                           // +0x78
+    u->InitNew(player, pos, dir, p5, hp);                         // +0x0c
+    u->ScriptID = scriptId ? scriptId : "";                       // +0x194 (0x52c2c0)
+    g_WorldStats.UnitsTotal++;
+    if (Logger.g)
+        Logger.g->Log(g_Menu3D.Trace ? 0 : 1, "Creating unit for player %d class %s WorldIdx %d x: %g z: %g",
+                      player, className, idx, (double)pos[0], (double)pos[2]);
+    if (crew && type->OnlyCrew) {
+        char name[64];
+        name[0] = className[0];
+        name[1] = className[0] ? className[1] : 0;
+        name[2] = 0;
+        strncat(name, " Crew Squad", sizeof(name) - 3);           // Mid(0, 2) + " Crew Squad" (0x7f7824)
+        float zero[3] = { 0.0f, 0.0f, 0.0f };
+        int c = CreateUnit(player, name, zero, dir, 0, 1.0f, -1, false, "");
+        if (c == -1) {
+            Logger.g->Warning("Ennek az egysegnek nincs megfelelo crew: %s", className);
+        } else if (GetUnit(idx)->StoreUnit(c, 0)) {               // +0x5c(c, 0)
+            GetUnit(c)->Unplace();                                // +0x4c
+        }
+    }
+    if (type->ClassType == 9) {
+        if (u->ScriptID.size == 0)
+            Logger.g->Panic("SWorld::CreateUnit(): ScriptID is empty.");
+        STUB_LOG("SWorld::CreateUnit (0x5e3170) building wires (\"wire%d\" nodes)");
+    }
+    if (g_GameLogic && (u->Parent < 0 || type->ClassType == 10) && !u->_110)
+        PzGameLogicUnitCreated(idx);                              // SGameLogic 0x565530
+    return idx;
+}
+
+// ---------------------------------------------------------------------------
+// Free space
+
+// PANZERS 0x5e58d0
+// From (x, z) backwards along `dir` in half-metre steps (max(12, 2 * size)
+// tries); then HD walks a square spiral around the point (125 rings) and
+// logs "did not find empty space". The spiral (block-map tests 0x5da050 /
+// 0x5d9c10, P) is not lifted: after the straight tries the start point is
+// returned with that log line.
+bool SWorld::FindEmptySpace(float x, float z, float dir, int size, unsigned short flags, bool p6, float* out)
+{
+    if (x < 0.0f || z < 0.0f)
+        Logger.g->Panic("SWorld::FindEmptySpace: Negative pos");
+    out[0] = x;
+    out[1] = z;
+    if (size == 0)
+        return true;
+    double s = sin((double)dir);                                  // 0x78d640
+    double c = cos((double)dir);                                  // 0x78d480
+    float px = x, pz = z;
+    int tries = size * 2 > 0xc ? size * 2 : 0xc;
+    for (int i = 0; i < tries; ++i) {
+        int xb, zb;
+        memcpy(&xb, &px, 4);
+        memcpy(&zb, &pz, 4);
+        if (!PzBlockMapTest(xb, zb, size, (short)flags) && (!p6 || !PzBlockMapTestUnits(px, pz, size))) {
+            out[0] = px;
+            out[1] = pz;
+            return true;
+        }
+        px = x - (float)i * (float)s * 0.5f;                     // DAT_007f4538 (not verified)
+        pz = z - (float)i * (float)c * 0.5f;
+    }
+    if (Logger.g)
+        Logger.g->Log(1, "SWorld::FindEmptySpace - did not find empty space. Pos: x:%f, z:%f", (double)x, (double)z);
+    return false;
+}
+
+// PANZERS 0x5e5700
+// The unit's own spot (ux, uz) if it is free, else FindEmptySpace towards
+// it from (x, z).
+bool SWorld::FindEmptySpaceNear(float x, float z, float ux, float uz, int size, unsigned short flags, float* out)
+{
+    if (x < 0.0f || z < 0.0f)
+        Logger.g->Panic("SWorld::FindEmptySpace: Negative pos");
+    out[0] = x;
+    out[1] = z;
+    if (size == 0)
+        return true;
+    int xb, zb;
+    memcpy(&xb, &x, 4);
+    memcpy(&zb, &z, 4);
+    bool blocked = PzBlockMapTest(xb, zb, 1, (short)flags) != 0;
+    if (!blocked && !PzBlockMapTestPath(xb, zb, size, (short)flags, 0, 0))
+        return true;
+    float dir = (float)atan2((double)(ux - x), (double)(uz - z));   // 0x78d07a
+    return FindEmptySpace(x, z, dir, size, flags, true, out);
+}
+
+// PANZERS 0x5ef760
+// After `unit` got in a vehicle: the units of `player` (all for -1) that
+// target it as a unit target drop that order, their gunners stop firing at
+// it, and a unit whose current target it was gets +0x190.
+void SWorld::UnitStored(int unit, int player)
+{
+    for (int i = 0; i < Units.Size; ++i) {
+        if (!Units.IsLive(i))
+            continue;
+        SUnit* u = Units.Array[i].Unit;
+        if (player != -1 && u->Player != player)
+            continue;
+        if (u->Parent >= 0)
+            continue;
+        bool dropped = false;
+        int ct = u->Proto->ClassType;
+        if (ct != 7 && ct != 3) {
+            STarget* t = u->PrimaryTarget;
+            if (t && (tgt::I(t, tgt::kKind) == 2 || tgt::I(t, tgt::kKind) == 3) &&
+                tgt::I(t, tgt::kType) == 0 && tgt::I(t, tgt::kUnit) == unit)
+                u->ClearTargets();                                // +0xc4
+            t = u->CurrentTarget;
+            if (t && (tgt::I(t, tgt::kKind) == 2 || tgt::I(t, tgt::kKind) == 3) &&
+                tgt::I(t, tgt::kType) == 0 && tgt::I(t, tgt::kUnit) == unit) {
+                u->Slot_C8();                                     // +0xc8
+                dropped = true;
+            }
+        }
+        for (int g = 0; g < u->Gunners.Size; ++g) {
+            SGunner* gn = u->Gunners.Array[g];
+            if (!gn->Idle && gn->Target && tgt::I(gn->Target, tgt::kType) == 0 &&
+                tgt::I(gn->Target, tgt::kUnit) == unit)
+                gn->Stop();                                       // +0x28
+        }
+        if (dropped)
+            u->AI_Heartbeat();                                    // +0x190
+    }
 }
 
 // PANZERS 0x5f33f0
@@ -329,6 +334,24 @@ void SWorld::LoadUnitDefinitions(SStream* s)
         if (idx >= 0)
             g_WorldStats.UnitsCreated++;
         s->ReadChunkValidate(0);
+    }
+    // Recompile-only check of the unit heap against the original's per-tick
+    // trace (m2crc, docs/M2_INTERFACES.md 8): PZ_M2_UNITDUMP=1 logs the heap
+    // after UNDS as "U 0 <idx> <player> <x> <y> <z> <dir>" (raw float bits).
+    if (!getenv("PZ_M2_UNITDUMP") || !Logger.g)
+        return;
+    Logger.g->Log(0, "PZM2 UNITS seed %08x units %d", RandomSeed, Units.Count);
+    for (int i = 0; i < Units.Size; ++i) {
+        if (!Units.IsLive(i))
+            continue;
+        SUnit* u = Units.Array[i].Unit;
+        unsigned b[4];
+        memcpy(&b[0], &u->Pos[0], 4);
+        memcpy(&b[1], &u->Pos[1], 4);
+        memcpy(&b[2], &u->Pos[2], 4);
+        memcpy(&b[3], &u->Dir, 4);
+        Logger.g->Log(0, "PZM2 U 0 %d %d %08x %08x %08x %08x %.3f %.3f %.3f %s", i, u->Player, b[0], b[1], b[2], b[3],
+             (double)u->Pos[0], (double)u->Pos[2], (double)u->Dir, SStr(u->Proto->Name));
     }
 }
 

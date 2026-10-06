@@ -19,6 +19,20 @@ add_library(pzgame STATIC
     unit.cpp
     punit.h
     punit.cpp
+    unitprops.h
+    unitprops.cpp
+    unitschema.cpp
+    unitextern.h
+    unitextern.cpp
+    unitbase.cpp
+    singleunit.h
+    singleunit.cpp
+    squadunit.h
+    squadunit.cpp
+    buildingunit.h
+    buildingunit.cpp
+    gunner.h
+    gunner.cpp
     # P: drivers + path finding
     driver.h
     driver.cpp

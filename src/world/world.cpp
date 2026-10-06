@@ -408,6 +408,11 @@ void SWorld::RebuildTerrain()
 // and every doodad model (World+0x140, model vtbl +0x3c).
 void SWorld::RefreshModels()
 {
+    // As 0x576d80: every unit stores its pose (+0x16c) before the models are
+    // posed for the new tick (+0x3c); no ServerRefresh without -m2.
+    for (int i = 0; i < Units.Size; ++i)
+        if (Units.IsLive(i) && Units.Array[i].Unit)
+            Units.Array[i].Unit->StoreInterpolationState();
     for (int i = 0; i < Units.Size; ++i)
         if (Units.IsLive(i) && Units.Array[i].Unit)
             Units.Array[i].Unit->RefreshModel();

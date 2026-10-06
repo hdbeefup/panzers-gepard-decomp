@@ -12,6 +12,8 @@
 #include "properties.h"
 #include "darray.h"
 #include "logger.h"
+#include "unitprops.h"
+#include "unitanim.h"
 
 namespace pz {
 
@@ -341,6 +343,15 @@ void SUnitDef::Load(SStream* s)
 // ---------------------------------------------------------------------------
 // SUnitRegistry
 
+// Flat-key readers of the other agents (SAnimProps): a non-numeric value is
+// an expression over unitvariables.ini, as the Expr nodes of the schema.
+static float ResolveUnitSymbol(const char* value)
+{
+    float v = 0.0f;
+    EvalUnitExpression(g_UnitVariables, value, &v);
+    return v;
+}
+
 // PANZERS 0x5cfe30
 SUnitRegistry::SUnitRegistry()
 {
@@ -348,13 +359,75 @@ SUnitRegistry::SUnitRegistry()
     memset(this, 0, sizeof(*this));
     g_UnitRegistry = this;
     if (!s_UnitVariables)
-        s_UnitVariables = new SProperties("unitvariables.ini", true);   // 0x6607d0
+        s_UnitVariables = new SProperties("unitvariables.ini", true);   // 0x6607d0 (HD 0x929a28)
+    g_UnitVariables = s_UnitVariables;
+    SAnimProps::ResolveSymbol = ResolveUnitSymbol;
     LoadUnitFiles("units/", false);
     LoadUnitFiles("buildings/", false);
     LoadUnitFiles("units/ingame/", true);
-    // HD: +0x0c..+0x120 = [Game] damage/XP/price/range constants from
-    // unitvariables.ini, then units.ini display names into each type's
-    // +0x68/+0x70 (GetText "Building" for buildings): M2 (game rules).
+    SProperties* v = s_UnitVariables;
+    const char* g = "Game";
+    float* f = &DamageBulletToUnarmoured;
+    static const char* const kFloats[] = {
+        "DamageBullet_To_UnarmouredVehicles", "DamageBullet_To_ArmouredVehicles", "DamageBullet_To_Building",
+        "DamageAT_To_Infantry", "DamageAT_To_Building", "DamageHE_To_Infantry", "DamageHE_To_ArmouredVehicles",
+        "DamageHE_To_Building", "DamageFire_To_UnarmouredVehicles", "DamageFire_To_ArmouredVehicles",
+        "DamageFire_To_Building", "Thermo_Out", "Thermo_In", "Thermo_Decrease" };
+    for (int i = 0; i < 14; ++i)
+        f[i] = v->GetFloat(g, kFloats[i], 0.0f);
+    char key[64];
+    for (int i = 0; i < 4; ++i) {
+        sprintf(key, "XpLevel_%d", i + 1);
+        XpLevel[i] = v->GetInt(g, key, 0);
+    }
+    for (int i = 0; i < 5; ++i) {
+        sprintf(key, "SquadHp_Level_%d", i);
+        SquadHpLevel[i] = v->GetInt(g, key, 0);
+    }
+    for (int i = 0; i < 5; ++i) {
+        sprintf(key, "HearingRange_Level_%d", i);
+        HearingRange[i] = (int)((float)v->GetInt(g, key, 0) * 0.5f);
+    }
+    for (int i = 0; i < 5; ++i) {
+        sprintf(key, "SquadDamageBonusLevel_%d", i);
+        SquadDamageBonus[i] = v->GetFloat(g, key, 0.0f);
+    }
+    for (int i = 0; i < 5; ++i) {
+        sprintf(key, "CrewDamageBonusLevel_%d", i);
+        CrewDamageBonus[i] = v->GetFloat(g, key, 0.0f);
+    }
+    PriceGrenade = v->GetInt(g, "PriceGrenade", 0);
+    PriceMolotov = v->GetInt(g, "PriceMolotovcoctail", 0);
+    PriceBoat = v->GetInt(g, "PriceBoat", 0);
+    PriceTankMine = v->GetInt(g, "PriceTankMine", 0);
+    PriceMineDetector = v->GetInt(g, "PriceMineDetector", 0);
+    PriceExplosives = v->GetInt(g, "PriceExplosives", 0);
+    PriceMagneticMine = v->GetInt(g, "PriceMagneticMine", 0);
+    PriceBinoculars = v->GetInt(g, "PriceBinoculars", 0);
+    for (int i = 0; i < 5; ++i) {
+        sprintf(key, "GrenadeMaxRange_Level_%d", i);
+        GrenadeMaxRange[i] = (int)((float)v->GetInt(g, key, 0) * 0.5f);
+    }
+    for (int i = 0; i < 5; ++i) {
+        sprintf(key, "CarriedMineLevel_%d", i);
+        CarriedMine[i] = v->GetInt(g, key, 0);
+    }
+    for (int i = 0; i < 4; ++i) {
+        sprintf(key, "MineDetectorRange_Level_%d", i);
+        MineDetectorRange[i] = (int)((float)v->GetInt(g, key, 0) * 0.5f);
+    }
+    for (int i = 0; i < 4; ++i) {
+        sprintf(key, "ExplosivesDamageBonus_Level_%d", i + 1);
+        ExplosivesDamageBonus[i] = v->GetFloat(g, key, 0.0f);
+    }
+    BinocularsRange = (int)((float)v->GetInt(g, "BinocularsRange", 0) * 0.5f);
+    RainHearing = v->GetInt(g, "RainHearing", 400);
+    AllUnitsMaxNumber = v->GetInt(g, "AllUnits_MaxNumber", 0x19);
+    TankMaxNumber = v->GetInt(g, "Tank_MaxNumber", 0xe);
+    ArtilleryMaxNumber = v->GetInt(g, "Artillery_MaxNumber", 8);
+    SupportMaxNumber = v->GetInt(g, "Support_MaxNumber", 8);
+    // HD then reads units.ini "short name" / GetText "Building" into each
+    // prototype's +0x68 / +0x70 (display names; not used by the menu).
     if (Logger.g)
         Logger.g->Log(0, "PZ3D world: unit registry %d unit types", Count);
 }
@@ -457,9 +530,8 @@ void SUnitRegistry::LoadUnitFiles(const char* dir, bool inGame)
         _snprintf(path, sizeof(path) - 1, "%s%s", dir, SStr(*file));   // 0x5335c0
         path[sizeof(path) - 1] = 0;
         SProperties props(path, true);                            // 0x65fe80
-        // HD builds a property tree (0x664960, agent C's SPropertyStruct) and
-        // reads "Common" -> "ClassType"; the flat ini key is the same value.
-        int classType = props.GetInt("Unit", "Unit.Common.ClassType", 0);
+        SUPropStruct* tree = LoadUnitProperties(&props);          // 0x664960 + Load(props, "Unit", 0)
+        int classType = tree->GetStruct("Common")->GetMultiIndex("ClassType");
         if (Count == Max) {
             int nmax = Max < 0x10 ? 0x10 : (Max * 6) / 5;
             Entries = (SUnitRegistryEntry*)realloc(Entries, nmax * sizeof(SUnitRegistryEntry));
@@ -477,24 +549,15 @@ void SUnitRegistry::LoadUnitFiles(const char* dir, bool inGame)
         e->InGame = inGame;
         e->Path = path;
         e->FileName = *file;
-        SUnitType* type = nullptr;
+        SPUnit* type = CreatePUnit(classType);                    // the ClassType switch
         bool enabled = true;
         switch (classType) {
-        case 0: case 0xb: case 0xc: case 0xd:   // new 0x14c, 0x5a4ae0
-        case 5:                                 // new 0x14c, 0x5a49e0
-        case 9:                                 // new 0x160, 0x5a4900
-        case 10:                                // new 0x14c, 0x5a4b30
-            type = new SUnitType();
+        case 0: case 0xb: case 0xc: case 0xd: case 5: case 9: case 10:
             break;
-        case 3:                                 // new 0x178, 0x5a4a20
-        case 4:                                 // new 0x14c, 0x5a4ae0
-        case 6:                                 // new 0x140, 0x5a49b0
-        case 8:                                 // new 0x140, 0x5a4980
-            type = new SUnitType();
+        case 3: case 4: case 6: case 8:
             enabled = false;                    // HD leaves +0x1c zero on these paths
             break;
-        case 7:                                 // new 0x144, 0x5a4db0
-            type = new SUnitType();
+        case 7:
             enabled = e->Name.size != 0 && _stricmp(e->Name.buf, "Waster Tank Mine") == 0;
             break;
         default:
@@ -502,6 +565,7 @@ void SUnitRegistry::LoadUnitFiles(const char* dir, bool inGame)
             if (Logger.g)
                 Logger.g->Warning("SUnitRegistry::SUnitRegistry - %s has bad UnitType: %d", SStr(*file), classType);
             FreeStr(&name);
+            delete tree;
             continue;
         }
         e->Type = type;
@@ -509,10 +573,12 @@ void SUnitRegistry::LoadUnitFiles(const char* dir, bool inGame)
         if (e->Name.size == 0) {
             RemoveEntry(idx);
             FreeStr(&name);
+            delete tree;
             continue;
         }
         type->Name = e->Name;                                     // +0x60
-        type->LoadHeader(&props);                                 // vtbl +0x04
+        type->LoadHeader(tree);                                   // vtbl +0x04
+        delete tree;
         type->Side = 6;                                           // +0x48
         if (e->Enabled && type->ClassType != UC_BUILDING) {
             const char* n = SStr(e->Name);
@@ -535,17 +601,19 @@ void SUnitRegistry::LoadUnitFiles(const char* dir, bool inGame)
 }
 
 // PANZERS 0x5d0e70
-SUnitType* SUnitRegistry::GetPUnit(const char* name, bool load)
+SPUnit* SUnitRegistry::GetPUnit(const char* name, bool load)
 {
     for (int i = 0; i < Count; ++i) {
         if (_stricmp(SStr(Entries[i].Name), name) != 0)
             continue;
-        SUnitType* t = Entries[i].Type;
+        SPUnit* t = Entries[i].Type;
         if (!t)
             break;
         if (load && !t->Loaded) {
             SProperties props(SStr(Entries[i].Path), true);      // 0x65fe80
-            t->Load(&props);                                      // vtbl +0x08 (property tree "Unit")
+            SUPropStruct* tree = LoadUnitProperties(&props);      // 0x664960, +0x0c Load
+            t->LoadResources(tree);                               // vtbl +0x08
+            delete tree;                                          // vtbl +0 (1)
         }
         return t;
     }
