@@ -14,6 +14,8 @@
 #include <windows.h>
 #include <string.h>
 #include <stdlib.h>
+#include "hud.h"
+#include "ingamemenu.h"
 #include "gameview.h"
 #include "ingamemenu.h"
 #include "superwindow.h"
@@ -128,6 +130,8 @@ SGameView::~SGameView()
 {
     PZ_M3_TRACE("SGameView::~SGameView (0x619430)");
     DestroySubViewports();                                         // 0x61e680
+    PzGameViewDeleteMenus(this);                                   // H: the menus and boxes (+0x3e48.., ingamemenu.cpp)
+    PzHudDestroy(this);                                            // H: the HUD widgets (hud.cpp), before ~SWidget
     if (InGameMenu) {
         delete InGameMenu;                                         // recompile stand-in (H)
         InGameMenu = nullptr;
@@ -151,7 +155,7 @@ SGameView::~SGameView()
     }
     if (Board)
         ReleaseLoadingBackdrop();                                  // gameview_loading.cpp
-    SWidget** boxes[6] = { &EndBox, &ModalBox, &Box3e8c, &Box3e90, &NetBox, &this->SGameViewData::MessageBox };
+    SWidget** boxes[5] = { &EndBox, &ModalBox, &Box3e8c, &Box3e90, &NetBox };
     for (SWidget** b : boxes) {
         if (*b) {
             delete *b;
@@ -489,30 +493,30 @@ void SGameView::Update()
 // ---------------------------------------------------------------------------
 // Panel modes and sub-viewports
 
-// 0x61e500 (rects only; the subports are pending agent E)
+// PANZERS 0x61e500
 // HD splits the primary viewport into three subports: the 3D view between the
 // top bar (18 / 768 of the height) and the bottom panel (146 / 768), the top
-// strip and the bottom strip, and points +0x468 at subport 0.
+// strip and the bottom strip (board only), and points +0x468 at subport 0.
 void SGameView::CreateSubViewports()
 {
     PZ_M3_TRACE("SGameView::CreateSubViewports (0x61e500)");
     if (Subport[0] >= 0)
         return;
-    SDXWindow* wnd = ViewWindow(this);
+    pz::SIViewport* vp = pz::PzGepard()->GetViewport(0);           // Gepard +0x3c(0)
+    if (vp->GetSubportCount() != 0)                                // +0x60
+        Logger.g->Panic("SGameView::CreateSubViewports: Subports have already been created!");
+    SDXWindow* wnd = ViewWindow(this);                             // 0x5435b0
     int wx, wy, ww, wh;
-    wnd->GetPosition(&wx, &wy, &ww, &wh);
+    wnd->GetPosition(&wx, &wy, &ww, &wh);                          // +0x04
     int top = (wh * 0x12) / 0x300;
     int bottom = (wh * 0x92) / 0x300;
     int mid = wh - bottom - top;
-    // HD: Gepard GetViewport(0) +0x60 (subport count) must be 0, then
-    // +0x54 CreateSubport(x, y, w, h) x3, +0x5c(1) / +0x5c(2) +0x80(0), and
-    // Viewport = +0x5c(0). E lifted +0x54 / +0x58 / +0x60, but +0x5c
-    // (GetSubport 0x68bde0, returns the sub SViewport) is still a stub, so the
-    // 3D view keeps the whole window for now.
-    SubportRect[0][0] = 0; SubportRect[0][1] = top;        SubportRect[0][2] = ww; SubportRect[0][3] = mid;
-    SubportRect[1][0] = 0; SubportRect[1][1] = 0;          SubportRect[1][2] = ww; SubportRect[1][3] = top;
-    SubportRect[2][0] = 0; SubportRect[2][1] = mid + top;  SubportRect[2][2] = ww; SubportRect[2][3] = bottom;
-    STUB_LOG("SViewport subports (0x68ab40 / 0x68bde0) for CreateSubViewports 0x61e500");
+    Subport[0] = vp->CreateSubport(0, top, ww, mid);               // +0x54
+    Subport[1] = vp->CreateSubport(0, 0, ww, top);
+    Subport[2] = vp->CreateSubport(0, mid + top, ww, bottom);
+    vp->GetSubport(1)->SetDrawScene(false);                        // +0x5c(1) +0x80(0)
+    vp->GetSubport(2)->SetDrawScene(false);
+    Viewport = vp->GetSubport(0);                                  // +0x468
 }
 
 // PANZERS 0x61e680
@@ -553,31 +557,67 @@ void SGameView::SetPanelMode(int mode)
     // widgets and frames.
     if (_5d8 >= 0)
         Board->ShowFrame(_5d8, false);
+    PzHudSetPanelMode(this, mode);                                 // H: the widget part (hud.cpp)
     if (Subport[0] < 0) {
         if (mode == 2)
             Logger.g->Panic("SGameView::SetPanelMode: No SubViewports");
         ViewState = mode;
         return;
     }
-    // HD: resize the three subports (GetViewport(0) +0x5c(i) -> +0x00
-    // SetPosition) and show / hide them (+0x7c): mode 0 the CreateSubViewports
-    // split, mode 1 subport 0 full screen, mode 2 bars of 96 / 768. Pending
-    // the subport slots (agent E).
-    ViewState = mode;
+    // The three subports (+0x5c(i) SetPosition +0x00, board +0x7c): mode 0
+    // the CreateSubViewports split, mode 1 subport 0 full screen (the strips
+    // empty), mode 2 letterbox bars of 96 / 768 without the board.
+    pz::SIViewport* vp = pz::PzGepard()->GetViewport(0);           // Gepard +0x3c(0)
+    SDXWindow* wnd = ViewWindow(this);                             // 0x5435b0
+    int wx, wy, ww, wh;
+    wnd->GetPosition(&wx, &wy, &ww, &wh);
+    bool barBoard = true;
+    if (mode == 0) {
+        int top = (wh * 0x12) / 0x300;
+        int bottom = (wh * 0x92) / 0x300;
+        int mid = wh - bottom - top;
+        vp->GetSubport(0)->SetPosition(0, top, ww, mid);
+        vp->GetSubport(1)->SetPosition(0, 0, ww, top);
+        vp->GetSubport(2)->SetPosition(0, mid + top, ww, bottom);
+    } else if (mode == 1) {
+        vp->GetSubport(0)->SetPosition(0, 0, ww, wh);
+        vp->GetSubport(1)->SetPosition(0, 0, ww, 0);
+        vp->GetSubport(2)->SetPosition(0, wh, ww, 0);
+    } else {
+        int bar = (wh * 0x60) / 0x300;
+        int mid = wh - bar * 2;
+        vp->GetSubport(0)->SetPosition(0, bar, ww, mid);
+        vp->GetSubport(1)->SetPosition(0, 0, ww, bar);
+        vp->GetSubport(2)->SetPosition(0, mid + bar, ww, bar);
+        barBoard = false;
+    }
+    vp->GetSubport(0)->SetDrawBoard(true);                         // +0x7c
+    vp->GetSubport(1)->SetDrawBoard(barBoard);
+    vp->GetSubport(2)->SetDrawBoard(barBoard);
+    ViewState = mode;                                              // +16000
 }
 
 // ---------------------------------------------------------------------------
 // SIGameViewCallback
 
-// 0x622b30 (not lifted: SMessageBox 0x53e0d0, agent E / H). HD: delete the old
-// box (+0x3e30), new SMessageBox(0x3ec) into the view, Create("", "", 0x70000,
-// 1), target the view, title "panzers/GameView.cpp" "Message", text in
-// 0xd0d0d0, show; a box drag (MouseMode 1) is cancelled with 0x5ddb60.
+// PANZERS 0x622b30
+// Relative to the callback (+0x58), so its +0x3e30 / +0x420 are the view's
+// +0x3e88 (ModalBox; Update 0x628430 waits while it is set) and +0x478.
 void SGameView::ShowMessageBox(const char* text)
 {
-    STUB_LOG("SGameView::ShowMessageBox (0x622b30)");
     PZ_M3_TRACE("SGameView::ShowMessageBox (0x622b30)");
-    Logger.g->Log(1, "PZM3: message box: %s", text ? text : "");
+    if (ModalBox) {
+        delete ModalBox;                                           // vtbl +0x00(1)
+        ModalBox = nullptr;
+    }
+    pz::SMessageBox* box = new pz::SMessageBox();                  // new 0x3ec, 0x53e0d0
+    ModalBox = box;
+    InsertChild(box);                                              // vtbl +0x54
+    box->Create("", "", 0x70000, true);                            // 0x53e3b0
+    box->SetTarget(this);                                          // 0x53e8d0
+    box->SetTitle(GetText("panzers/GameView.cpp", "Info"));        // 0x53e8e0 (0x80438c)
+    box->SetText(text ? text : "", 0xd0d0d0);                      // 0x53e910
+    box->SetVisible(true);                                         // vtbl +0x6c
     if (MouseMode == 1)
         World->HideSelectionBox();                             // 0x5ddb60
     MouseMode = 0;

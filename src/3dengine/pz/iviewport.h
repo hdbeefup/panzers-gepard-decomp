@@ -59,7 +59,7 @@ struct SIViewport {
     virtual void Render(SIScene* scene, unsigned clearColor) = 0; // +0x50 HD 0x68c220 (2 arg dwords) SViewport::Render 0x68c220
     virtual int CreateSubport(int x, int y, int w, int h) = 0; // +0x54 HD 0x68ab40 (4 arg dwords) new sub viewport (mode 3) with this camera and projection; returns its index (panic text names it SelectSubport)
     virtual void DestroySubport(int index) = 0;             // +0x58 HD 0x68b0f0 (1 arg dword) deletes the sub viewport and removes it from the array
-    virtual void Slot_5C() = 0;                             // +0x5c HD 0x68bde0 (1 arg dword)
+    virtual SIViewport* GetSubport(int index) = 0;          // +0x5c HD 0x68bde0 (1 arg dword) the sub viewport (panic on a bad index)
     virtual int GetSubportCount() = 0;                      // +0x60 HD 0x68b930 (0 arg dwords) +0x1fc
     virtual void Slot_64() = 0;                             // +0x64 HD 0x68b470 (1 arg dword)
     virtual void Slot_68() = 0;                             // +0x68 HD 0x68b220 (3 arg dwords)
@@ -67,8 +67,8 @@ struct SIViewport {
     virtual void Slot_70() = 0;                             // +0x70 HD 0x68b350 (4 arg dwords)
     virtual void Slot_74() = 0;                             // +0x74 HD 0x68b520 (1 arg dword)
     virtual void FrontBufferScreenshot(int p1, int p2, int p3, int p4) = 0; // +0x78 HD 0x68b5b0 (4 arg dwords) SViewport::FrontBufferScreenshot
-    virtual void SetFlag240(bool on) = 0;                   // +0x7c HD 0x68b200 (1 arg dword) byte +0x240 (name guessed; no reader found)
-    virtual void SetFlag241(bool on) = 0;                   // +0x80 HD 0x68b210 (1 arg dword) byte +0x241 (name guessed)
+    virtual void SetDrawBoard(bool on) = 0;                 // +0x7c HD 0x68b200 (1 arg dword) byte +0x240: Render 0x68c220 draws the board in this (sub)port (else only the cursor)
+    virtual void SetDrawScene(bool on) = 0;                 // +0x80 HD 0x68b210 (1 arg dword) byte +0x241: Render 0x68c220 draws the scene in this (sub)port (else a plain clear)
 
 protected:
     ~SIViewport() {}

@@ -40,8 +40,6 @@ void SGameView::OpenInGameMenu()
 {
     if (InGameMenu)
         return;
-    InGameMenu = new SInGameMenu();
-    InsertChild(InGameMenu);
-    InGameMenu->Create();
+    PzOpenInGameMenu(this);                                        // H: 0x620080 (pauses, ingamemenu.cpp)
 }
 

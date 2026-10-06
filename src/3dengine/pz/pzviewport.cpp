@@ -20,6 +20,19 @@
 // PrepareViewport before it; the scene pass hook (inside BeginScene) runs
 // UpdateViewport (the HD clear, after SWINE's) and RenderViewport. A
 // D3DSBT_ALL state block restores the device state for the SWINE board.
+//
+// Subports (HD +0x1f8, CreateSubport 0x68ab40; the game view's 3D view
+// between the HUD bars, the market's unit preview): HD runs the frame above
+// once per subport with a non-empty rectangle, the subport selected
+// (0x68c8e0: device viewport 0x68d620 = its rectangle, its transforms
+// 0x68d160), so each subport clears, draws its scene (+0x241) and the board
+// clipped to its rectangle (+0x240). The recompile keeps the one SWINE frame
+// and draws the board once over the whole window: the scenes of the subports
+// up to the first board subport go in the scene pass before the board, the
+// later ones in a pass after it (the market draws its preview over the
+// full-screen board); subports without a scene are cleared with the clear
+// colour first. Same picture as long as the board subports tile the window
+// (true for every HD caller).
 
 #include <d3d9.h>
 #include <d3dx9.h>
@@ -69,10 +82,80 @@ static void ModWidescreenProjection(SViewport* vp)
 
 static SScene*    s_FrameScene = nullptr;
 static SViewport* s_FrameViewport = nullptr;
+static unsigned   s_FrameClear = 0;
+
+static bool SubportVisible(const SViewport* sub)
+{
+    return sub->Width > 0 && sub->Height > 0;   // 0x68c220: +0x12c, +0x128
+}
+
+// PANZERS 0x68c8e0 (SelectSubport, the recompile's half): the device
+// viewport (0x68d620, z 0..1) and the transforms (0x68d160) of the subport.
+static void SelectSubport(IDirect3DDevice9* dev, SViewport* sub)
+{
+    sub->Selected = true;                       // sub +0x71
+    D3DVIEWPORT9 v = { (DWORD)sub->Left, (DWORD)sub->Top, (DWORD)sub->Width, (DWORD)sub->Height, 0.0f, 1.0f };
+    dev->SetViewport(&v);                       // device +0xbc
+    sub->ApplyTransforms();
+}
+
+static void UnselectSubport(SViewport* sub)
+{
+    sub->Selected = false;
+}
+
+// One subport pass (see the file comment). afterBoard false: clear the
+// subports without a scene, draw the scenes up to the first board subport;
+// true: draw the scenes after it.
+static void SubportScenes(IDirect3DDevice9* dev, bool afterBoard)
+{
+    SViewport* vp = s_FrameViewport;
+    D3DVIEWPORT9 full;
+    if (FAILED(dev->GetViewport(&full)))
+        return;
+    IDirect3DStateBlock9* saved = nullptr;
+    if (FAILED(dev->CreateStateBlock(D3DSBT_ALL, &saved)))
+        saved = nullptr;
+    bool boardSeen = false;
+    for (SViewport* sub : vp->Subports) {
+        if (!SubportVisible(sub))
+            continue;
+        bool scene = s_FrameScene && sub->DrawScene;
+        if (!scene && !afterBoard) {
+            SelectSubport(dev, sub);
+            sub->Clear(s_FrameClear, 1.0f, 0);   // 0x68c220 Clear(TARGET|ZBUFFER[|STENCIL])
+            UnselectSubport(sub);
+        } else if (scene && boardSeen == afterBoard) {
+            SelectSubport(dev, sub);
+            s_FrameScene->UpdateViewport(sub);   // 0x6a24c0
+            s_FrameScene->RenderViewport(sub);   // 0x6acaf0
+            UnselectSubport(sub);
+        }
+        if (sub->DrawBoard)
+            boardSeen = true;
+    }
+    if (saved) {
+        saved->Apply();
+        saved->Release();
+    }
+    dev->SetViewport(&full);
+}
+
+// Installed as SGepard::PanzersPostBoardPass: the subport scenes after the
+// first board subport (the market's unit preview over its board).
+void ViewportPostBoardPass(IDirect3DDevice9* dev)
+{
+    if (s_FrameViewport && !s_FrameViewport->Subports.empty())
+        SubportScenes(dev, true);
+}
 
 // Installed as SGepard::PanzersScenePass by the Gepard facade.
 void ViewportScenePass(IDirect3DDevice9* dev)
 {
+    if (s_FrameViewport && !s_FrameViewport->Subports.empty()) {
+        SubportScenes(dev, false);
+        return;
+    }
     if (!s_FrameScene)
         return;
     IDirect3DStateBlock9* saved = nullptr;
@@ -207,8 +290,8 @@ void SViewport::SetProjection(float fovRadians, float nearZ, float farZ)
 void SViewport::ApplyTransforms()
 {
     IDirect3DDevice9* dev = HD().Device;
-    if (!dev || Mode == 3)
-        return;   // recompile: sub viewports are not drawn through the shared device yet
+    if (!dev || (Mode == 3 && !Selected))
+        return;   // HD 0x68d160: a subport sets the device transforms only while selected (+0x71)
     float v[16];
     Mat34To44(v, View);
     dev->SetTransform(D3DTS_VIEW, (const D3DMATRIX*)v);
@@ -322,10 +405,29 @@ void SViewport::Render(SIScene* scene, unsigned clearColor)
     HD().PolyCount = 0;   // SGepard +0x4b4/+0x4b8 frame stats
     HD().VertexCount = 0;
     SScene* s = static_cast<SScene*>(scene);
-    if (s)
-        s->PrepareViewport(this);   // 0x6bbc40
+    IDirect3DDevice9* dev = HD().Device;
+    if (Subports.empty()) {
+        if (s)
+            s->PrepareViewport(this);   // 0x6bbc40
+    } else if (s && dev) {
+        // Per subport with a scene, before the frame (HD: in the subport
+        // loop, before that subport's BeginScene).
+        D3DVIEWPORT9 full;
+        if (SUCCEEDED(dev->GetViewport(&full))) {
+            for (SViewport* sub : Subports) {
+                if (!SubportVisible(sub) || !sub->DrawScene)
+                    continue;
+                SelectSubport(dev, sub);         // 0x68c8e0
+                s->PrepareViewport(sub);         // 0x6bbc40
+                UnselectSubport(sub);
+            }
+            dev->SetViewport(&full);
+            ApplyTransforms();
+        }
+    }
     s_FrameScene = s;
     s_FrameViewport = this;
+    s_FrameClear = clearColor;
     if (::Gepard)
         ::Gepard->RenderScene(false);   // Clear, BeginScene, [ScenePass], board, EndScene, Present
     s_FrameScene = nullptr;
@@ -577,11 +679,12 @@ void SViewport::DestroySubport(int index)
     Subports.erase(Subports.begin() + index);                // 0x68c1a0
 }
 
-// HD SViewport vtbl +0x5c -> 0x68bde0 (1 arg dword)
-void SViewport::Slot_5C()
+// PANZERS 0x68bde0
+SIViewport* SViewport::GetSubport(int index)
 {
-    STUB_LOG("SViewport::Slot_5C (0x68bde0)");
-    PZ_TRACE("SViewport::Slot_5C (0x68bde0)");
+    if (index < 0 || index >= (int)Subports.size())
+        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "class SViewport *", index);
+    return Subports[index];
 }
 
 // PANZERS 0x68b930
@@ -634,15 +737,15 @@ void SViewport::FrontBufferScreenshot(int p1, int p2, int p3, int p4)
 }
 
 // PANZERS 0x68b200
-void SViewport::SetFlag240(bool on)
+void SViewport::SetDrawBoard(bool on)
 {
-    Flag240 = on;
+    DrawBoard = on;
 }
 
 // PANZERS 0x68b210
-void SViewport::SetFlag241(bool on)
+void SViewport::SetDrawScene(bool on)
 {
-    Flag241 = on;
+    DrawScene = on;
 }
 
 } // namespace pz

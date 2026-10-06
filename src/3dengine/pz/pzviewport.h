@@ -42,7 +42,7 @@ struct SViewport : SIViewport {
     void Render(SIScene* scene, unsigned clearColor) override;
     int CreateSubport(int x, int y, int w, int h) override;
     void DestroySubport(int index) override;
-    void Slot_5C() override;
+    SIViewport* GetSubport(int index) override;
     int GetSubportCount() override;
     void Slot_64() override;
     void Slot_68() override;
@@ -50,8 +50,8 @@ struct SViewport : SIViewport {
     void Slot_70() override;
     void Slot_74() override;
     void FrontBufferScreenshot(int p1, int p2, int p3, int p4) override;
-    void SetFlag240(bool on) override;
-    void SetFlag241(bool on) override;
+    void SetDrawBoard(bool on) override;
+    void SetDrawScene(bool on) override;
 
     void Clear(unsigned color, float z, unsigned stencil);   // 0x689f10
     void UpdateScreenMatrix();                               // 0x68c070
@@ -72,8 +72,9 @@ struct SViewport : SIViewport {
     float         InvViewProjScreen[16]; // +0x1b0 inverse of +0x170 (screen -> world)
     int           Mode = 0;      // +0x78 0 primary windowed, 3 sub viewport
     std::vector<SViewport*> Subports; // +0x1f8 SDArray<SViewport*> (CreateSubport)
-    bool          Flag240 = false;    // +0x240
-    bool          Flag241 = false;    // +0x241
+    bool          Selected = false;   // +0x71 sub viewport selected for drawing (0x68c8e0): its device viewport and transforms apply
+    bool          DrawBoard = true;   // +0x240 (ctor 0x689130: 1)
+    bool          DrawScene = true;   // +0x241 (ctor 0x689130: 1)
 };
 
 } // namespace pz

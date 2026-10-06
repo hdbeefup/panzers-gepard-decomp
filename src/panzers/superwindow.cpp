@@ -806,7 +806,8 @@ bool SSuperWindow::OnIdle()
     }
     if (Menu_f0)
         Menu_f0->Update();                         // vtbl +0x78
-    SWidget* w = Menu_114 ? Menu_114 : BriefingMenu ? BriefingMenu : Menu_108 ? Menu_108 : GameView;
+    // HD 0x65ae50: +0x110 (the market), +0x104, +0x108, else +0xe4.
+    SWidget* w = MultiView ? MultiView : BriefingMenu ? BriefingMenu : Menu_108 ? Menu_108 : GameView;
     if (w)
         w->Update();
     // HD: (Menu_f8 && Menu_f8->Visible) || Menu_f4 -> Update

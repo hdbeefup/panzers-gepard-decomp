@@ -40,6 +40,7 @@ extern SIGepard* Gepard;   // SWINE renderer (window/widget.h)
 namespace pz {
 
 void ViewportScenePass(IDirect3DDevice9* dev);   // pzviewport.cpp
+void ViewportPostBoardPass(IDirect3DDevice9* dev);   // pzviewport.cpp
 void ReleaseMeshVertexDecls();                   // mesh.cpp
 void SetExtension(SString* s, const char* ext);  // pmodel.cpp
 
@@ -533,6 +534,7 @@ SIGepardHD* PzGepard()
     if (!s_Facade) {
         s_Facade = new SPzGepard();
         SGepard::PanzersScenePass = &ViewportScenePass;
+        SGepard::PanzersPostBoardPass = &ViewportPostBoardPass;
         g_FloraDraw = &DrawFloraInstance;
         if (SwineGepard())
             SwineGepard()->RegisterResetCallbacks(&PreDeviceReset, &PostDeviceReset, nullptr);
@@ -547,6 +549,7 @@ void PzGepardShutdown()
     if (!s_Facade)
         return;
     SGepard::PanzersScenePass = nullptr;
+    SGepard::PanzersPostBoardPass = nullptr;
     g_FloraDraw = nullptr;
     if (SwineGepard())
         SwineGepard()->RegisterResetCallbacks(nullptr, nullptr, nullptr);

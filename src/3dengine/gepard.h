@@ -748,6 +748,9 @@ struct SGepard : SIGepard {
     // before the board, as HD draws scene then board in one scene. Set by
     // the pz Gepard facade (src/3dengine/pz/pzgepard.cpp); null = SWINE as is.
     static void (*PanzersScenePass)(IDirect3DDevice9* dev);
+    // Panzers (recompile-only): called right after the board, in the same
+    // scene (the HD subports drawn after a board subport; pzviewport.cpp).
+    static void (*PanzersPostBoardPass)(IDirect3DDevice9* dev);
     void RenderScene2(int a2, bool minimapmode);
     void RenderShadowBoxToStencil();
     void RenderShadowMap(bool minimap);

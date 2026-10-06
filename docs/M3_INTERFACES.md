@@ -27,9 +27,12 @@ All addresses are HD `PANZERS.exe` addresses.
 
 Driving our build (posted messages, 1024x768 client): Training Camp (843,418); the nation dialog
 stand-in: German (512,166), Russian (512,214), Allied (512,263), Start (512,363), Cancel (512,508);
-loading screen: click anywhere; market stand-in: Start Mission (512,166), Cancel (512,508); in game:
-Esc; in-game menu: End Mission (512,460), Resume (512,508). The stand-in screens move to the HD
-layout as H and F lift them; update this table when they do.
+loading screen: click anywhere; market (HD layout, as m3ref): warehouse tabs infantry (800,78) /
+tanks (853,78), Panzer III F (815,265), Riflemen (940,135), Buy / Sell (512,743), first army item
+(75,135), Start Mission (895,743), Yes (413,495); in game: Esc or the top-bar Menu (453,9), Objectives
+(567,9); in-game menu: Help (512,312), Objectives (512,362), End Mission (512,460), Resume (512,508);
+Back on Help / Objectives (706,516); End Mission box Yes (413,495). The nation dialog moves to the HD
+layout when F lifts it; update this table when it does.
 
 Log of a full `-m3` round trip (2026-10-06, M3-P0 skeleton; trimmed):
 ```

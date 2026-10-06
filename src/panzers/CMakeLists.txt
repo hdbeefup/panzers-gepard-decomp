@@ -27,10 +27,15 @@ add_library(panzersgame STATIC
     gameview_input.cpp
     hud.h
     hud.cpp
+    hudwidgets.h
+    hudwidgets.cpp
+    hud_glyphs.inl
+    minimap.cpp
     ingamemenu.h
     ingamemenu.cpp
     market.h
     market.cpp
+    market_glyphs.inl
     trainingmenu.h
     trainingmenu.cpp
 )

@@ -11002,6 +11002,7 @@ void SGepard::InitShaders()
 //----- (0043F550) --------------------------------------------------------
 
 void (*SGepard::PanzersScenePass)(IDirect3DDevice9* dev) = nullptr;
+void (*SGepard::PanzersPostBoardPass)(IDirect3DDevice9* dev) = nullptr;
 
 static bool semaphor = false;
 static unsigned int lasttime = 0;
@@ -11493,6 +11494,8 @@ void SGepard::RenderScene(int a2, bool minimapmode)
   // Board — Board::Render sets up its own 2D render states internally
   if ( !minimapmode && this->BoardVisible )
     this->Board->Render(0.0f, a2, 0);
+  if ( !minimapmode && PanzersPostBoardPass )
+    PanzersPostBoardPass(this->lpD3DDev);
 
   // Editor diagnostic overlay (debug picker rects/discs). No-op in shipped
   // builds and when toggle is off. Defined in world.cpp; resolved at link

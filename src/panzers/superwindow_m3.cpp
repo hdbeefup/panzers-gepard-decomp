@@ -116,6 +116,11 @@ void M3LoadNextCampaignView(SSuperWindow* sw)
         m->Create();                                               // 0x6407d0
         FocusWidget(m);
         // HD: +0xd8 = 1; window scene = g_Scene (the market preview scene).
+        if (pz::g_WindowScene)
+            pz::g_WindowScene->Release();                          // scene +0x04
+        if (pz::g_Scene)
+            pz::g_Scene->AddRef();                                 // scene +0x00
+        pz::g_WindowScene = pz::g_Scene;                           // SDXWindow +0xe0
         return;
     }
     case pz::PZ_MENU_GAMEVIEW: {

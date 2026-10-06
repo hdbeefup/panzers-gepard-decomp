@@ -27,7 +27,7 @@
 //   SIGameViewCallback vftable 0x80339c at HD +0x58 (5 slots). SGameLogic
 //   gets this pointer as its 3rd ctor argument (LoadMap 0x6201c0:
 //   new SGameLogic(0, view +0x828, view +0x58)):
-//     +0x00 0x622b30 (1) ShowMessageBox(text) (name guessed: new SMessageBox 0x3ec at +0x3e30)
+//     +0x00 0x622b30 (1) ShowMessageBox(text) (name guessed: new SMessageBox 0x3ec at callback +0x3e30 = view +0x3e88 ModalBox)
 //     +0x04 0x622c50 (2)
 //     +0x08 0x625560 (1)
 //     +0x0c 0x624730 (0) ResetClock (name guessed: +0x45c/+0x460 = now, ms)
@@ -135,9 +135,7 @@ struct SGameViewData {
     int           SoundHandle3894;   // +0x3894 released at mission start (Concert +0x80)
     int           SoundHandle3898;   // +0x3898 released at mission start (Concert +0x0c)
     int           Modal;             // +0x389c
-    unsigned char _38a0[0x3e30 - 0x38a0];
-    SWidget*      MessageBox;        // +0x3e30 SMessageBox (0x3ec) of ShowMessageBox
-    unsigned char _3e34[0x3e40 - 0x3e34];
+    unsigned char _38a0[0x3e40 - 0x38a0];
     pz::SWorld*   World;             // +0x3e40 new 0x7538 in LoadMap
     pz::SGameLogic* Logic;           // +0x3e44 new 0x318 in LoadMap
     unsigned char _3e48[0x3e70 - 0x3e48]; // +0x3e48..+0x3e68 open dialogs (OnKeyDown Esc closes them)
@@ -216,7 +214,6 @@ struct SGameView : SDXWidget, SIGameViewCallback, SGameViewData {
     int& HdInt(int offset);                                          // recompile: an unnamed HD field
 
     // Recompile state (not HD).
-    int  SubportRect[3][4] = {};     // CreateSubViewports rects until the viewport subports exist (agent E)
     bool FramesCreated = false;      // Create made the message / timer / pause frames
 
     // Recompile skeleton state (not HD): the in-game menu widget and the
