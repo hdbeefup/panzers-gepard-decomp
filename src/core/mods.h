@@ -17,12 +17,26 @@
 //     (default 1), which gives HD's stretched 1024x768 UI again.
 //     Requested by the user as the first mod ("maybe first mod - widescreen
 //     fix?"); HD itself stretches the 1024x768 UI and crops the 3D view.
+//
+//   PANZERS_MOD_BUGFIXES  (CMake -DPANZERS_MOD_BUGFIXES=ON)
+//     Fixes for bugs of the original game, which the faithful build keeps:
+//     - Closing the window (WM_CLOSE / title-bar X) on the Credits screen.
+//       HD SSuperWindow::OnDestroy (0x65ab50) deletes every menu it owns
+//       except CreditMenu (+0x100), so the credits widget is still the
+//       window's child when ~SSuperWindow reaches ~SWidget (0x5430e0), which
+//       panics "SWidget::~SWidget: Children widgets should be removed first"
+//       (exit code 1). Seen on the HD PANZERS.exe itself. The fix deletes
+//       CreditMenu with the other menus in OnDestroy.
 
 #ifndef PANZERS_MODS_H
 #define PANZERS_MODS_H
 
 #ifndef PANZERS_MOD_WIDESCREEN
 #define PANZERS_MOD_WIDESCREEN 0
+#endif
+
+#ifndef PANZERS_MOD_BUGFIXES
+#define PANZERS_MOD_BUGFIXES 0
 #endif
 
 #if PANZERS_MOD_WIDESCREEN

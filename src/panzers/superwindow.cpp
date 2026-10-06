@@ -39,6 +39,7 @@
 #include "milesconcert.h"
 #if PANZERS_HAVE_BINK
 #include "bink.h"   // P2-C: src/panzers/bink.*
+#include "mods.h"
 #include "mod_widescreen.h"
 static SBinkVideo s_Intro;   // handles mirrored into SSuperWindowData::Bink/BinkBuffer
 #endif
@@ -750,6 +751,15 @@ void SSuperWindow::OnDestroy()
     if (Menu_10c) { delete Menu_10c; Menu_10c = nullptr; }
     if (Menu_114) { delete Menu_114; Menu_114 = nullptr; }
     if (AchimMenu) { delete AchimMenu; AchimMenu = nullptr; }
+    // HD deletes neither CreditMenu (+0x100) nor TrainingCampMenu (+0x118)
+    // here. Closing the window on the Credits screen therefore leaves the
+    // credits widget linked under SSuperWindow, and ~SWidget (0x5430e0, via
+    // ~SSuperWindow 0x6572a0 -> 0x5445a0) panics "Children widgets should be
+    // removed first": an original-game bug, kept in the faithful build.
+    // (TrainingCampMenu is never created here.)
+#if PANZERS_MOD_BUGFIXES
+    if (CreditMenu) { delete CreditMenu; CreditMenu = nullptr; }  // as PZA_CREDITS_DONE (0x43521) does
+#endif
     UnloadMenuBackground();                        // 0x65b940
     Board->UnloadCursorSet();                      // board +0x98 (0x6cbd00)
     // HD: ReleaseFont 0..11 (board +0x80).

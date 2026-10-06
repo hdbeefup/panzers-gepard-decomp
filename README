@@ -45,6 +45,10 @@ src/core/mods.h. Build a mod build in a separate build directory:
   4:3 shape: the top and bottom bars run the full width, the logo and
   centred screens stay centred, and the main menu stays at the right edge.
   Runtime toggle: `[Mods] Widescreen = 0` in panzers.ini turns it off.
+- PANZERS_MOD_BUGFIXES: fixes for bugs of the original game. So far:
+  closing the window on the Credits screen no longer ends in the panic
+  "SWidget::~SWidget: Children widgets should be removed first" (HD's
+  SSuperWindow::OnDestroy forgets to delete the credits screen).
 
 Docs:
 - docs/re/TRIAGE.md       HD exe triage: boot path, libraries, symbol sources

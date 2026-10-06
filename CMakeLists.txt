@@ -99,6 +99,11 @@ if(PANZERS_MOD_WIDESCREEN)
     add_compile_definitions(PANZERS_MOD_WIDESCREEN=1)
     message(STATUS "Mod: PANZERS_MOD_WIDESCREEN on")
 endif()
+option(PANZERS_MOD_BUGFIXES "Mod: fixes for bugs of the original game (see src/core/mods.h)" OFF)
+if(PANZERS_MOD_BUGFIXES)
+    add_compile_definitions(PANZERS_MOD_BUGFIXES=1)
+    message(STATUS "Mod: PANZERS_MOD_BUGFIXES on")
+endif()
 
 # Engine libraries, in dependency order
 add_subdirectory(src/core)
