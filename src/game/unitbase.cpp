@@ -744,7 +744,7 @@ void SUnit::SetCurrentTarget(STarget* target, int p2)
                 g->PendingTarget = nullptr;
             }
             if (ActiveDriver >= 0 && GetDriver(ActiveDriver))
-                GetDriver(ActiveDriver)->RefreshTarget((int)(size_t)CurrentTarget);   // driver +0x08
+                GetDriver(ActiveDriver)->SetTarget(CurrentTarget);   // driver +0x08
         } else {
             if (g->PendingTarget)
                 PzTargetRelease(g->PendingTarget);
@@ -757,7 +757,7 @@ void SUnit::SetCurrentTarget(STarget* target, int p2)
         if (ActiveDriver >= 0) {
             SIDriver* d = GetDriver(ActiveDriver);
             if (d)
-                d->RefreshTarget((int)(size_t)CurrentTarget); // +0x08
+                d->SetTarget(CurrentTarget); // +0x08
         }
     }
     if (_18c != -1) {

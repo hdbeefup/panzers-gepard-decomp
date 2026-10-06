@@ -347,7 +347,7 @@ void SPanzersSquadUnit::SetCurrentTarget(STarget* target, int p2)
     if (ActiveDriver >= 0) {
         SIDriver* d = GetDriver(ActiveDriver);
         if (d)
-            d->RefreshTarget((int)(size_t)CurrentTarget);     // +0x08
+            d->SetTarget(CurrentTarget);     // +0x08
     }
     (void)p2;
     if (tgt::I(target, tgt::kType) == 4)

@@ -267,7 +267,7 @@ void SPUnit::LoadResources(SUPropStruct* unit)
             PGunners.Array[i]->LoadResources(unit->GetArrayItem("Gunners", i));   // vtbl +0x08
     for (int i = 0; i < PDrivers.Size; ++i)
         if (PDrivers.Array[i])
-            PDrivers.Array[i]->LoadSubProperties();                               // vtbl +0x08 (P: takes the driver struct)
+            PDrivers.Array[i]->LoadSubProperties(nullptr);   // vtbl +0x08 HD: the "Drivers" item (effects; P skips them until the pixie slots are typed)
     if (PAnimation)                                                               // vtbl +0x08(this, sub)
         static_cast<SPUnitAnimation*>(PAnimation)->LoadResourcesProps(
             this, SAnimProps::FromFlat(unit->Source, unit->Key.c_str()).GetMultiSub("Animation"));

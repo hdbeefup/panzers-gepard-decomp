@@ -15,6 +15,13 @@ add_library(pzworld STATIC
     unit.cpp
     trigger.h
     trigger.cpp
+    # P: block map + A*
+    blockmap.h
+    blockmap.cpp
+    astar.h
+    astar.cpp
+    blockmaprefresh.h
+    blockmaprefresh.cpp
 )
 target_include_directories(pzworld PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(pzworld PUBLIC ${PANZERS_SRC_DIR}/game)

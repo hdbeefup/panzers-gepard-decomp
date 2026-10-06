@@ -36,6 +36,18 @@ add_library(pzgame STATIC
     # P: drivers + path finding
     driver.h
     driver.cpp
+    drivermath.h
+    drivermath.cpp
+    drivertypes.h
+    driverunit.h
+    driverunit.cpp
+    driverpath.cpp
+    driverghost.cpp
+    target.h
+    target.cpp
+    manoeuvre.h
+    driverextern.cpp
+    manoeuvre.cpp
     # A: unit animation
     unitanim.h
     unitanim.cpp

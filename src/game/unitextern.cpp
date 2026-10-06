@@ -142,11 +142,12 @@ struct SStandInPDriver : SPDriver {
 };
 
 struct SStandInDriver : SDriver {
+    SStandInDriver() : SDriver(nullptr, nullptr) {}
     SStandInPDriver* P;
     SIPDriver* GetPDriver() override { return P; }
     void Init() override {}
     void Refresh() override {}
-    void RefreshTarget(int) override {}
+    void SetTarget(STarget*) override {}
 };
 
 SIDriver* SStandInPDriver::CreateDriver(SIUnit* unit)
