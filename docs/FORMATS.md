@@ -218,3 +218,76 @@ str049 = "Assault"
 
 The shipped `nordic_en.pak` `menu.ini` has 18 sections and 757 entries. In 40
 of them the str differs from the id.
+
+## Effect files (`*.fx`)
+
+Code: `src/core/propertystruct.*` (typed property trees, HD
+0x661c70..0x669d60), `src/3dengine/pz/pzpixie.*`, `effect.*` and
+`particles.cpp`. The schema is in `effectschema.cpp`, generated from the
+SPixie ctor 0x6941e0.
+
+An `.fx` file is an INI file (see `SProperties` above) with two sections:
+
+| Section | Content |
+|---|---|
+| `[Version]` | `TimeStamp = 2003.12.14.12:47:18`. With the check flag, `LoadEffectPrototype` panics when the stamp is later than the exe build date ("ViewEffects.exe is too old"). |
+| `[ExtendedFx2]` | the effect, as a typed property tree |
+
+`SPixie::LoadEffectPrototype` 0x69dc80 creates an instance of the schema
+`Array "Effects"` and loads it from `[ExtendedFx2]`:
+
+- A node's key is its parent's key, a dot, then its own name
+  (`Effects.0.Data.EffectType.00_PARTICLES.Birth.LifeTime`). Names may
+  contain spaces and dots (`ZBuffer On`, `Max. Y`).
+- **Array**: the key holds the element count, and element `i` is named
+  `<i>.<element name>` (`Effects = 3`, `Effects.2.Data...`). The count is
+  not clamped.
+- **Multi**: the key holds the selected alternative (`EffectType = 0`). All
+  alternatives are loaded under `<key>.<alternative name>`.
+- **Struct**: has no key of its own.
+- **Int / Float**: clamped to the schema range. **Color**: `0xRRGGBB`
+  (strtol base 0), clamped to 0..0xffffff. **Bool**: int != 0. **Enum**:
+  a value that is not one of the items keeps the default.
+- **Track** (a piecewise-linear curve over 0..1 of the particle life):
+  `<key>.Options.Loop`, `<key>.Options.Max. Y` (editor only), `<key>.Keys`
+  = count, `<key>.Keys.<i>.Key.X` / `.Y`.
+- A missing key takes the schema default. The files written by the effect
+  editor list every key.
+
+Each `Effects.<i>.Data` struct is one sub-effect:
+
+| Key | Meaning |
+|---|---|
+| `Enabled` | Editor switch only. **The game never reads it**: the menu fire has all three entries at 0 and they still play. |
+| `Name` | editor label |
+| `PriorityLayer` | 0..2, the drawing pass (`SPixie::Render` draws layer 0, then 1, then 2) |
+| `ForceUpdate` | update even outside the visible terrain |
+| `EffectType` | 0 `00_PARTICLES`, 1 `01_FLARE`, 2 `02_RAIN`, 3 `03_SNOWFALL`, 4 `04_DECALEFFECT`, 5 `05_SOUNDEFFECT`, 6 `06_ATMOSPHERE`, 7 `07_LITE`, 8 `08_TRAIL`, 9 `09_SHOCKWAVE`, 10 `10_CAMERASHAKE`, 11 `11_SANDSTORM` (the cases of `SPixie::InitEffectPrototype` 0x69d6a0) |
+
+`00_PARTICLES` (`SPParticles::Init` 0x6e5eb0):
+
+| Group | Keys |
+|---|---|
+| `Draw` (multi) | 0 `Particles`: `ParticleType` (0 Normal = screen-space quads, 1 Billboard = vertical quads facing the camera yaw, 2 Cloud = horizontal quads, 3 Trail), `TrailLength`, `TrailOrientation`, `BlendType` (0 alpha blend from the texture alpha, 1 additive), `ElevDependent`, `ZBuffer On`, `Color`, `Random rotate`, `Texture Anim in` (0 `More files`: `effects\media\<Texture>NN[_a].tga`; 1 `One file`: `Texture`, a horizontal strip of `TotalAnimFrames` frames, of which `FirstAnimFrame`..`LastAnimFrame` are used), `LightingModel`, `LightColor1/2`, `OverLight1`, `LightRange`, `LightIntensity` (track), `LightDuration`, `FixedLightSource`. 1 `Object` (`Mesh file`). 2 `Effect` (`FX file`, one sub-effect per particle). 3 `Trail`. |
+| `Tracks` | `Alpha`, `Size` (track value * 0.5 = half size in metres), `Size_Rnd`, `AdditionalSpeed` (multiplies the birth velocity) |
+| `Birth` | `Style` (0 Centralized, 1 Along the edge + `Quantity`, 2 From Basement), `BirthSpeed` (particles/s), `Duration` (0 = endless), `LifeTime`, `LifeTime_Rnd`, `Sphere`, `Radius` (a disc of this radius, denser in the middle; 0 = a box of `RandomX/Y/Z`), `VSpeed(_Rnd)` along the effect direction, `HSpeed(_Rnd)` outward, `FromTerrain`, `FromWater`, `Altitude`, `CollisionType` (None, Slide, Disappear, Jump), `CollisionSticking`, `GrowTime`, `GrowSpeed`, `BirthEnabledTime(RND)` / `BirthDisabledTime(RND)` (on/off cycles), `Birth in rain`, `Balanced birth`, `Sampling rate` |
+| `Move` (multi) | 0 `Shot`: `VariationType` (0 a random frame per particle, 1 animate over the life), `Gravity` (negative rises), `AirResistance`, `AirResistance2`, `Turbulence`, `NoWind`, `Object Spin` + X/Y/Z spin minimum/random (deg/s). 1 `Waste`. |
+| `General` | `ManageType`, `Linked` (particles follow the emitter), `PivotDir` (the birth basis follows the direction), `TrailDirectionUpdate`, `Bullet Indicator`, `Wait(_Rnd)` (start delay), `Version` (3 is rejected), `ID for Debug` |
+
+Textures are looked up as `effects\media\<Texture>`. For the Snowy and
+Foggy scene atmospheres, the suffix `_snowy` / `_foggy` goes before `_a`
+(or before the extension), falling back to the plain name.
+
+The menu map (`maps/menu.map`, chunk `EEFS`) places three effects on the
+Panther wreck:
+
+- `effects/smoke/Ground_Dark_Slow_Size3.fx` and `Ground_Dark_Fast_Size3.fx`:
+  one Normal particle entry each (`smoke_a.tga`, 2 frames, colour 0x202020,
+  alpha blend, 3 particles/s, life 5 s / 2.5 s, rising at 0.6 / 1.3 m/s).
+- `effects/fire/Fire_From_House_Size2.fx`: three entries. Cloud and
+  Billboard additive flames (`tuz_v01.tga` / `tuz_v12.tga`, 32-frame strips
+  animated over frames 0..17, rising with gravity -1.5), and a smoke column
+  (`smoke_a.tga`, colour 0x545454). All three have `Enabled = 0`.
+
+The fire sits 0.7 m above the ground, inside the hull. This is probably why
+the original menu shows only smoke there (not verified with the models).

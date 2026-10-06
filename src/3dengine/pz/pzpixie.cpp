@@ -1,24 +1,82 @@
 // src/3dengine/pz/pzpixie.cpp
-// pz::SPixie skeleton. OWNER: agent C. See pzscene.cpp for the stub rules.
+// pz::SPixie, the HD effect manager (0x6941e0..0x69f7b0). OWNER: agent C.
+// See pzpixie.h for the frame protocol and effect.h for the classes.
 
 #include <string.h>
+#include <stdlib.h>
+#include <d3d9.h>
 #include "pzpixie.h"
+#include "effectrender.h"
+#include "iviewport.h"
+#include "igepardhd.h"
+#include "properties.h"
+#include "stream.h"
+#include "logger.h"
 #include "stub_log.h"
 
 namespace pz {
 
-SPixie::SPixie()
+static SPixie* s_Pixie = nullptr;                 // HD 0x92f104
+static SPProperty* s_PPropertyEffects = nullptr;  // HD 0x92f108
+static SPProperty* s_PPropertyEfx = nullptr;      // HD 0x92f100
+
+SPixie* SPixie::Instance()
 {
-    STUB_LOG("SPixie::SPixie (0x6941e0)");
-    PZ_TRACE("SPixie::SPixie (0x6941e0)");
-    memset(_04, 0, sizeof(_04));
-    RefCount = 1;   // assumed like SScene/SModel; check 0x6941e0
+    return s_Pixie;
 }
 
+// PANZERS 0x6941e0
+// The bulk of the HD ctor (35 KB) builds the two property schema trees; that
+// part is generated into effectschema.cpp. The dynamic vertex buffers are
+// SGepard formats in HD; here they are the FVF codes the draw helpers use
+// (effectrender.cpp).
+SPixie::SPixie()
+    : Device(nullptr), _30(false), ParticleVB(-1), WorldVB(-1), FlareVB(-1), _54(0),
+      RainIntensity(0.0f), _5c(0.0f), WindPhase(0.0f), DeferredHead(nullptr), DeferredTail(nullptr),
+      DeferredCursor(nullptr), _70(false), DeferredCount(0), RefCount(1)
+{
+    PZ_TRACE("SPixie::SPixie (0x6941e0)");
+    if (s_Pixie)
+        Logger.g->Panic("SPixie::SPixie: Duplicate Pixie creation");
+    s_Pixie = this;
+    WindPhase = (float)((double)rand() * (1.0 / 32768.0) * 6.283);
+    Device = EffectDevice();
+    ParticleVB = EffectCreateDynamicVB(0x1c4);
+    WorldVB = EffectCreateDynamicVB(0x142);
+    FlareVB = EffectCreateDynamicVB(0x1c4);
+    if (s_PPropertyEffects)
+        Logger.g->Panic("SPixie::SPixie(): PProperty_Effects is not NULL (effect-prototype tree already exists).");
+    s_PPropertyEffects = BuildEffectsSchema();
+    s_PPropertyEfx = BuildEfxSchema();
+}
+
+// PANZERS 0x69cb90
 SPixie::~SPixie()
 {
-    STUB_LOG("SPixie::~SPixie (0x69cb90)");
     PZ_TRACE("SPixie::~SPixie (0x69cb90)");
+    if (RefCount != 0)
+        Logger.g->Panic("SPixie::~SPixie(): Deleted instead of release.");
+    delete s_PPropertyEfx;
+    s_PPropertyEfx = nullptr;
+    delete s_PPropertyEffects;
+    s_PPropertyEffects = nullptr;
+    if (Effects.Count > 0)
+        Logger.g->Log(0, "%d effects leaked.", Effects.Count);   // HD panics
+    for (int i = 0; i < Prototypes.Size(); ++i) {
+        if (Prototypes.Valid(i) && Prototypes[i]) {
+            Logger.g->Log(0, "SPixie::~SPixie(): Leaked effect prototype: \"%s\"",
+                          Prototypes[i]->FileName.c_str());
+            delete Prototypes[i];
+            Prototypes.Remove(i);
+        }
+    }
+    s_Pixie = nullptr;
+    SPixieDeferredPlay* p = DeferredHead;
+    while (p) {
+        SPixieDeferredPlay* n = p->Next;
+        delete p;
+        p = n;
+    }
 }
 
 // PANZERS 0x69d1d0
@@ -36,191 +94,459 @@ void SPixie::Release()
         delete this;   // ~SPixie 0x69cb90 + operator delete(0x7c)
 }
 
-// ---- generated slot stubs (HD vtable order) ----
-
-// HD SPixie vtbl +0x08 -> 0x69edb0 (1 arg dword)
-void SPixie::Slot_08()
+// PANZERS 0x69edb0
+void SPixie::ReloadResources(int unused)
 {
-    STUB_LOG("SPixie::Slot_08 (0x69edb0)");
-    PZ_TRACE("SPixie::Slot_08 (0x69edb0)");
+    PZ_TRACE("SPixie::ReloadResources (0x69edb0)");
+    (void)unused;
+    for (int i = 0; i < Prototypes.Size(); ++i)
+        if (Prototypes.Valid(i))
+            Prototypes[i]->ReloadResources();
 }
 
-// HD SPixie vtbl +0x0c -> 0x69e5a0 (1 arg dword)
+// PANZERS 0x69e5a0
+// Rebuilds the prototype set from its property tree: drops the old entries,
+// then InitEffectPrototype (+0x68) for each "Effects.N.Data". Returns 0, or
+// -1 when the tree is not an "Effects" array or an entry fails.
 int SPixie::RefreshEffectPrototype(int proto)
 {
-    STUB_LOG("SPixie::RefreshEffectPrototype (0x69e5a0)");
     PZ_TRACE("SPixie::RefreshEffectPrototype (0x69e5a0)");
-    (void)proto;
+    if (!Prototypes.Valid(proto))
+        return -1;
+    SPEffectSet* set = Prototypes[proto];
+    SPropertyArray* tree = set->Properties;
+    if (!tree)
+        Logger.g->Panic("SPixie::RefreshEffectPrototype(): Effect property-tree is NULL.");
+    for (int i = 0; i < set->Effects.Size(); ++i) {
+        if (set->Effects.Valid(i)) {
+            delete set->Effects[i];
+        }
+    }
+    // HD resets the heap in place (+0x08 = 0, +0x10 = -1, +0x14 = 0).
+    set->Effects.Used = 0;
+    set->Effects.FreeHead = -1;
+    set->Effects.Count = 0;
+    if (tree->Type() != PROPERTY_TYPE_ARRAY || _stricmp(tree->Name.c_str(), "Effects") != 0)
+        return -1;
+    char name[32];
+    for (int i = 0; i < (int)tree->Children.size(); ++i) {
+        sprintf(name, "%d.Data", i);
+        SProperty* data = tree->Children[i];
+        if (data->Type() != PROPERTY_TYPE_STRUCT || _stricmp(data->Name.c_str(), name) != 0)
+            return -1;
+        if (InitEffectPrototype(proto, "ExtendedFx2", static_cast<SPropertyStruct*>(data)) < 0)
+            return -1;
+    }
     return 0;
 }
 
-// HD SPixie vtbl +0x10 -> 0x69dc80 (5 arg dwords)
-int SPixie::LoadEffectPrototype(const char* file, bool p2, bool p3, int p4, int p5)
+// PANZERS 0x69dc80
+// A file already loaded returns its handle with one more reference. The
+// file is opened once to test that it exists (HD logs a Hungarian help text
+// and returns -1 otherwise). checkTimeStamp compares [Version] TimeStamp
+// with the exe build date and panics on newer files ("ViewEffects.exe is
+// too old"); unitFile/unitFileLen is an SString passed by value (the unit
+// file name for the error text), freed here.
+int SPixie::LoadEffectPrototype(const char* file, bool keepProperties, bool checkTimeStamp, int unitFile, int unitFileLen)
 {
-    STUB_LOG("SPixie::LoadEffectPrototype (0x69dc80)");
     PZ_TRACE("SPixie::LoadEffectPrototype (0x69dc80)");
-    (void)file; (void)p2; (void)p3; (void)p4; (void)p5;
-    return -1;
+    (void)unitFileLen;
+    int result = -1;
+    for (int i = 0; i < Prototypes.Size(); ++i) {
+        if (!Prototypes.Valid(i))
+            continue;
+        SPEffectSet* set = Prototypes[i];
+        bool same = set->FileName.empty() ? (!file || !*file)
+                                          : (file && *file && strcmp(set->FileName.c_str(), file) == 0);
+        if (same) {
+            set->AddRef();
+            if (unitFile)
+                delete[] (char*)unitFile;
+            return i;
+        }
+    }
+
+    SStream* s = FileSystem.OpenRead(file, nullptr);
+    if (!s) {
+        Logger.g->Log(0, "Nem sikerult betolteni az effektet, hibas a kovetkezo file neve: %s\n"
+                         "(SPixie::LoadEffectPrototype)\n(unit effekt eseten a unit leiro file neve: %s)",
+                      file ? file : "", unitFile ? (const char*)unitFile : "");
+    } else {
+        s->Release();
+        SPropertyArray* props = static_cast<SPropertyArray*>(s_PPropertyEffects->CreateInstance());
+        result = Prototypes.Add();
+        SPEffectSet* set = new SPEffectSet();
+        Prototypes[result] = set;
+        set->Index = result;                     // 0x6df3c0
+        set->FileName = file ? file : "";
+        set->Properties = props;
+        set->ForceUpdate = false;
+        SProperties* ini = new SProperties(file, true);
+        if (checkTimeStamp) {
+            // Build date of the HD exe ("Wed Nov  4 09:37:38 2015") as
+            // "2015.11.04.09:37:38"; spaces in both strings become '0'.
+            char built[] = "2015.11.04.09:37:38";
+            const char* ts = ini->GetString("Version", "TimeStamp", "");
+            char stamp[64];
+            strncpy(stamp, ts ? ts : "", sizeof(stamp) - 1);
+            stamp[sizeof(stamp) - 1] = 0;
+            for (char* c = stamp; *c; ++c)
+                if (*c == ' ')
+                    *c = '0';
+            if (strcmp(stamp, built) > 0)
+                Logger.g->Panic("SPixie::LoadEffectPrototype(): TimeStamp mismatch.\n\nViewEffects.exe is too old.");
+        }
+        if (props->Load(ini, "ExtendedFx2", nullptr))
+            RefreshEffectPrototype(result);
+        delete ini;
+    }
+    if (!keepProperties && Prototypes.Valid(result) && Prototypes[result]->Properties) {
+        delete Prototypes[result]->Properties;
+        Prototypes[result]->Properties = nullptr;
+    }
+    if (unitFile)
+        delete[] (char*)unitFile;
+    return result;
 }
 
-// HD SPixie vtbl +0x14 -> 0x69ee50 (2 arg dwords)
+// HD SPixie vtbl +0x14 -> 0x69ee50 (2 arg dwords): writes a prototype back
+// to a .fx file (effect editor).
 void SPixie::Slot_14()
 {
     STUB_LOG("SPixie::Slot_14 (0x69ee50)");
     PZ_TRACE("SPixie::Slot_14 (0x69ee50)");
 }
 
-// HD SPixie vtbl +0x18 -> 0x69d2a0 (0 arg dwords)
-void SPixie::Slot_18()
+// PANZERS 0x69d2a0
+int SPixie::CreateEffectPrototype()
 {
-    STUB_LOG("SPixie::Slot_18 (0x69d2a0)");
-    PZ_TRACE("SPixie::Slot_18 (0x69d2a0)");
+    PZ_TRACE("SPixie::CreateEffectPrototype (0x69d2a0)");
+    int i = Prototypes.Add();
+    SPEffectSet* set = new SPEffectSet();
+    Prototypes[i] = set;
+    set->Index = i;
+    set->FileName = "**untitled.fx";
+    set->Properties = static_cast<SPropertyArray*>(s_PPropertyEffects->CreateInstance());
+    return i;
 }
 
-// HD SPixie vtbl +0x1c -> 0x69d5b0 (1 arg dword)
-void SPixie::Slot_1C()
+// PANZERS 0x69d5b0
+void* SPixie::GetEffectProperties(int proto)
 {
-    STUB_LOG("SPixie::Slot_1C (0x69d5b0)");
-    PZ_TRACE("SPixie::Slot_1C (0x69d5b0)");
+    PZ_TRACE("SPixie::GetEffectProperties (0x69d5b0)");
+    if (!Prototypes.Valid(proto))
+        return nullptr;
+    return Prototypes[proto]->Properties;
 }
 
-// HD SPixie vtbl +0x20 -> 0x69e8c0 (1 arg dword)
-void SPixie::Slot_20()
+// PANZERS 0x69e8c0
+void SPixie::ReleaseEffectPrototype(int proto)
 {
-    STUB_LOG("SPixie::Slot_20 (0x69e8c0)");
-    PZ_TRACE("SPixie::Slot_20 (0x69e8c0)");
+    PZ_TRACE("SPixie::ReleaseEffectPrototype (0x69e8c0)");
+    if (Prototypes.Valid(proto))
+        Prototypes[proto]->Release();   // 0x6df000
 }
 
-// HD SPixie vtbl +0x24 -> 0x69e400 (5 arg dwords)
+// PANZERS 0x69f780
+// (0x69e9f0: frees the slot; the set deletes itself)
+void SPixie::RemovePrototype(int proto)
+{
+    if (Prototypes.Valid(proto))
+        Prototypes.Remove(proto);
+}
+
+// PANZERS 0x69e400
+// p5 is a float passed as a dword: an instance lifetime override for the
+// particles (SParticles ctor 0x6e0980; 0 = the .fx LifeTime).
 void SPixie::PlayEffect(SIScene* scene, int proto, const float* pos, const float* dir, int p5)
 {
-    STUB_LOG("SPixie::PlayEffect (0x69e400)");
     PZ_TRACE("SPixie::PlayEffect (0x69e400)");
-    (void)scene; (void)proto; (void)pos; (void)dir; (void)p5;
+    if (proto < 0)
+        return;
+    int h = Effects.Add();
+    if (!Prototypes.Valid(proto))
+        Logger.g->Panic("SHeap<%s>::operator[]: invalid index (%d)", "struct SPEffectSet *", proto);
+    float param;
+    memcpy(&param, &p5, sizeof(param));
+    Effects[h] = Prototypes[proto]->CreateInstance(scene, h, param, 0);
+    Effects[h]->SetPosition(pos);
+    Effects[h]->SetDirection(dir);
 }
 
-// HD SPixie vtbl +0x28 -> 0x69e510 (5 arg dwords)
+// HD SPixie vtbl +0x28 -> 0x69e510 (5 arg dwords): plays an effect attached
+// to a model node (SModel::AttachChild 0x6d5940). Needs agent A's models.
 void SPixie::Slot_28()
 {
     STUB_LOG("SPixie::Slot_28 (0x69e510)");
     PZ_TRACE("SPixie::Slot_28 (0x69e510)");
 }
 
-// HD SPixie vtbl +0x2c -> 0x69f540 (4 arg dwords)
-void SPixie::Slot_2C()
+// PANZERS 0x69f540
+// Like PlayEffect, but the set is persistent (+0x30): it stays registered
+// when it runs empty, until StopEffect / ReleaseEffect / DestroyEffect.
+int SPixie::CreateEffect(SIScene* scene, int proto, const float* pos, const float* dir)
 {
-    STUB_LOG("SPixie::Slot_2C (0x69f540)");
-    PZ_TRACE("SPixie::Slot_2C (0x69f540)");
+    PZ_TRACE("SPixie::CreateEffect (0x69f540)");
+    if (proto < 0)
+        return -1;
+    int h = -1;
+    if (Prototypes.Valid(proto) && Prototypes[proto]) {
+        h = Effects.Add();
+        Effects[h] = Prototypes[proto]->CreateInstance(scene, h, 0.0f, 0);
+        Effects[h]->SetPosition(pos);
+        Effects[h]->SetDirection(dir);
+        Effects[h]->SetPersistent(true);
+    }
+    return h;
 }
 
-// HD SPixie vtbl +0x30 -> 0x69f610 (4 arg dwords)
+// HD SPixie vtbl +0x30 -> 0x69f610 (4 arg dwords): persistent effect
+// attached to a model node. Needs agent A's models.
 void SPixie::Slot_30()
 {
     STUB_LOG("SPixie::Slot_30 (0x69f610)");
     PZ_TRACE("SPixie::Slot_30 (0x69f610)");
 }
 
-// HD SPixie vtbl +0x34 -> 0x69f6b0 (1 arg dword)
+// PANZERS 0x69f6b0
 void SPixie::StopEffect(int effect)
 {
-    STUB_LOG("SPixie::StopEffect (0x69f6b0)");
     PZ_TRACE("SPixie::StopEffect (0x69f6b0)");
-    (void)effect;
+    if (!Effects.Valid(effect))
+        return;
+    if (Effects[effect]) {
+        Effects[effect]->SetPersistent(false);
+        Effects[effect]->Stop();
+        return;
+    }
+    Effects.Remove(effect);
 }
 
-// HD SPixie vtbl +0x38 -> 0x69d1e0 (1 arg dword)
-void SPixie::Slot_38()
+// PANZERS 0x69d1e0
+void SPixie::ReleaseEffect(int effect)
 {
-    STUB_LOG("SPixie::Slot_38 (0x69d1e0)");
-    PZ_TRACE("SPixie::Slot_38 (0x69d1e0)");
+    PZ_TRACE("SPixie::ReleaseEffect (0x69d1e0)");
+    if (!Effects.Valid(effect))
+        return;
+    if (Effects[effect]) {
+        Effects[effect]->SetPersistent(false);
+        return;
+    }
+    Effects.Remove(effect);
 }
 
-// HD SPixie vtbl +0x3c -> 0x69d540 (1 arg dword)
-void SPixie::Slot_3C()
+// PANZERS 0x69d540
+void SPixie::DestroyEffect(int effect)
 {
-    STUB_LOG("SPixie::Slot_3C (0x69d540)");
-    PZ_TRACE("SPixie::Slot_3C (0x69d540)");
+    PZ_TRACE("SPixie::DestroyEffect (0x69d540)");
+    if (!Effects.Valid(effect) || !Effects[effect])
+        return;
+    SEffectSet* set = Effects[effect];
+    Effects[effect] = nullptr;
+    set->Handle = -1;          // its dtor must not unregister the slot again
+    delete set;
+    Effects.Remove(effect);
 }
 
-// HD SPixie vtbl +0x40 -> 0x69f710 (1 arg dword)
+// PANZERS 0x69f710
+// Called by the SEffectSet dtor. A persistent set leaves its slot (with a
+// null pointer) until the owner stops or releases it.
 void SPixie::UnregisterEffect(int effect)
 {
-    STUB_LOG("SPixie::UnregisterEffect (0x69f710)");
     PZ_TRACE("SPixie::UnregisterEffect (0x69f710)");
-    (void)effect;
+    if (effect < 0)
+        return;
+    if (!Effects.Valid(effect))
+        Logger.g->Panic("SPixie::UnregisterEffect(): Invalid index specified.");
+    if (!Effects[effect] || !Effects[effect]->IsPersistent()) {
+        Effects.Remove(effect);
+        return;
+    }
+    Effects[effect] = nullptr;
 }
 
-// HD SPixie vtbl +0x44 -> 0x69d410 (1 arg dword)
-void SPixie::Slot_44()
+// PANZERS 0x69d410
+// HD first calls scene +0x84 (not ported in SIScene yet).
+void SPixie::DestroySceneEffects(SIScene* scene)
 {
-    STUB_LOG("SPixie::Slot_44 (0x69d410)");
-    PZ_TRACE("SPixie::Slot_44 (0x69d410)");
+    PZ_TRACE("SPixie::DestroySceneEffects (0x69d410)");
+    for (int i = 0; i < Effects.Size(); ++i)
+        if (Effects.Valid(i) && Effects[i] && Effects[i]->Scene == scene)
+            delete Effects[i];
 }
 
-// HD SPixie vtbl +0x48 -> 0x69f7b0 (1 arg dword)
+// PANZERS 0x69f7b0
+// Once per rendered frame. With a terrain, effects outside the visible map
+// are deactivated (no births) unless ForceUpdate; then every set updates
+// (and may delete itself). Last, the deferred plays run.
 void SPixie::UpdateFrame(int frame)
 {
-    STUB_LOG("SPixie::UpdateFrame (0x69f7b0)");
     PZ_TRACE("SPixie::UpdateFrame (0x69f7b0)");
-    (void)frame;
+    void* terrain = nullptr;
+    bool first = true;
+    for (int i = 0; i < Effects.Size(); ++i) {
+        if (!Effects.Valid(i) || !Effects[i])
+            continue;
+        SEffectSet* set = Effects[i];
+        if (first) {
+            first = false;
+            terrain = SceneTerrain(set->Scene);
+        }
+        if (terrain && !set->Proto->ForceUpdate) {
+            // HD: SetActive(STerrain 0x69db40 "visible at (x, z)"). The
+            // terrain visibility map is agent B's; until then everything is
+            // visible.
+            float p[3];
+            set->GetPosition(p);
+            set->SetActive(true);
+        } else {
+            set->SetActive(true);
+        }
+        Effects[i]->Update((unsigned)frame, nullptr);
+    }
+    DeferredCursor = DeferredHead;
+    while (DeferredCursor) {
+        SPixieDeferredPlay* d = DeferredCursor;
+        PlayEffect(d->Scene, d->Proto, d->Pos, d->Dir, 0);
+        SPixieDeferredPlay* next = d->Next;
+        SPixieDeferredPlay* prev = d->Prev;
+        if (next) next->Prev = prev;
+        if (prev) prev->Next = next;
+        if (DeferredHead == d) DeferredHead = next;
+        if (DeferredTail == d) DeferredTail = prev;
+        delete d;
+        --DeferredCount;
+        DeferredCursor = next;
+    }
 }
 
-// HD SPixie vtbl +0x4c -> 0x69f370 (2 arg dwords)
-void SPixie::Slot_4C()
+// PANZERS 0x69f370
+void SPixie::SetEffectPosition(int effect, const float* pos)
 {
-    STUB_LOG("SPixie::Slot_4C (0x69f370)");
-    PZ_TRACE("SPixie::Slot_4C (0x69f370)");
+    PZ_TRACE("SPixie::SetEffectPosition (0x69f370)");
+    if (Effects.Valid(effect) && Effects[effect])
+        Effects[effect]->SetPosition(pos);
 }
 
-// HD SPixie vtbl +0x50 -> 0x69f2d0 (2 arg dwords)
-void SPixie::Slot_50()
+// PANZERS 0x69f2d0
+void SPixie::SetEffectDirection(int effect, const float* dir)
 {
-    STUB_LOG("SPixie::Slot_50 (0x69f2d0)");
-    PZ_TRACE("SPixie::Slot_50 (0x69f2d0)");
+    PZ_TRACE("SPixie::SetEffectDirection (0x69f2d0)");
+    if (Effects.Valid(effect) && Effects[effect])
+        Effects[effect]->SetDirection(dir);
 }
 
-// HD SPixie vtbl +0x54 -> 0x69f460 (2 arg dwords)
+// HD SPixie vtbl +0x54 -> 0x69f460 (2 arg dwords): SEffectSet +0x18.
 void SPixie::Slot_54()
 {
     STUB_LOG("SPixie::Slot_54 (0x69f460)");
     PZ_TRACE("SPixie::Slot_54 (0x69f460)");
 }
 
-// HD SPixie vtbl +0x58 -> 0x69f320 (2 arg dwords)
+// HD SPixie vtbl +0x58 -> 0x69f320 (2 arg dwords): SEffectSet::SetModel 0x6df2c0.
 void SPixie::Slot_58()
 {
     STUB_LOG("SPixie::Slot_58 (0x69f320)");
     PZ_TRACE("SPixie::Slot_58 (0x69f320)");
 }
 
-// HD SPixie vtbl +0x5c -> 0x69dc20 (1 arg dword)
-void SPixie::Slot_5C()
+// PANZERS 0x69dc20
+bool SPixie::IsBulletIndicator(int proto)
 {
-    STUB_LOG("SPixie::Slot_5C (0x69dc20)");
-    PZ_TRACE("SPixie::Slot_5C (0x69dc20)");
+    PZ_TRACE("SPixie::IsBulletIndicator (0x69dc20)");
+    if (!Prototypes.Valid(proto) || !Prototypes[proto])
+        return false;
+    return Prototypes[proto]->IsBulletIndicator();
 }
 
-// HD SPixie vtbl +0x60 -> 0x69f410 (2 arg dwords)
-void SPixie::Slot_60()
+// PANZERS 0x69f410
+void SPixie::SetEffectEnabled(int effect, bool on)
 {
-    STUB_LOG("SPixie::Slot_60 (0x69f410)");
-    PZ_TRACE("SPixie::Slot_60 (0x69f410)");
+    PZ_TRACE("SPixie::SetEffectEnabled (0x69f410)");
+    if (Effects.Valid(effect) && Effects[effect])
+        Effects[effect]->SetEnabled(on);
 }
 
-// HD SPixie vtbl +0x64 -> 0x69f4e0 (3 arg dwords)
+// HD SPixie vtbl +0x64 -> 0x69f4e0 (3 arg dwords): SEffectSet +0x24.
 void SPixie::Slot_64()
 {
     STUB_LOG("SPixie::Slot_64 (0x69f4e0)");
     PZ_TRACE("SPixie::Slot_64 (0x69f4e0)");
 }
 
-// HD SPixie vtbl +0x68 -> 0x69d6a0 (3 arg dwords)
-int SPixie::InitEffectPrototype(int p1, int p2, int p3)
+// PANZERS 0x69d6a0
+// `data` is "N.Data" {Enabled, Name, PriorityLayer, ForceUpdate,
+// EffectType}. Note that HD never reads "Enabled" (the effect editor's
+// switch): disabled entries play too. The EffectType alternative picks the
+// class; only particles (0) are ported, the other types log and are skipped.
+int SPixie::InitEffectPrototype(int proto, const char* name, SPropertyStruct* data)
 {
-    STUB_LOG("SPixie::InitEffectPrototype (0x69d6a0)");
     PZ_TRACE("SPixie::InitEffectPrototype (0x69d6a0)");
-    (void)p1; (void)p2; (void)p3;
-    return 0;
+    if (data->Type() != PROPERTY_TYPE_STRUCT)
+        Logger.g->Panic("SPixie::InitEffectPrototype(): Invalid effect prototype property.");
+    if ((int)data->Children.size() < 5)
+        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "class SProperty *", 4);
+    SProperty* et = data->Children[4];
+    if (et->Type() != PROPERTY_TYPE_MULTI && _stricmp(et->Name.c_str(), "EffectType") != 0)
+        Logger.g->Panic("SPixie::InitEffectPrototype(): Invalid effect prototype property.");
+    SPropertyMulti* multi = static_cast<SPropertyMulti*>(et);
+    int type = multi->Index;
+
+    SPEffect* e = nullptr;
+    switch (type) {
+    case 0:
+        e = new SPParticles();          // new 0x1a0, 0x6e08b0
+        break;
+    case 1:  STUB_LOG("SPFlare (EffectType 1, 0x6df880)"); break;
+    case 2:  STUB_LOG("SPRain (EffectType 2, 0x6ea820)"); break;
+    case 3:  STUB_LOG("SPSnowfall (EffectType 3, 0x6eb5e0)"); break;
+    case 4:  STUB_LOG("SPDecalEffect (EffectType 4, 0x6ea0f0)"); break;
+    case 5:  STUB_LOG("SPSoundEffect (EffectType 5, 0x6ec900)"); break;
+    case 6:  STUB_LOG("SPAtmosphere (EffectType 6, 0x694100)"); break;
+    case 7:  STUB_LOG("SPLiteEffect (EffectType 7, 0x6ed790)"); break;
+    case 8:  STUB_LOG("SPTrailEffect (EffectType 8, 0x6edcd0)"); break;
+    case 9:  STUB_LOG("SPShockWave (EffectType 9, 0x6de5a0)"); break;
+    case 10: STUB_LOG("SPCameraShake (EffectType 10, 0x6ee390)"); break;
+    case 11: STUB_LOG("SPSandstorm (EffectType 11, 0x6ee8e0)"); break;
+    default: {
+        SPEffectSet* set = Prototypes[proto];
+        Logger.g->Panic("Invalid EffectType (%d) defined for \"%s\".", type, set->FileName.c_str());
+    }
+    }
+    if (!e)
+        return -1;
+
+    e->PriorityLayer = data->GetInt("PriorityLayer");
+    e->ForceUpdate = data->GetBool("ForceUpdate");
+    SPEffectSet* set = Prototypes[proto];
+    set->ForceUpdate |= e->ForceUpdate;
+    int idx = set->Effects.Add();
+    set->Effects[idx] = e;
+    e->Name = name ? name : "";
+    SPropertyStruct* typeStruct = multi->Current();   // 0x69d620
+    if (e->Init(typeStruct, name)) {
+        delete e;
+        set->Effects.Remove(idx);
+        return -1;
+    }
+    return idx;
+}
+
+// PANZERS 0x69ea50
+void SPixie::Render(SIScene* scene, SIViewport* vp)
+{
+    PZ_TRACE("SPixie::Render (0x69ea50)");
+    EffectBeginRender(vp);                       // 0x680fe0: world = identity
+    for (int layer = 0; layer < 3; ++layer) {
+        for (int i = 0; i < Effects.Size(); ++i) {
+            if (Effects.Valid(i) && Effects[i] && Effects[i]->Scene == scene)
+                Effects[i]->Render(vp, layer);
+        }
+    }
+    // HD then reads the camera (vp +0x24) and draws the lens flares (heap
+    // +0x3c, SFlare +0x34/+0x38/+0x3c/+0x40). Flares are not ported; the
+    // heap stays empty.
+    EffectEndRender();
 }
 
 } // namespace pz

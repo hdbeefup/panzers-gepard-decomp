@@ -3,6 +3,7 @@ add_library(core STATIC
     gettext.cpp
     logger.cpp
     properties.cpp
+    propertystruct.cpp
     stream.cpp
     string2.cpp
     timer.cpp

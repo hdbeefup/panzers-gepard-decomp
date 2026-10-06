@@ -27,6 +27,13 @@ add_library(pz3d STATIC
     decal.cpp
     pzpixie.h
     pzpixie.cpp
+    # agent C: effects (.fx prototypes, SEffectSet, particles)
+    effect.h
+    effect.cpp
+    effectschema.cpp
+    effectrender.h
+    effectrender.cpp
+    particles.cpp
 )
 target_include_directories(pz3d PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(pz3d PRIVATE ${PANZERS_SRC_DIR}/stubs)
