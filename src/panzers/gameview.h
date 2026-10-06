@@ -60,7 +60,7 @@
 #include <stddef.h>
 #include "dxwidget.h"
 
-namespace pz { struct SWorld; struct SGameLogic; }
+namespace pz { struct SWorld; struct SGameLogic; struct SIViewport; }
 
 // Actions the game view sends to SSuperWindow::OnAction 0x659250.
 enum PzGameViewAction {
@@ -83,25 +83,40 @@ struct SIGameViewCallback {
 // HD fields of SGameView from +0x5c (after the callback vptr at +0x58).
 // Offsets in the comments are HD object offsets.
 struct SGameViewData {
-    unsigned char _05c[0x420 - 0x05c];
-    int           _420;              // +0x420 1 -> 0x5ddb60 when a message box opens (0x622b30)
-    unsigned char _424[0x45c - 0x424];
-    int           ClockStart;        // +0x45c ms clock at mission start (0x6281a0, 0x624730)
-    int           ClockNextTick;     // +0x460 next 50 ms logic tick (Update 0x628430 adds 0x32)
-    unsigned char _464[0x468 - 0x464];
-    void*         Viewport;          // +0x468
-    unsigned char _46c[0x478 - 0x46c];
-    int           MouseMode;         // +0x478 OnMouseDown
+    unsigned      KeyDownTime[256];  // +0x05c ms time a key went down (OnKeyDown 0x622f50 sets it, OnKeyUp 0x6246d0
+                                     //        clears it); Update 0x628430 calls KeyScroll 0x62c470 for each held key
+    unsigned      ClockStart;        // +0x45c ms clock of the last Update (0x628430; mission start 0x6281a0 and
+                                     //        ResetClock 0x624730 set it to now)
+    unsigned      ClockNextTick;     // +0x460 next 50 ms logic tick (Update 0x628430 adds 0x32)
+    unsigned      NetPingTime;       // +0x464 multiplayer: last 0x52ed70 call (every 2.2 s)
+    pz::SIViewport* Viewport;        // +0x468 ctor: Gepard GetViewport(0); CreateSubViewports: subport 0
+    int           Subport[3];        // +0x46c 3D view, top bar strip, bottom panel strip (-1 = none)
+    int           MouseMode;         // +0x478 OnMouseDown: 1 box drag, 2/3 rotate drag, 4 command target,
+                                     //        5/6 placement, 7 scroll drag (2/3/7 warp the cursor)
     int           PressX;            // +0x47c
     int           PressY;            // +0x480
-    unsigned char _484[0x49c - 0x484];
+    float         PressWorld[3];     // +0x484 terrain point under the press (modes 5/6)
+    unsigned char _490[0x49c - 0x490];
     bool          Dragging;          // +0x49c
     unsigned char _49d[0x4a0 - 0x49d];
     int           ClickTime[2];      // +0x4a0 / +0x4a4 double-click times
     int           DoubleClickPick;   // +0x4a8
-    unsigned char _4ac[0x4b8 - 0x4ac];
-    int           _4b8;              // +0x4b8 LoadMap: 0x57fac0(+0x4b8, 0x13c, 7, 7)
-    unsigned char _4bc[0x828 - 0x4bc];
+    int           MouseX;            // +0x4ac OnMouseMove 0x6250e0 (ctor 50); Update passes it to 0x620bc0
+    int           MouseY;            // +0x4b0
+    bool          MouseInside;       // +0x4b4 OnMouseOver 0x6251a0 / OnMouseOut 0x625170
+    unsigned char _4b5[0x4b8 - 0x4b5];
+    int           _4b8;              // +0x4b8 Create: board icon set "menu/panzers_interface_hq.tga" (H); LoadMap: 0x57fac0(+0x4b8, 0x13c, 7, 7)
+    int           _4bc[2];           // +0x4bc ctor -1
+    int           _4c4[4];           // +0x4c4 ctor -1; Update: unit panel icon sets by class
+    unsigned char _4d4[0x584 - 0x4d4];
+    int           MessageFrame[2];   // +0x584 Create: text frames (1010, 80) and (1010, 182)
+    int           MessageText[8];    // +0x58c Create: 8 lines of text frames at x 1000
+    int           MessageIcon[8];    // +0x5ac Create: 8 lines of sprite frames at x 1005
+    int           ClockText;         // +0x5cc ctor -1; Update: mission time "%d:%02d"
+    int           TimerText;         // +0x5d0 Create (Width / 2, 53); Update: countdown
+    int           PauseText;         // +0x5d4 Create (Width - 8, 61); Update: "PAUSE"
+    int           _5d8;              // +0x5d8 ctor -1
+    unsigned char _5dc[0x828 - 0x5dc];
     int           LogicFrame828;     // +0x828 SGameLogic ctor p2 (a board frame)
     unsigned char _82c[0xc68 - 0x82c];
     void*         PanelWidget;       // +0xc68 SetPanelMode 0x625d80 hides it (vtbl +0x6c)
@@ -117,7 +132,7 @@ struct SGameViewData {
     int           SoundHandle3898;   // +0x3898 released at mission start (Concert +0x0c)
     int           Modal;             // +0x389c
     unsigned char _38a0[0x3e30 - 0x38a0];
-    void*         MessageBox;        // +0x3e30 SMessageBox (0x3ec) of ShowMessageBox
+    SWidget*      MessageBox;        // +0x3e30 SMessageBox (0x3ec) of ShowMessageBox
     unsigned char _3e34[0x3e40 - 0x3e34];
     pz::SWorld*   World;             // +0x3e40 new 0x7538 in LoadMap
     pz::SGameLogic* Logic;           // +0x3e44 new 0x318 in LoadMap
@@ -125,11 +140,19 @@ struct SGameViewData {
     void*         Widgets;           // +0x3e74 widget list
     int           WidgetCount;       // +0x3e78
     unsigned char _3e7c[0x3e80 - 0x3e7c];
-    int           ViewState;         // +0x3e80 2 = cut-scene
-    unsigned char _3e84[0x3e98 - 0x3e84];
+    int           ViewState;         // +0x3e80 panel mode (SetPanelMode 0x625d80): 0 game, 1 full screen (loading), 2 cut-scene
+    SWidget*      EndBox;            // +0x3e84 victory / defeat box (Update tail)
+    SWidget*      ModalBox;          // +0x3e88 Update 0x628430 does nothing while it is set
+    SWidget*      Box3e8c;           // +0x3e8c
+    SWidget*      Box3e90;           // +0x3e90
+    SWidget*      NetBox;            // +0x3e94 multiplayer "player left" box
 };
 static_assert(sizeof(SGameViewData) == 0x3e98 - 0x5c, "SGameView: HD object is 0x3e98 bytes (new 0x3e98 in 0x658b10)");
 static_assert(offsetof(SGameViewData, ClockStart) == 0x45c - 0x5c, "SGameView layout");
+static_assert(offsetof(SGameViewData, MouseMode) == 0x478 - 0x5c, "SGameView layout");
+static_assert(offsetof(SGameViewData, MouseX) == 0x4ac - 0x5c, "SGameView layout");
+static_assert(offsetof(SGameViewData, MessageIcon) == 0x5ac - 0x5c, "SGameView layout");
+static_assert(offsetof(SGameViewData, LogicFrame828) == 0x828 - 0x5c, "SGameView layout");
 static_assert(offsetof(SGameViewData, LoadingScreen) == 0x3890 - 0x5c, "SGameView layout");
 static_assert(offsetof(SGameViewData, World) == 0x3e40 - 0x5c, "SGameView layout");
 static_assert(offsetof(SGameViewData, ViewState) == 0x3e80 - 0x5c, "SGameView layout");
@@ -145,13 +168,15 @@ struct SGameView : SDXWidget, SIGameViewCallback, SGameViewData {
     void OnMouseUp(int button, int x, int y, int shift) override;    // +0x28 0x6251f0
     void OnMouseMove(int x, int y, int shift) override;              // +0x2c 0x6250e0
     void OnMouseWheel(int button, int x, int y, int delta) override; // +0x30 0x625510
+    void OnMouseOver() override;                                     // +0x34 0x6251a0 MouseInside = 1
+    void OnMouseOut() override;                                      // +0x38 0x625170 MouseInside = 0
     bool OnAction(SWidget* source, int action, int param) override;  // +0x44 0x6216b0
     void Update() override;                                          // +0x78 0x628430
 
     // SIGameViewCallback (HD vftable 0x80339c).
     void ShowMessageBox(const char* text) override;                  // 0x622b30
     void Slot_04(int p1, int p2) override;                           // 0x622c50
-    void Slot_08(int p1) override;                                   // 0x625560
+    void Slot_08(int p1) override;                                   // 0x625560 SetWindowScene(SIScene*) (name guessed)
     void ResetClock() override;                                      // 0x624730
     void Slot_10(int p1) override;                                   // 0x624770
 
@@ -161,8 +186,22 @@ struct SGameView : SDXWidget, SIGameViewCallback, SGameViewData {
     void CreateSubViewports();                                       // 0x61e500
     void DestroySubViewports();                                      // 0x61e680
     void SetPanelMode(int mode);                                     // 0x625d80
+    int  GetPanelMode();                                             // 0x61f450 (+0x3e80; SSuperWindow 0x65b410)
     void IssueOrder(int p1, int p2, int p3, int p4, int p5);         // 0x61e740 (agent O; name guessed) packets.h builders
     void OpenInGameMenu();                                           // (recompile) Esc in OnKeyDown 0x622f50 -> SInGameMenu
+    // Camera input (agent V, gameview_view.cpp). OnKeyDown (O) stores
+    // KeyDownTime[key] = NowMs() when it is 0; OnKeyUp 0x6246d0 (O) calls
+    // KeyScroll(NowMs(), key) once more when World is set, then clears it.
+    // OnMouseMove 0x6250e0 (O) stores MouseX / MouseY when World is set.
+    void KeyScroll(unsigned now, int key);                           // 0x62c470 (2)
+    void MouseCamera(int x, int y, int ms);                          // 0x620bc0 (3) mouse modes + edge scroll, per frame
+    void HoverCursor(int x, int y, int ms);                          // 0x621540 (5) (not lifted) cursor over unit / terrain
+    static unsigned NowMs();                                         // ftol(0x661800() * 1000.0)
+    int& HdInt(int offset);                                          // recompile: an unnamed HD field
+
+    // Recompile state (not HD).
+    int  SubportRect[3][4] = {};     // CreateSubViewports rects until the viewport subports exist (agent E)
+    bool FramesCreated = false;      // Create made the message / timer / pause frames
 
     // Recompile skeleton state (not HD): the in-game menu widget and the
     // 20 Hz clock of the skeleton tick.

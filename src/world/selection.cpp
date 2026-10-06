@@ -57,12 +57,7 @@ void SWorld::Select_5ddb60()
     PZ_M3_TRACE("SWorld::Select_5ddb60 (0x5ddb60)");
 }
 
-void SWorld::ShowUnitRange(int p1)
-{
-    STUB_LOG("SWorld::ShowUnitRange (0x5fee00)");
-    PZ_M3_TRACE("SWorld::ShowUnitRange (0x5fee00)");
-    (void)p1;
-}
+// SWorld::ShowUnitRange 0x5fee00: worldcamera.cpp (agent V).
 
 // PANZERS 0x5e6a70
 void SWorld::GetCameraState(unsigned* out5)

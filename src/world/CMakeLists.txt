@@ -27,6 +27,8 @@ add_library(pzworld STATIC
     selection.h
     selection.cpp
     ai.cpp
+    # M3: game-view camera and range overlay (agent V)
+    worldcamera.cpp
 )
 target_include_directories(pzworld PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(pzworld PUBLIC ${PANZERS_SRC_DIR}/game)

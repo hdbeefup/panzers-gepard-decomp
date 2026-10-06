@@ -20,12 +20,14 @@
 #include "pz/iterrain.h"
 #include "pz/imodel.h"
 #include "iboard.h"
+#include "iconcert.h"
 #include "properties.h"
 #include "logger.h"
 #include "timer.h"
 #include "stub_log.h"
 
 extern SIBoard* Board;   // window/widget.h (HD Board 0x8f1c60)
+extern SIConcert* Concert;   // HD 0x8f1c5c
 
 namespace pz {
 
@@ -172,7 +174,7 @@ SWorld::SWorld(int p1)
     WireTearFx = -1;                                              // param_1[0x1d0a]
     LoadParam3 = LoadParam4 = 0;
     Obj74e4 = Obj74e8 = nullptr;
-    _51c = -1;
+    RangeUnit = -1;
     // HD: Gepard +0x44("shaders\\10 Misc-Egyeb\\range_a", 0, 1) (weapon range
     // overlay). The name has no extension; the facade's SWINE LoadTexture
     // crashes on it (agent A), and the menu never draws it: left -1.
@@ -808,8 +810,11 @@ void SWorld::ComputeCamera(SIViewport* vp)
         CamEye[1] = CamSmoothTarget[1] - CamForward[1] * d;
         CamEye[2] = CamSmoothTarget[2] - CamForward[2] * d;
         vp->SetCamera(CamEye[0], CamEye[1], CamEye[2], CamYaw, -CamPitch);   // vp +0x20
-        // HD: Concert +0x08(eye, forward, up) 3D listener: the SWINE concert
-        // has no such slot (sound is not part of M1).
+        // HD Concert +0x08(&eye, &forward, &up) (0x5de440): the 3D listener.
+        // The SWINE concert slot takes the nine floats.
+        if (Concert)
+            Concert->SetListener(CamEye[0], CamEye[1], CamEye[2], CamForward[0], CamForward[1], CamForward[2],
+                                 CamUp[0], CamUp[1], CamUp[2]);
         float focus = (CamPitchMax == 0.0f) ? GetTerrainHeight(CamTarget[0], CamTarget[2]) : CamTarget[1];
         g_Scene->SetFocusHeight(focus);                                 // scene +0x24
         if (CamProjectionDirty) {

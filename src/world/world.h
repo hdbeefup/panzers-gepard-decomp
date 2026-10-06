@@ -234,12 +234,17 @@ struct SWorld {
     void SelectSameType(int p1, int p2, int p3);               // 0x5fcd10 (3) (name guessed) double click
     void Select_5fd630(int p1, int p2, int p3, int p4);        // 0x5fd630 (4)
     void Select_5ddb60();                                      // 0x5ddb60 (0)
-    void ShowUnitRange(int p1);                                // 0x5fee00 (1) SWorld::ShowUnitRange (visual)
+    void ShowUnitRange(int unit);                              // 0x5fee00 (1) SWorld::ShowUnitRange (visual; agent V, worldcamera.cpp)
     void GetCameraState(unsigned* out5);                       // 0x5e6a70 (1) CamTarget x/z, yaw, +0x50, CamDist (replay records it)
     // AI and mission start / load extras: agent L, src/world/ai.cpp.
     void RefreshAI();                                          // 0x5f5c70 (0) (name guessed) AI groups (AIGP), "Call AI (...) support!"; per tick in missions
     void StartEffects();                                       // 0x5f5b50 (0) (name guessed) mission start: map effects on (+0x73e4, +0x64c)
-    void InitCameraSpline(const char* file);                   // 0x609760 (1) SGameWorld::InitCameraSpline (-csplay file, else "")
+    void InitCameraSpline(const char* file);                   // 0x609760 (1) SGameWorld::InitCameraSpline (-csplay file, else ""); HD `this` is the SGameWorld global 0x929a60, not the world: worldcamera.cpp forwards (agent V)
+    // Camera moves of the game view (agent V, worldcamera.cpp).
+    void MoveCamera(float forward, float right);               // 0x5f4dc0 (2) scroll in view space, speed CamDist * 0.075, clamped to CamXMin..CamZMax
+    void RotateCamera(float yaw, float pitch);                 // 0x5f8380 (2) SetCameraAngles(CamYaw + yaw, CamPitch + pitch)
+    void ZoomCamera(float delta);                              // 0x609390 (1) CamDist += delta, clamped to CamDistMin..Max
+    void SetCameraTarget(float x, float z);                    // 0x5f4f60 (2) minimap jump / centre (unless CamLocked)
     void LoadMapExtra_5e2d70();                                // 0x5e2d70 (0) SGameView::LoadMap after Initialize
     void LoadMapExtra_5debb0();                                // 0x5debb0 (0)
     void LoadMapExtra_607ad0();                                // 0x607ad0 (0)
@@ -308,9 +313,13 @@ struct SWorld {
     SHeap<unsigned char[0x50]> AIGroups; // +0x4f4 AIGP (element 0x54)
     unsigned char _508[0x510 - 0x508];
     int           FlagProto[3];          // +0x510 german / US / russian hero flag
-    int           _51c;                  // +0x51c -1
+    int           RangeUnit;             // +0x51c -1; the unit ShowUnitRange 0x5fee00 draws
     int           RangeTexture;          // +0x520 "shaders\\10 Misc-Egyeb\\range_a"
-    unsigned char _524[0x538 - 0x524];
+    int           MinRangeCount;         // +0x524 ShowUnitRange: terrain effect decals of the min range circle
+    int           MaxRangeCount;         // +0x528 ... of the max range circle (or the building window arcs)
+    int*          MinRangeDecals;        // +0x52c new[MinRangeCount]
+    int*          MaxRangeDecals;        // +0x530 new[MaxRangeCount]
+    unsigned char _534[0x538 - 0x534];
     SHdArray<SWeather> Weathers;         // +0x538
     int           CurrentWeather;        // +0x544
     float         WeatherBlend;          // +0x548

@@ -20,12 +20,7 @@ void SWorld::StartEffects()
     PZ_M3_TRACE("SWorld::StartEffects (0x5f5b50)");
 }
 
-void SWorld::InitCameraSpline(const char* file)
-{
-    STUB_LOG("SGameWorld::InitCameraSpline (0x609760)");
-    PZ_M3_TRACE("SGameWorld::InitCameraSpline (0x609760)");
-    (void)file;
-}
+// SGameWorld::InitCameraSpline 0x609760: worldcamera.cpp (agent V).
 
 void SWorld::LoadMapExtra_5e2d70()
 {

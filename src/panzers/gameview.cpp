@@ -1,7 +1,8 @@
 // src/panzers/gameview.cpp
-// SGameView skeleton (gameview.h). OWNERS: agent V (view, camera, Create,
-// Update, draw), agent O (input handlers, the order dispatcher), agent F
-// (LoadMap, MissionStart). docs/M3_INTERFACES.md.
+// SGameView skeleton (gameview.h). OWNERS: agent O (input handlers, the order
+// dispatcher), agent F (LoadMap, MissionStart). The view itself (ctor,
+// Create, Update, camera, panel modes, callbacks, OnAction) is agent V's
+// gameview_view.cpp. docs/M3_INTERFACES.md.
 //
 // What the skeleton does (all behind -m3, see superwindow_m3.cpp):
 //   LoadMap: maps/training.map into a new pz::SWorld with the M1/M2 loader
@@ -32,47 +33,6 @@
 #include "worldapi.h"
 #include "world.h"
 #include "gamelogic.h"
-
-SGameView::SGameView()
-{
-    STUB_LOG("SGameView::SGameView (0x6181f0)");
-    PZ_M3_TRACE("SGameView::SGameView (0x6181f0)");
-    ToolTipFeatureEnabled = false;
-    memset(static_cast<SGameViewData*>(this), 0, sizeof(SGameViewData));
-    LoadingFrame = -1;
-    SoundHandle3894 = -1;
-    SoundHandle3898 = -1;
-}
-
-SGameView::~SGameView()
-{
-    STUB_LOG("SGameView::~SGameView (0x619430)");
-    PZ_M3_TRACE("SGameView::~SGameView (0x619430)");
-    if (InGameMenu) {
-        delete InGameMenu;
-        InGameMenu = nullptr;
-    }
-    if (LoadingFrame >= 0 && Board) {
-        Board->DestroyFrame(LoadingFrame);
-        LoadingFrame = -1;
-    }
-    // HD: the view owns the mission SGameLogic (+0x3e44) and SWorld (+0x3e40).
-    if (Logic) {
-        delete Logic;
-        Logic = nullptr;
-    }
-    if (World) {
-        delete World;                                              // releases g_Scene
-        World = nullptr;
-    }
-}
-
-void SGameView::Create()
-{
-    STUB_LOG("SGameView::Create (0x619c90)");
-    PZ_M3_TRACE("SGameView::Create (0x619c90)");
-    SDXWidget::Create(0);
-}
 
 void SGameView::LoadMap()
 {
@@ -142,26 +102,6 @@ void SGameView::MissionStart()
     NextTick = (double)Timer.GetTickValue() / 1000.0;
 }
 
-void SGameView::Update()
-{
-    PZ_M3_TRACE("SGameView::Update (0x628430)");
-    if (!World || !Logic || !pz::g_World || LoadingScreen)
-        return;
-    // Skeleton: the SSuperWindow::OnIdle menu-world tick (HD 0x628430 has
-    // its own ms clock at +0x45c/+0x460 and adds 50 ms per logic frame).
-    double now = (double)Timer.GetTickValue() / 1000.0;
-    while (NextTick < now) {
-        Logic->Refresh();                                          // 0x576d80
-        NextTick += 0.05;
-    }
-    pz::SIViewport* vp = pz::PzGepard()->GetViewport(0);
-    World->ComputeCamera(vp);
-    double interpolation = (NextTick - now) * 20.0;
-    if (pz::g_Scene)
-        pz::g_Scene->SetInterpolation(interpolation);
-    Logic->UpdateUnitVisuals(vp, interpolation);
-}
-
 void SGameView::OpenInGameMenu()
 {
     if (InGameMenu)
@@ -228,87 +168,6 @@ void SGameView::OnMouseWheel(int button, int x, int y, int delta)
     STUB_LOG("SGameView::OnMouseWheel (0x625510)");
     PZ_M3_TRACE("SGameView::OnMouseWheel (0x625510)");
     (void)button; (void)x; (void)y; (void)delta;
-}
-
-bool SGameView::OnAction(SWidget* source, int action, int param)
-{
-    STUB_LOG("SGameView::OnAction (0x6216b0)");
-    PZ_M3_TRACE("SGameView::OnAction (0x6216b0)");
-    (void)source; (void)param;
-    switch (action) {
-    case PZA_IGM_RESUME:
-        if (InGameMenu) {
-            delete InGameMenu;                     // ~SWidget unlinks it (as SSuperWindow does with its menus)
-            InGameMenu = nullptr;
-        }
-        return true;
-    case PZA_IGM_END:
-        // HD: "End Mission" / "Are you sure?" (SMessageBox), Yes -> 0x47562
-        // (0x622b02). The stand-in confirms at once.
-        Logger.g->Log(0, "PZM3: End Mission (confirm box not lifted) -> GV_GAMEOVER");
-        SendAction(PZA_GV_GAMEOVER, 0);
-        return true;
-    case PZA_BUTTON_DOWN: case PZA_BUTTON_CLICK: case PZA_BUTTON_OVER:
-    case PZA_BUTTON_RCLICK: case PZA_BUTTON_OUT:
-        return true;
-    default:
-        // Not handled here: SendAction (which starts at the sender itself)
-        // passes it on to SSuperWindow (0x47561, 0x47562, ...).
-        return false;
-    }
-}
-
-void SGameView::ShowMessageBox(const char* text)
-{
-    STUB_LOG("SGameView::ShowMessageBox (0x622b30)");
-    PZ_M3_TRACE("SGameView::ShowMessageBox (0x622b30)");
-    Logger.g->Log(0, "PZM3: message box: %s", text ? text : "");
-}
-
-void SGameView::Slot_04(int p1, int p2)
-{
-    STUB_LOG("SGameView callback +0x04 (0x622c50)");
-    PZ_M3_TRACE("SGameView callback +0x04 (0x622c50)");
-    (void)p1; (void)p2;
-}
-
-void SGameView::Slot_08(int p1)
-{
-    STUB_LOG("SGameView callback +0x08 (0x625560)");
-    PZ_M3_TRACE("SGameView callback +0x08 (0x625560)");
-    (void)p1;
-}
-
-void SGameView::ResetClock()
-{
-    STUB_LOG("SGameView::ResetClock (0x624730)");
-    PZ_M3_TRACE("SGameView::ResetClock (0x624730)");
-}
-
-void SGameView::Slot_10(int p1)
-{
-    STUB_LOG("SGameView callback +0x10 (0x624770)");
-    PZ_M3_TRACE("SGameView callback +0x10 (0x624770)");
-    (void)p1;
-}
-
-void SGameView::CreateSubViewports()
-{
-    STUB_LOG("SGameView::CreateSubViewports (0x61e500)");
-    PZ_M3_TRACE("SGameView::CreateSubViewports (0x61e500)");
-}
-
-void SGameView::DestroySubViewports()
-{
-    STUB_LOG("SGameView::DestroySubViewports (0x61e680)");
-    PZ_M3_TRACE("SGameView::DestroySubViewports (0x61e680)");
-}
-
-void SGameView::SetPanelMode(int mode)
-{
-    STUB_LOG("SGameView::SetPanelMode (0x625d80)");
-    PZ_M3_TRACE("SGameView::SetPanelMode (0x625d80)");
-    (void)mode;
 }
 
 void SGameView::IssueOrder(int p1, int p2, int p3, int p4, int p5)
