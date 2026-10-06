@@ -45,7 +45,7 @@ struct SIModel {
     virtual void SetScale(float scale) = 0;                 // +0x28 HD 0x6dad20 (1 arg dword) +0x94
     virtual float GetScale() = 0;                           // +0x2c HD 0x6d7ee0 (0 arg dwords)
     virtual void SetVisible(bool show, bool fade) = 0;      // +0x30 HD 0x6dafd0 (2 arg dwords) +0xd4 visible; fade = 1 s alpha fade in/out. Walkers: SWalkerAnimation::UpdateModel 0x5ce2a0 calls (1, 0) every tick; ruins (0, 0)
-    virtual void Slot_34() = 0;                             // +0x34 HD 0x6d86d0 (0 arg dwords)
+    virtual bool GetVisible() = 0;                          // +0x34 HD 0x6d86d0 (0 arg dwords) +0xd4; SDriver::StartEffects 0x55bb80
     virtual void SetNodeFade(bool show, int node, int node2) = 0; // +0x38 HD 0x6db2a0 (3 arg dwords) fade a node (roof) out / in over 1 s, node2 swaps in
     virtual void StoreInterpolationState() = 0;             // +0x3c HD 0x6da0f0 (0 arg dwords) copies pose to the previous-tick slot; SGameLogic::Refresh per doodad
     virtual int FindNode(const char* name) = 0;             // +0x40 HD 0x6d7b90 (1 arg dword) "Block", "Platform" in SDoodad::Initialize
@@ -104,11 +104,23 @@ protected:
 };
 
 // Second base of SModel (+0x04). Slot +0x00 is the scalar deleting dtor.
+// Children hang on a model node (SModel::AttachChild 0x6d5940): the model
+// calls +0x04 Update(frame, node world matrix) every frame (a child that
+// deletes itself returns 0) and +0x0c with its visibility.
 struct SIAttachable {
     virtual ~SIAttachable() {}                              // +0x00 HD 0x6d562d (SModel) / 0x6d5710 (SAttachable)
-    virtual int Update(int p1, int p2) = 0;                 // +0x04 HD 0x6dba80 (2 arg dwords) SModel::Update 0x6dba80
-    virtual void Attach_08() = 0;                           // +0x08 HD 0x6d86e0 (0 arg dwords) empty in SModel
-    virtual void Attach_0C() = 0;                           // +0x0c HD 0x6d86f0 (1 arg dword) empty in SModel (RET 4)
+    virtual int Update(int p1, int p2) = 0;                 // +0x04 HD 0x6dba80 (2 arg dwords) SModel::Update 0x6dba80; SEffectSet 0x6df6d0
+    virtual void Attach_08() = 0;                           // +0x08 HD 0x6d86e0 (0 arg dwords) empty in SModel; SEffectSet::Stop 0x6def70
+    virtual void Attach_0C(bool visible) = 0;               // +0x0c HD 0x6d86f0 (1 arg dword) empty in SModel (RET 4); SEffectSet::SetEnabled 0x6def80
+};
+
+// HD SAttachable (0x0c, ctor 0x6d4a60, vftable SAttachable): the base of
+// SModel (at +0x04) and SEffectSet. The parent model and node are set by
+// SModel::AttachChild / cleared by DetachChild.
+struct SAttachable : SIAttachable {
+    void* AttachParent = nullptr;   // +0x04 parent SModel*
+    int   AttachNode = -1;          // +0x08
+    ~SAttachable() override;        // 0x6d5710: leaves the parent's node (0x6d7340); pzmodel.cpp
 };
 
 } // namespace pz

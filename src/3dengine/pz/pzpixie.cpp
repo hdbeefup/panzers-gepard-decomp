@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <d3d9.h>
 #include "pzpixie.h"
+#include "pzmodel.h"
 #include "effectrender.h"
 #include "iviewport.h"
 #include "igepardhd.h"
@@ -273,12 +274,22 @@ void SPixie::PlayEffect(SIScene* scene, int proto, const float* pos, const float
     Effects[h]->SetDirection(dir);
 }
 
-// HD SPixie vtbl +0x28 -> 0x69e510 (5 arg dwords): plays an effect attached
-// to a model node (SModel::AttachChild 0x6d5940). Needs agent A's models.
-void SPixie::Slot_28()
+// PANZERS 0x69e510
+// A one-shot set (it deletes itself when its instances end) created with the
+// model (births from the model mesh) and hung on the node: the model updates
+// it with the node's world matrix from then on.
+void SPixie::PlayEffectOnNode(SIScene* scene, int proto, SIModel* model, int node, int p5)
 {
-    STUB_LOG("SPixie::Slot_28 (0x69e510)");
-    PZ_TRACE("SPixie::Slot_28 (0x69e510)");
+    PZ_TRACE("SPixie::PlayEffectOnNode (0x69e510)");
+    if (proto < 0 || node < 0)
+        return;
+    int h = Effects.Add();                                    // 0x69cff0
+    if (!Prototypes.Valid(proto))                             // 0x69ced0
+        Logger.g->Panic("SHeap<%s>::operator[]: invalid index (%d)", "struct SPEffectSet *", proto);
+    float param;
+    memcpy(&param, &p5, sizeof(param));
+    Effects[h] = Prototypes[proto]->CreateInstance(scene, h, param, (int)(intptr_t)model);   // 0x6dede0
+    static_cast<SModel*>(model)->AttachChild(node, Effects[h]);                             // 0x6d5940
 }
 
 // PANZERS 0x69f540
@@ -300,12 +311,20 @@ int SPixie::CreateEffect(SIScene* scene, int proto, const float* pos, const floa
     return h;
 }
 
-// HD SPixie vtbl +0x30 -> 0x69f610 (4 arg dwords): persistent effect
-// attached to a model node. Needs agent A's models.
-void SPixie::Slot_30()
+// PANZERS 0x69f610
+// As PlayEffectOnNode, but persistent (+0x30) until StopEffect.
+int SPixie::CreateEffectOnNode(SIScene* scene, int proto, SIModel* model, int node)
 {
-    STUB_LOG("SPixie::Slot_30 (0x69f610)");
-    PZ_TRACE("SPixie::Slot_30 (0x69f610)");
+    PZ_TRACE("SPixie::CreateEffectOnNode (0x69f610)");
+    if (proto < 0 || node < 0)
+        return -1;
+    int h = Effects.Add();                                    // 0x69cff0
+    if (!Prototypes.Valid(proto))                             // 0x69ced0
+        Logger.g->Panic("SHeap<%s>::operator[]: invalid index (%d)", "struct SPEffectSet *", proto);
+    Effects[h] = Prototypes[proto]->CreateInstance(scene, h, 0.0f, (int)(intptr_t)model);   // 0x6dede0
+    static_cast<SModel*>(model)->AttachChild(node, Effects[h]);                             // 0x6d5940
+    Effects[h]->SetPersistent(true);                                                       // 0x6df3d0
+    return h;
 }
 
 // PANZERS 0x69f6b0
@@ -402,7 +421,7 @@ void SPixie::UpdateFrame(int frame)
         } else {
             set->SetActive(true);
         }
-        Effects[i]->Update((unsigned)frame, nullptr);
+        Effects[i]->Update(frame, 0);
     }
     DeferredCursor = DeferredHead;
     while (DeferredCursor) {
@@ -467,11 +486,12 @@ void SPixie::SetEffectEnabled(int effect, bool on)
         Effects[effect]->SetEnabled(on);
 }
 
-// HD SPixie vtbl +0x64 -> 0x69f4e0 (3 arg dwords): SEffectSet +0x24.
-void SPixie::Slot_64()
+// PANZERS 0x69f4e0
+void SPixie::SetEffectSpeed(int effect, float p1, float p2)
 {
-    STUB_LOG("SPixie::Slot_64 (0x69f4e0)");
-    PZ_TRACE("SPixie::Slot_64 (0x69f4e0)");
+    PZ_TRACE("SPixie::SetEffectSpeed (0x69f4e0)");
+    if (Effects.Valid(effect) && Effects[effect])
+        Effects[effect]->SetSpeed(p1, p2);                    // set +0x24
 }
 
 // PANZERS 0x69d6a0

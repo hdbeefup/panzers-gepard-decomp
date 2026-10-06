@@ -78,6 +78,8 @@ SPParticles::~SPParticles()
             g->ReleaseTexture(t);
     if (SubEffectProto >= 0 && SPixie::Instance())
         SPixie::Instance()->ReleaseEffectPrototype(SubEffectProto);
+    if (ModelProto != -1)
+        g->ReleaseModelPrototype(ModelProto);                 // Gepard +0x24
 }
 
 // PANZERS 0x6e6880
@@ -140,16 +142,20 @@ bool SPParticles::Init(SPropertyStruct* ts, const char* name)
         SubEffectProto = -1;
         break;
     case 1:
-        // Draw "Object": a model prototype per particle (Gepard +0x20).
-        STUB_LOG("SPParticles::Init Draw=Object (Gepard +0x20 model prototype)");
-        Logger.g->Warning("Bad model filename!");
-        return true;
+        // Draw "Object": the particles are instances of this model (Gepard
+        // +0x20; drawing them, 0x6e5b80, is still a logged stub).
+        ModelProto = PzGepard()->LoadModelPrototype(draw->GetString("Mesh file"), 0.005f, nullptr, 0);
+        if (ModelProto == -1) {
+            EffectSetLastError("Bad model filename!");        // 0x65ca40
+            return true;
+        }
+        break;
     case 2: {
         ParticleType = 5;
         TrailLength = 2.0f;
         SubEffectProto = SPixie::Instance()->LoadEffectPrototype(draw->GetString(0, "FX file"), false, false, 0, 0);
         if (SubEffectProto == -1) {
-            Logger.g->Warning("Cannot load effect");
+            EffectSetLastError("Cannot load effect");         // 0x65ca40
             return true;
         }
         BlendType = 0;
@@ -273,7 +279,7 @@ bool SPParticles::LoadTextures(int weather, const char* suffix)
     if (TexMode == 0) {
         MultiFile = true;
         if (Texture.empty()) {
-            Logger.g->Warning("SPParticles::Init: Nem lett textura megadva!");
+            EffectSetLastError("SPParticles::Init: Nem lett textura megadva!");   // 0x65ca40
             return true;
         }
         if (weather != 0)
@@ -292,7 +298,7 @@ bool SPParticles::LoadTextures(int weather, const char* suffix)
             LastFrame = TotalFrames - 1.0f;
             return false;
         }
-        Logger.g->Warning("SPParticles::Init: Cannot load %s", path);
+        EffectSetLastError("SPParticles::Init: Cannot load %s", path);           // 0x65ca40
         return true;
     }
     MultiFile = false;
@@ -308,7 +314,7 @@ bool SPParticles::LoadTextures(int weather, const char* suffix)
     WeatherTex[weather] = t;
     if (t != -1)
         return false;
-    Logger.g->Warning("SPParticles::Init: cannot load texture \"%s\"", full.c_str());
+    EffectSetLastError("SPParticles::Init: cannot load texture \"%s\"", full.c_str());   // 0x65ca40
     return true;
 }
 

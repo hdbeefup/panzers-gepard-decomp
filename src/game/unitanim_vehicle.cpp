@@ -29,6 +29,7 @@
 #include "pz/imodel.h"
 #include "pz/igepardhd.h"
 #include "pz/ipixie.h"
+#include "pz/iscene.h"
 #include "logger.h"
 #include "stub_log.h"
 
@@ -93,11 +94,10 @@ void SPRunningGear::Load(const SAnimProps& p)
 // SRunningGear (0x38)
 
 // PANZERS 0x5a9cc0
-// SRunningGear::Init. HD also creates the two ground trails of a tracked
-// vehicle here (texture Trail, scene +0x8c(tex, 1.0, 30000.0, w, w, 0) with
-// w = TrailWidth * 0.5) and feeds them every tick (scene +0x90); the SScene
-// trail slots and SScene::DrawTrails 0x6acf20 are stubs, so the trails stay
-// -1 and are not drawn.
+// SRunningGear::Init. A tracked vehicle with a "Trail" texture gets its two
+// ground trails (track marks) here: scene +0x8c(tex, 1.0, 30000 ms, w, w, 0)
+// with w = TrailWidth * 0.5 (0x7ea760, in double); Update feeds them every
+// tick (scene +0x90).
 SRunningGear::SRunningGear(SPRunningGear* proto)
 {
     LeftBelt = -1;
@@ -112,14 +112,29 @@ SRunningGear::SRunningGear(SPRunningGear* proto)
     RightPrev[0] = RightPrev[1] = -1.0f;
     LeftTrail = -1;
     RightTrail = -1;
-    if (proto->Caterpillar && proto->TrailTexture.len != 0)
-        PZ_M2_TRACE("SRunningGear::Init: ground trails (SScene +0x8c / +0x90) not drawn");
+    SIScene* scene = g_UnitAnimEnv.Scene ? g_UnitAnimEnv.Scene() : nullptr;   // DAT_00929a54
+    if (scene && proto->Caterpillar && proto->TrailTexture.len != 0) {
+        const char* file = proto->TrailTexture.buf ? proto->TrailTexture.buf : "";
+        int tex = PzGepard()->LoadTexture(file, 1, true);           // Gepard +0x44
+        if (tex < 0)
+            Logger.g->Panic("SRunningGear::Init: Couldn't load texture: %s", file);
+        float w = (float)((double)proto->TrailWidth * 0.5);
+        LeftTrail = scene->CreateGroundTrail(tex, 1.0f, 30000.0f, w, w, 0);      // scene +0x8c
+        w = (float)((double)proto->TrailWidth * 0.5);
+        RightTrail = scene->CreateGroundTrail(tex, 1.0f, 30000.0f, w, w, 0);
+        PzGepard()->ReleaseTexture(tex);                             // Gepard +0x48 (the trails hold it)
+    }
 }
 
 // PANZERS 0x5a9f90
 SRunningGear::~SRunningGear()
 {
-    // HD: scene +0x94 releases the trails (never created here).
+    // The trails stay until their marks faded (scene +0x94).
+    SIScene* scene = g_UnitAnimEnv.Scene ? g_UnitAnimEnv.Scene() : nullptr;
+    if (scene && LeftTrail > -1)
+        scene->CloseGroundTrail(LeftTrail);
+    if (scene && RightTrail > -1)
+        scene->CloseGroundTrail(RightTrail);
     free(Wheels);
     Wheels = nullptr;
 }
@@ -147,8 +162,16 @@ void SRunningGear::Update(SIModel* model, float x, float z, double dir, float st
 {
     double s = DSin(dir);                                          // 0x78d640
     double c = DCos(dir);                                          // 0x78d480
-    // HD: with a caterpillar belt the trails get the track points here
-    // (scene +0x90), see the constructor.
+    if (Proto->Caterpillar) {
+        // The track points TrackWidth left and right of the unit, in
+        // double (scene +0x90).
+        SIScene* scene = g_UnitAnimEnv.Scene ? g_UnitAnimEnv.Scene() : nullptr;
+        double tw = (double)Proto->TrackWidth;
+        if (scene && LeftTrail > -1)
+            scene->TrackGroundTrail(LeftTrail, (float)((double)x - tw * c), (float)(tw * s + (double)z), (float)dir);
+        if (scene && RightTrail > -1)
+            scene->TrackGroundTrail(RightTrail, (float)(tw * c + (double)x), (float)((double)z - tw * s), (float)dir);
+    }
     float fs = (float)s;
     float fc = (float)c;
     float w = Proto->TrackWidth;

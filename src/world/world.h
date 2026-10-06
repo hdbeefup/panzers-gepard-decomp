@@ -174,6 +174,7 @@ struct SWorld {
     void SetTriggerVariableValue(int index, int value, bool special);   // 0x5fec80
     void UpdateSpeech();                                       // 0x607f50 (agent L)
     void RefreshBlockMapDirtyRect();                           // 0x604620 (agent L; name guessed)
+    void UpdateWaterMap();                                     // 0x608600 water map = height map (+ lakes, rivers)
 
     // Units (unit.cpp).
     int  CreateUnit(struct SUnitDef* def);                     // 0x5e2da0

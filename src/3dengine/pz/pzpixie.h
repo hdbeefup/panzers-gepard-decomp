@@ -50,9 +50,9 @@ struct SPixie : SIPixie {
     void* GetEffectProperties(int proto) override;
     void ReleaseEffectPrototype(int proto) override;
     void PlayEffect(SIScene* scene, int proto, const float* pos, const float* dir, int p5) override;
-    void Slot_28() override;
+    void PlayEffectOnNode(SIScene* scene, int proto, SIModel* model, int node, int p5) override;
     int CreateEffect(SIScene* scene, int proto, const float* pos, const float* dir) override;
-    void Slot_30() override;
+    int CreateEffectOnNode(SIScene* scene, int proto, SIModel* model, int node) override;
     void StopEffect(int effect) override;
     void ReleaseEffect(int effect) override;
     void DestroyEffect(int effect) override;
@@ -65,7 +65,7 @@ struct SPixie : SIPixie {
     void Slot_58() override;
     bool IsBulletIndicator(int proto) override;
     void SetEffectEnabled(int effect, bool on) override;
-    void Slot_64() override;
+    void SetEffectSpeed(int effect, float p1, float p2) override;
     // +0x68 HD 0x69d6a0 (3 arg dwords) SPixie only (not in SIPixie).
     // Builds one SPEffect from an "N.Data" struct; returns its index in the
     // prototype set or -1.

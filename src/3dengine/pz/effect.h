@@ -29,6 +29,7 @@
 #include <string.h>
 #include "pzcommon.h"
 #include "ipixie.h"
+#include "imodel.h"
 #include "propertystruct.h"
 
 namespace pz {
@@ -146,7 +147,7 @@ struct SEffect {
     virtual void SetEnabled(bool on);                             // +0x24 0x6de690 (+0x2c)
     virtual void SetActive(bool on);                              // +0x28 0x6de7e0 (+0x34)
     virtual void Stop();                                          // +0x2c 0x6de800 nop (SParticles 0x6e9940)
-    virtual void Slot_30(int p1, int p2);                         // +0x30 0x6de7d0 nop
+    virtual void SetSpeed(float p1, float p2);                    // +0x30 0x6de7d0 nop (SParticles keeps it; SSoundEffect overrides) (name guessed)
 
     void SetModel(int model) { Model = model; }                   // 0x6de790
     void SetOwner(SEffectSet* set, int index) { Set = set; SetIndex = index; } // 0x6de770
@@ -167,21 +168,27 @@ protected:
 };
 
 // HD SEffectSet (0x38). Base SAttachable (0x6d4a60: +0x04 parent model,
-// +0x08 node). vftable 0x883c64, 10 slots.
-struct SEffectSet {
+// +0x08 node; imodel.h): SPixie +0x28 / +0x30 hang a set on a model node
+// (SModel::AttachChild 0x6d5940), and the model then updates it with the
+// node's world matrix. vftable 0x883c64, 10 slots; +0x00..+0x0c are the
+// SIAttachable slots.
+struct SEffectSet : SAttachable {
     SEffectSet(SIScene* scene, SPEffectSet* proto, int handle, float param, int model); // 0x6de8c0
-    virtual ~SEffectSet();                                        // +0x00 0x6ded00 -> 0x6deaf0
-    // Returns false when the set deleted itself (no instance left).
-    virtual bool Update(unsigned frame, const float* matrix);     // +0x04 0x6df6d0
-    virtual void Stop();                                          // +0x08 0x6def70 -> 0x6df620
-    virtual void SetEnabled(bool on);                             // +0x0c 0x6def80 (+0x31; SAttachable visibility)
+    ~SEffectSet() override;                                       // +0x00 0x6ded00 -> 0x6deaf0
+    // (frame, const float* node matrix or 0). Returns 0 when the set deleted
+    // itself (no instance left).
+    int  Update(int frame, int matrix) override;                  // +0x04 0x6df6d0
+    void Attach_08() override { Stop(); }                         // +0x08 0x6def70 -> 0x6df620
+    void Attach_0C(bool on) override { SetEnabled(on); }          // +0x0c 0x6def80 (+0x31; the parent's visibility)
     virtual void SetPosition(const float* pos);                   // +0x10 0x6df340
     virtual void SetDirection(const float* dir);                  // +0x14 0x6df240
     virtual void Slot_18(int p);                                  // +0x18 0x6df590
     virtual void Render(SIViewport* vp, int layer);               // +0x1c 0x6df090
     virtual void SetActive(bool on);                              // +0x20 0x6df510 (+0x32)
-    virtual void Slot_24(int p1, int p2);                         // +0x24 0x6df470
+    virtual void SetSpeed(float p1, float p2);                    // +0x24 0x6df470 (SPixie +0x64)
 
+    void Stop();                                                  // 0x6df620
+    void SetEnabled(bool on);                                     // 0x6def80
     void SetAlphaScale(float s);                                  // 0x6df1b0
     void SetSizeScale(float s);                                   // 0x6df3e0
     void SetModel(int model);                                     // 0x6df2c0
@@ -190,8 +197,6 @@ struct SEffectSet {
     void UnregisterEffect(int index);                             // 0x6df690
     void GetPosition(float* out);                                 // 0x6dee60 (first instance's)
 
-    int   ParentModel;       // +0x04 SAttachable (HD SModel*)
-    int   ParentNode;        // +0x08 (-1)
     SIScene* Scene;          // +0x0c
     SPEffectSet* Proto;      // +0x10 (AddRef'd)
     SPtrHeap<SEffect> Effects; // +0x14
@@ -430,6 +435,13 @@ extern float (*g_EffectWaterHeight)(float x, float z);
 
 // HD rand() (0x78c846) scaled like the HD code: rand() * (1/32768).
 float EffectRand();
+
+// HD SLogger 0x65ca40 (the logger at 0x929f28): keeps the text as the last
+// error (logger +0x10, _strdup) and shows nothing. The effect loaders report
+// a missing mesh / texture / sub-effect with it and return failure. The
+// recompile writes the text to the log; it must not become the SWINE modal
+// Warning box, which stops a nested prototype load until it is clicked.
+void EffectSetLastError(const char* fmt, ...);
 
 } // namespace pz
 

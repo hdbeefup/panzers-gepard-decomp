@@ -48,7 +48,7 @@ struct SAnimState {
     float Blend;      // +0x10c 0..1 weight of Seq
 };
 
-struct SModel : SIModel, SIAttachable {
+struct SModel : SIModel, SAttachable {
     SModel(SScene* scene, SPModel* proto, SPModel* proto2, bool flag, int index);   // 0x6d4ae0
     ~SModel() override;                                                           // via SIAttachable +0x00
 
@@ -65,7 +65,7 @@ struct SModel : SIModel, SIAttachable {
     void SetScale(float scale) override;
     float GetScale() override;
     void SetVisible(bool show, bool fade) override;
-    void Slot_34() override;
+    bool GetVisible() override;
     void SetNodeFade(bool show, int node, int node2) override;
     void StoreInterpolationState() override;
     int FindNode(const char* name) override;
@@ -122,7 +122,7 @@ struct SModel : SIModel, SIAttachable {
     // SIAttachable (+0x04 vtable 0x883910)
     int Update(int frame, int attachMatrix) override;
     void Attach_08() override;
-    void Attach_0C() override;
+    void Attach_0C(bool visible) override;
 
     // Non-virtual HD members.
     void Initialize(SPModel* proto, SPModel* proto2);            // 0x6d82b0
@@ -136,8 +136,7 @@ struct SModel : SIModel, SIAttachable {
     bool IsVisible() const { return Visible; }                   // +0x34 0x6d86d0
 
     // --- HD layout (offsets asserted below) ---
-    void*          AttachParent;      // +0x08 SAttachable
-    int            AttachNode;        // +0x0c SAttachable (-1)
+    // +0x08 AttachParent, +0x0c AttachNode: the SAttachable base at +0x04.
     int            RefCount;          // +0x10 (ctor sets 1)
     SScene*        Scene;             // +0x14
     void*          Device;            // +0x18 SGepard +0x478

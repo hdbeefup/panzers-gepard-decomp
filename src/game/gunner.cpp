@@ -159,10 +159,7 @@ static void LoadEffects(SUPropStruct* g, const char* name, SUnitArray<SPUnitEffe
             out->Max = nmax;
         }
         SPUnitEffect* fx = &out->Array[out->Size++];
-        // HD: pixie +0x10 LoadEffectPrototype. Not loaded (-1): the
-        // recompile's SPixie crashes on nested prototype loads (see
-        // LoadEffectArray in punit.cpp); these effects play only on firing.
-        fx->Proto = -1;
+        fx->Proto = g_Pixie ? g_Pixie->LoadEffectPrototype(e->GetString("Effect"), false, false, 0, 0) : -1;   // pixie +0x10
         fx->MeshName = e->GetString("MeshName");
     }
 }

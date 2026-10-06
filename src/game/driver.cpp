@@ -17,6 +17,8 @@
 #include "worldapi.h"
 #include "unitprops.h"
 #include "pz/ipixie.h"
+#include "pz/imodel.h"
+#include "logger.h"
 #include "stub_log.h"
 
 namespace pz {
@@ -941,19 +943,51 @@ void SPanzersSquadMemberDriver::Refresh()
 }
 
 // ---------------------------------------------------------------------------
-// Effects (dust, exhaust, wakes). The pixie slots +0x28/+0x30/+0x64 and the
-// model slot +0x34 are not typed yet in pz/ipixie.h / pz/imodel.h, so the
-// effects are not created; the state the logic reads (unit +0x338) and the
-// handle bookkeeping follow HD.
+// Effects (exhaust, dust, wakes): the .unit "Drivers" item lists them per
+// driver type (SPDriver::LoadSubProperties 0x557520), each an effect file
+// and the model node ("MeshName") it is hung on. Visual only: the pixie and
+// the model never touch the world random numbers.
 
-// PANZERS 0x55bb80 (departure effects: one-shot pixie +0x28 per entry)
+// Starts the persistent node effects of `descs` into the free (-1) slots of
+// `handles` (pixie +0x30), at speed 0 (pixie +0x64). 0x55bc50 / 0x55be10.
+static void StartNodeEffects(SIUnit* unit, SHdDArray<int>& handles, const SHdDArray<SPDriver::SEffectDesc>& descs)
+{
+    SIModel* model = (SIModel*)DU_P(unit, 0x8);
+    if (!g_Pixie)
+        return;
+    for (int i = 0; i < handles.Size; ++i) {
+        if (handles.Array[i] != -1)
+            continue;
+        if (i >= descs.Size)
+            Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "struct SPDriver::SEffectDesc", i);
+        const SPDriver::SEffectDesc& d = descs.Array[i];
+        int node = model->FindNode(d.Node ? d.Node : "");        // model +0x40
+        if (node < 0)
+            continue;
+        handles.Array[i] = g_Pixie->CreateEffectOnNode(g_Scene, d.Proto, model, node);   // pixie +0x30
+        g_Pixie->SetEffectSpeed(handles.Array[i], 0.0f, 0.0f);                          // pixie +0x64
+    }
+}
+
+// PANZERS 0x55bb80
+// Departure effects (the exhaust puff of a start): one-shot, on the model
+// nodes, only while the model is shown.
 void SDriver::StartEffects()
 {
-    STUB_LOG("SDriver::StartEffects (0x55bb80) [pixie +0x28 not typed]");
+    SIModel* model = (SIModel*)DU_P(Unit, 0x8);
+    if (!g_Pixie || !model->GetVisible())                        // model +0x34
+        return;
+    const SHdDArray<SPDriver::SEffectDesc>& descs = static_cast<SPDriver*>(PDriver)->DepartureEffects;
+    for (int i = 0; i < descs.Size; ++i) {
+        const SPDriver::SEffectDesc& d = descs.Array[i];
+        int node = model->FindNode(d.Node ? d.Node : "");        // model +0x40
+        if (node >= 0)
+            g_Pixie->PlayEffectOnNode(g_Scene, d.Proto, model, node, 0);   // pixie +0x28
+    }
 }
 
 // PANZERS 0x55bc50: move effects, or the water ones when the unit stands
-// deeper than 1.0 (0x7f1b48) in water.
+// deeper than 0.01 (0x7f1b48) in water.
 void SDriver::StartMoveEffects()
 {
     float water = g_DriverEnv.WaterHeight(DU_F(Unit, 0x8c), DU_F(Unit, 0x94));
@@ -962,14 +996,14 @@ void SDriver::StartMoveEffects()
         StartWaterEffects();
         return;
     }
-    STUB_LOG("SDriver::StartMoveEffects (0x55bc50) [pixie +0x30/+0x64 not typed]");
+    StartNodeEffects(Unit, MoveEffects, static_cast<SPDriver*>(PDriver)->MoveEffects);
     DU_I(Unit, 0x338) = 1;
 }
 
 // PANZERS 0x55be10
 void SDriver::StartWaterEffects()
 {
-    STUB_LOG("SDriver::StartWaterEffects (0x55be10) [pixie +0x30/+0x64 not typed]");
+    StartNodeEffects(Unit, WaterEffects, static_cast<SPDriver*>(PDriver)->WaterEffects);
     DU_I(Unit, 0x338) = 2;
 }
 

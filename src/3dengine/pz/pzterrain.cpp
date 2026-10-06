@@ -576,6 +576,23 @@ float STerrain::HeightAt(float x, float z) const
     return 0.0f;
 }
 
+// PANZERS 0x6f4d10
+// HeightAt (0x6f4c00) on the second height buffer (+0x74); SScene::
+// TrackGroundTrail 0x6bb320 puts the track-mark corners on it.
+float STerrain::HeightAt2(float x, float z) const
+{
+    if (0.0f <= x && x < (float)Width && 0.0f <= z && z < (float)Height) {
+        int ix = FloorInt(x), iz = FloorInt(z);              // fistp under 0x47f
+        float fx = x - (float)ix, fz = z - (float)iz;
+        int i = Stride * iz + ix;
+        int j = Width + i;
+        const float* h = Heights2;
+        return h[i + 1] * (1.0f - fz) * fx + h[i] * (1.0f - fz) * (1.0f - fx)
+             + h[j + 1] * fz * (1.0f - fx) + h[j + 2] * fz * fx;
+    }
+    return 0.0f;
+}
+
 // PANZERS 0x6f4f60
 void STerrain::NormalAt(float out[3], int x, int z) const
 {

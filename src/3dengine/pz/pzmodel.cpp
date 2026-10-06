@@ -236,6 +236,14 @@ SModel::~SModel()
     if (Scene)
         Scene->RemoveModel(this);
     for (int i = 0; Proto && i < Proto->NodeCount; ++i) {
+        // PANZERS 0x6d50c0: the children of the node are let go (parent 0,
+        // node -1) and told to stop (+0x08; an effect set stops its births).
+        for (int k = 0; k < Nodes[i].AttachedCount; ++k) {
+            SAttachable* c = static_cast<SAttachable*>(Nodes[i].Attached[k]);
+            c->AttachParent = nullptr;
+            c->AttachNode = -1;
+            c->Attach_08();
+        }
         if (Nodes[i].Light >= 0 && Scene)
             Scene->DestroyLight(Nodes[i].Light);
         free(Nodes[i].Attached);
@@ -244,9 +252,14 @@ SModel::~SModel()
     if (Proto) {
         --Proto->RefCount;   // released by PurgeModelPrototypes
     }
-    // PANZERS 0x6d5710 (SAttachable dtor, the base part): leave the parent's node.
+    // The SAttachable base dtor (0x6d5710) leaves the parent's node.
+}
+
+// PANZERS 0x6d5710
+SAttachable::~SAttachable()
+{
     if (AttachParent)
-        static_cast<SModel*>(AttachParent)->DetachChild(AttachNode, static_cast<SIAttachable*>(this));   // 0x6d7340
+        static_cast<SModel*>(AttachParent)->DetachChild(AttachNode, this);   // 0x6d7340
 }
 
 // PANZERS 0x6d5900
@@ -394,7 +407,7 @@ void SModel::SetVisible(bool show, bool fade)
             // attached objects get +0xc(show)
             for (int i = 0; i < Proto->NodeCount; ++i)
                 for (int k = 0; k < Nodes[i].AttachedCount; ++k)
-                    Nodes[i].Attached[k]->Attach_0C();
+                    Nodes[i].Attached[k]->Attach_0C(show);
         }
         FadeState = 0;
         FadeAlpha = (float)(unsigned char)Visible;
@@ -427,7 +440,7 @@ void SModel::SetVisible(bool show, bool fade)
             Scene->ModelsMoved();
         for (int i = 0; i < Proto->NodeCount; ++i)
             for (int k = 0; k < Nodes[i].AttachedCount; ++k)
-                Nodes[i].Attached[k]->Attach_0C();
+                Nodes[i].Attached[k]->Attach_0C(show);
         FadeState = 1;
         FadeAlpha = 0.0f;
         FadeStart = now;
@@ -439,9 +452,10 @@ void SModel::SetVisible(bool show, bool fade)
     }
 }
 
-// PANZERS 0x6d86d0 (IsVisible; the interface returns void, value in Visible)
-void SModel::Slot_34()
+// PANZERS 0x6d86d0
+bool SModel::GetVisible()
 {
+    return Visible;
 }
 
 // PANZERS 0x6db2a0
@@ -482,13 +496,13 @@ void SModel::SetNodeFade(bool show, int node, int node2)
         SetNodeVisible(node, true);
         SModelNode& fn = Nodes[NodeFadeNode];
         for (int i = 0; i < fn.AttachedCount; ++i)
-            fn.Attached[i]->Attach_0C();                          // attachment +0x0c(show)
+            fn.Attached[i]->Attach_0C(show);                      // attachment +0x0c(show)
         for (int j = 0; j < Proto->NodeCount; ++j) {
             if (Proto->Nodes[j].Parent != NodeFadeNode)
                 continue;
             SModelNode& cn = Nodes[j];
             for (int i = 0; i < cn.AttachedCount; ++i)
-                cn.Attached[i]->Attach_0C();
+                cn.Attached[i]->Attach_0C(show);
         }
         NodeFadeState = 1;
         NodeFadeAlpha = 0.0f;
@@ -984,10 +998,10 @@ void SModel::AttachChild(int node, SIAttachable* child)
         n.AttachedMax = nmax;
     }
     n.Attached[n.AttachedCount++] = child;
-    SModel* c = static_cast<SModel*>(child);                      // the only SIAttachable
+    SAttachable* c = static_cast<SAttachable*>(child);            // SModel (+0x04) or SEffectSet
     c->AttachParent = this;                                       // attachable +0x04
     c->AttachNode = node;                                         // attachable +0x08
-    child->Attach_0C();                                           // +0x0c(this +0xd4 visible): empty in SModel
+    child->Attach_0C(Visible);                                    // +0x0c(this +0xd4 visible)
 }
 
 // PANZERS 0x6d7340
@@ -1004,7 +1018,7 @@ void SModel::DetachChild(int node, SIAttachable* child)
         if (n.AttachedCount - i != 0)
             memmove(&n.Attached[i], &n.Attached[i + 1], (n.AttachedCount - i) * sizeof(SIAttachable*));
         n.Attached[n.AttachedCount] = nullptr;
-        SModel* c = static_cast<SModel*>(child);
+        SAttachable* c = static_cast<SAttachable*>(child);
         c->AttachParent = nullptr;
         c->AttachNode = -1;
         return;
@@ -1068,7 +1082,7 @@ void SModel::Slot_104() { STUB_LOG("SModel::Slot_104 (0x6d7400)"); }
 // PANZERS 0x6d86e0
 void SModel::Attach_08() {}
 // PANZERS 0x6d86f0
-void SModel::Attach_0C() {}
+void SModel::Attach_0C(bool) {}
 
 // ---------------------------------------------------------------------------
 // animation

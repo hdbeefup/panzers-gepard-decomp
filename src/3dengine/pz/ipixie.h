@@ -23,6 +23,7 @@
 namespace pz {
 
 struct SIScene;
+struct SIModel;
 
 struct SIPixie {
     virtual void AddRef() = 0;                              // +0x00 HD 0x69d1d0 (0 arg dwords) RefCount +0x78
@@ -35,9 +36,9 @@ struct SIPixie {
     virtual void* GetEffectProperties(int proto) = 0;       // +0x1c HD 0x69d5b0 (1 arg dword) the prototype's SPropertyArray tree
     virtual void ReleaseEffectPrototype(int proto) = 0;     // +0x20 HD 0x69e8c0 (1 arg dword) drops one reference of a LoadEffectPrototype handle
     virtual void PlayEffect(SIScene* scene, int proto, const float* pos, const float* dir, int p5) = 0; // +0x24 HD 0x69e400 (5 arg dwords) one-shot effect, deletes itself when done; p5 = float lifetime override bits (0 = .fx LifeTime). World 0x568bc0/0x57e8b0
-    virtual void Slot_28() = 0;                             // +0x28 HD 0x69e510 (5 arg dwords)
+    virtual void PlayEffectOnNode(SIScene* scene, int proto, SIModel* model, int node, int p5) = 0; // +0x28 HD 0x69e510 (5 arg dwords) one-shot effect hung on a model node (SModel::AttachChild 0x6d5940); p5 as +0x24. Driver departure effects 0x55bb80
     virtual int CreateEffect(SIScene* scene, int proto, const float* pos, const float* dir) = 0; // +0x2c HD 0x69f540 (4 arg dwords) persistent effect; returns the effect handle (-1 on error). World: EEFS 0x5ee9f0, weather 0x6088f0
-    virtual void Slot_30() = 0;                             // +0x30 HD 0x69f610 (4 arg dwords)
+    virtual int CreateEffectOnNode(SIScene* scene, int proto, SIModel* model, int node) = 0; // +0x30 HD 0x69f610 (4 arg dwords) persistent effect hung on a model node; returns the handle (-1 on error). Driver move / water effects 0x55bc50 / 0x55be10
     virtual void StopEffect(int effect) = 0;                // +0x34 HD 0x69f6b0 (1 arg dword) stop births, the effect dies when its particles do. Weather 0x6088f0
     virtual void ReleaseEffect(int effect) = 0;             // +0x38 HD 0x69d1e0 (1 arg dword) clears SEffectSet+0x30 (persistent): the effect deletes itself once empty
     virtual void DestroyEffect(int effect) = 0;             // +0x3c HD 0x69d540 (1 arg dword) delete now (no fade-out)
@@ -50,7 +51,7 @@ struct SIPixie {
     virtual void Slot_58() = 0;                             // +0x58 HD 0x69f320 (2 arg dwords)
     virtual bool IsBulletIndicator(int proto) = 0;          // +0x5c HD 0x69dc20 (1 arg dword) "General.Bullet Indicator"
     virtual void SetEffectEnabled(int effect, bool on) = 0; // +0x60 HD 0x69f410 (2 arg dwords) SEffectSet +0x0c
-    virtual void Slot_64() = 0;                             // +0x64 HD 0x69f4e0 (3 arg dwords)
+    virtual void SetEffectSpeed(int effect, float p1, float p2) = 0; // +0x64 HD 0x69f4e0 (3 arg dwords) SEffectSet +0x24 -> SEffect +0x30 (a nop for particles). SDriver::SetEffectsSpeed 0x55c900 (s, s) (name guessed)
 
 protected:
     ~SIPixie() {}

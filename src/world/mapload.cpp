@@ -587,6 +587,24 @@ void SDecal::Release()
 }
 
 // ---------------------------------------------------------------------------
+// Water map
+
+// PANZERS 0x608600
+// The water map starts as a copy of the height map (no water anywhere); the
+// lakes (+0x73b0, 0x38 each: +0x34 = 1, then 0x607ad0) and the rivers
+// (+0x73e8, 0xa0 each, 0x6015d0 per river, the +0x98 & 0x10 ones last)
+// raise it. Then the whole map's water bits (0x600) are marked dirty for the
+// block-map rebuild. The menu map has neither lakes nor rivers (LAKS / RVR2
+// are kept raw and hold 0 entries).
+void SWorld::UpdateWaterMap()
+{
+    if (!WaterHeights || !Heights)
+        Logger.g->Panic("SWorld::UpdateWaterMap(): WaterMap or HeightMap is NULL.");
+    memcpy(WaterHeights, Heights, (size_t)(TerrainH + 1) * (TerrainW + 1) * 4);
+    BlockMap_MarkDirty(this, 0, 0, BlockW, BlockH, 0x600);        // inline in HD
+}
+
+// ---------------------------------------------------------------------------
 // Placed effects
 
 // PANZERS 0x5dd880
@@ -1211,10 +1229,9 @@ bool SWorld::LoadMap(SStream* stream, bool p2, int p3, int p4)
     s->ReadChunkValidate(0);                                      // MAPF
     // The whole block map is rebuilt from the loaded words, the doodad
     // footprints and the units: 0x5ef380(0, 0, BlockW, BlockH, 0x7f3f), then
-    // HD 0x608600 SWorld::UpdateWaterMap (water map = height map, then the
-    // lakes; not lifted, the water map keeps what the map load gave it),
-    // then 0x604620.
+    // the water map (0x608600), then 0x604620.
     BlockMap_MarkDirty(this, 0, 0, BlockW, BlockH, 0x7f3f);       // 0x5ef380
+    UpdateWaterMap();                                             // 0x608600
     RefreshBlockMapDirtyRect();                                   // 0x604620
     LoadParam3 = 0;
     LoadParam4 = 0;

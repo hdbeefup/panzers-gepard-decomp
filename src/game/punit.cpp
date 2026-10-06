@@ -222,19 +222,14 @@ void SPUnit::InitAnimation(SUPropStruct* unit)
     PAnimation = LoadPUnitAnimation(this, SAnimProps::FromFlat(unit->Source, unit->Key.c_str()));
 }
 
-// One "Effect" array of LoadResources (0x5a8780).
-// load = false keeps the slot without its pixie prototype (-1): the
-// recompile's SPixie crashes on the nested prototype loads of the die /
-// destroy effects (house_large_explosion_caller.fx -> SPParticles Draw=Object
-// -> a sub-effect whose InitEffectPrototype calls through a bad pointer;
-// engine side, reported). Those effects only play when a unit dies.
-static void LoadEffectArray(SUPropStruct* common, const char* name, SUnitArray<SPUnitEffect>* out, bool load = true)
+// One "Effect" array of LoadResources (0x5a8780): pixie +0x10 per entry.
+static void LoadEffectArray(SUPropStruct* common, const char* name, SUnitArray<SPUnitEffect>* out)
 {
     int n = common->GetArraySize(name);
     for (int i = 0; i < n; ++i) {
         SUPropStruct* e = common->GetArrayItem(name, i);
         int idx = ArrayAdd(out);
-        out->Array[idx].Proto = (g_Pixie && load) ? g_Pixie->LoadEffectPrototype(e->GetString("Effect"), false, false, 0, 0) : -1;
+        out->Array[idx].Proto = g_Pixie ? g_Pixie->LoadEffectPrototype(e->GetString("Effect"), false, false, 0, 0) : -1;
         AssignSString(&out->Array[idx].MeshName, e->GetString("MeshName"));
     }
 }
@@ -258,16 +253,16 @@ void SPUnit::LoadResources(SUPropStruct* unit)
     // "<name>02", "<name>03", ... while the model prototype has that node
     // (Gepard +0x2c). The prototype node lookup is not in the recompile's
     // Gepard facade, so only the listed mesh is used here.
-    LoadEffectArray(common, "Die_Effects", &DieEffects, false);
-    LoadEffectArray(common, "Died_by_Fire_Effects", &DiedByFireEffects, false);
-    LoadEffectArray(common, "Destroy_Effects", &DestroyEffects, false);
+    LoadEffectArray(common, "Die_Effects", &DieEffects);
+    LoadEffectArray(common, "Died_by_Fire_Effects", &DiedByFireEffects);
+    LoadEffectArray(common, "Destroy_Effects", &DestroyEffects);
     LoadEffectArray(common, "Night_Effects", &NightEffects);
     for (int i = 0; i < PGunners.Size; ++i)
         if (PGunners.Array[i])
             PGunners.Array[i]->LoadResources(unit->GetArrayItem("Gunners", i));   // vtbl +0x08
     for (int i = 0; i < PDrivers.Size; ++i)
         if (PDrivers.Array[i])
-            PDrivers.Array[i]->LoadSubProperties(nullptr);   // vtbl +0x08 HD: the "Drivers" item (effects; P skips them until the pixie slots are typed)
+            PDrivers.Array[i]->LoadSubProperties((SProperties*)unit->GetArrayItem("Drivers", i));   // vtbl +0x08: the "Drivers" item (effect arrays)
     if (PAnimation)                                                               // vtbl +0x08(this, sub)
         static_cast<SPUnitAnimation*>(PAnimation)->LoadResourcesProps(
             this, SAnimProps::FromFlat(unit->Source, unit->Key.c_str()).GetMultiSub("Animation"));

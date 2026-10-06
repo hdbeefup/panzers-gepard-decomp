@@ -226,6 +226,7 @@ struct STerrain : SITerrain {
 
     // ---- Internals ----
     float HeightAt(float x, float z) const;                 // 0x6f4c00 bilinear, 0 outside
+    float HeightAt2(float x, float z) const;                // 0x6f4d10 the same on Heights2 (ground trails)
     void  NormalAt(float out[3], int x, int z) const;       // 0x6f4f60
     void  RenderRoads(SViewport* vp, bool shadowPass);      // 0x6f7810 STerrain::RenderRoads
     void  RenderEffectDecals(bool shadowPass, int pass);    // 0x6f6640

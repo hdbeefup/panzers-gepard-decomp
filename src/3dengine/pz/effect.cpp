@@ -3,11 +3,14 @@
 // SEffectSet (HD 0x69cf50.., 0x6de530..0x6df6d0). OWNER: agent C.
 // Particles are in particles.cpp.
 
+#include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include "effect.h"
 #include "pzpixie.h"
+#include "pzmodel.h"
 #include "logger.h"
 #include "stub_log.h"
 
@@ -20,6 +23,19 @@ float (*g_EffectWaterHeight)(float x, float z) = nullptr;
 float EffectRand()
 {
     return (float)((double)rand() * (1.0 / 32768.0));
+}
+
+// HD SLogger 0x65ca40 ("last error"; see effect.h)
+void EffectSetLastError(const char* fmt, ...)
+{
+    char buf[512];
+    va_list ap;
+    va_start(ap, fmt);
+    _vsnprintf(buf, sizeof(buf) - 1, fmt, ap);
+    va_end(ap);
+    buf[sizeof(buf) - 1] = 0;
+    if (Logger.g)
+        Logger.g->Log(0, "SLogger last error: %s", buf);
 }
 
 // ---- scene fields (HD SScene offsets; agent A's class) ----
@@ -227,7 +243,7 @@ void SEffect::SetActive(bool on) { Active = on; }
 // PANZERS 0x6de800
 void SEffect::Stop() {}
 // PANZERS 0x6de7d0
-void SEffect::Slot_30(int, int) {}
+void SEffect::SetSpeed(float, float) {}
 
 // ===========================================================================
 // SEffectSet
@@ -235,7 +251,7 @@ void SEffect::Slot_30(int, int) {}
 
 // PANZERS 0x6de8c0
 SEffectSet::SEffectSet(SIScene* scene, SPEffectSet* proto, int handle, float param, int model)
-    : ParentModel(0), ParentNode(-1), Scene(scene), Proto(proto), Handle(handle), LastFrame(0),
+    : Scene(scene), Proto(proto), Handle(handle), LastFrame(0),
       Persistent(false), Enabled(true), Active(true), Model(model)
 {
     proto->AddRef();
@@ -263,24 +279,38 @@ SEffectSet::~SEffectSet()
     }
     SPixie::Instance()->UnregisterEffect(Handle);
     Proto->Release();
+    // then the SAttachable dtor (0x6d5070 -> 0x6d5710) leaves the parent node
 }
 
 // PANZERS 0x6df6d0
-bool SEffectSet::Update(unsigned frame, const float* matrix)
+// Called by the parent model with its node's world matrix (SModel::Update),
+// or by SPixie::UpdateFrame with none; a set on a model node then asks the
+// model for the node matrix (+0x58 GetNodeMatrix). The first call of a frame
+// wins.
+int SEffectSet::Update(int frameArg, int matrixArg)
 {
+    unsigned frame = (unsigned)frameArg;
+    const float* matrix = (const float*)(intptr_t)matrixArg;
     if (LastFrame < frame) {
         LastFrame = frame;
-        // HD: with a parent model and no matrix, the node matrix comes from
-        // the model (+0x58); effects attached to models are not ported yet.
+        float node[12];
+        const float* m = nullptr;
+        if (AttachParent) {
+            m = matrix;
+            if (!m) {
+                static_cast<SModel*>(AttachParent)->GetNodeMatrix(node, AttachNode);   // model +0x58
+                m = node;
+            }
+        }
         for (int i = 0; i < Effects.Size(); ++i)
             if (Effects.Valid(i))
-                Effects[i]->Update(frame, matrix);
+                Effects[i]->Update(frame, m);
         if (Effects.Count == 0) {
             delete this;
-            return false;
+            return 0;
         }
     }
-    return true;
+    return 1;
 }
 
 // PANZERS 0x6df620
@@ -345,11 +375,11 @@ void SEffectSet::SetActive(bool on)
 }
 
 // PANZERS 0x6df470
-void SEffectSet::Slot_24(int p1, int p2)
+void SEffectSet::SetSpeed(float p1, float p2)
 {
     for (int i = 0; i < Effects.Size(); ++i)
         if (Effects.Valid(i))
-            Effects[i]->Slot_30(p1, p2);
+            Effects[i]->SetSpeed(p1, p2);
 }
 
 // PANZERS 0x6df1b0

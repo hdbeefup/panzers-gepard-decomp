@@ -32,6 +32,7 @@ namespace pz {
 
 struct SIDriver;
 struct SIPixie;
+struct SIScene;
 struct SRunningGear;
 struct SPRunningGear;
 
@@ -159,6 +160,7 @@ struct SUnitAnimEnv {
     int       (*GameLogicInt)(unsigned offset);          // an int field of SGameLogic (DAT_008f2078)
     SIPixie*  (*Pixie)();                                // DAT_00929f14
     bool      (*BuildingOccupiedByTeam)(SIUnit* b, int player); // SBuildingUnit 0x5468e0
+    SIScene*  (*Scene)();                                // DAT_00929a54 (the running gear's ground trails); may be null
 };
 extern SUnitAnimEnv g_UnitAnimEnv;
 

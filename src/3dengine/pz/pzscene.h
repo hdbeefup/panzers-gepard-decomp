@@ -27,6 +27,33 @@ struct SSceneLight {
 };
 static_assert(sizeof(SSceneLight) == 0x44, "HD light entry 0x48");
 
+// Ground trail segment (track marks; HD SHeap value 0x38, entry 0x3c). One
+// quad from the previous track point to the current one, each widened by
+// the trail's half width across its direction, on the terrain.
+struct SGroundTrailSegment {
+    float V[4][3];     // +0x00 prev +w, cur +w, prev -w, cur -w (triangle strip)
+    int   StartTime;   // +0x30 scene +0xa4 when made (ms)
+    bool  Noticed;     // +0x34 seen once on the visibility map (then always drawn)
+};
+static_assert(sizeof(SGroundTrailSegment) == 0x38, "HD segment entry 0x3c");
+
+// Ground trail (HD SHeap value 0x30, entry 0x34, scene +0x1f8).
+struct SGroundTrail {
+    SHeap<SGroundTrailSegment>* Segments;   // +0x00 new 0x14
+    int   Texture;      // +0x04 (Gepard AddRef'd)
+    bool  Closed;       // +0x08 (+0x94): removed once no segment is left
+    float Strength;     // +0x0c strength * 256 (alpha at age 0)
+    float FadeMs;       // +0x10 segment lifetime
+    float HalfWidth;    // +0x14
+    float VScale;       // +0x18 (not read)
+    float LastX;        // +0x1c
+    float LastZ;        // +0x20
+    float LastDir;      // +0x24
+    bool  HaveLast;     // +0x28
+    int   DrawType;     // +0x2c blend mode (0x688980)
+};
+static_assert(sizeof(SGroundTrail) == 0x30, "HD trail entry 0x34");
+
 // Terrain-cell model link (scene +0x1ac SDArray, 8 bytes).
 struct SCellLink {
     int Model;
@@ -72,10 +99,10 @@ struct SScene : SIScene {
     void Slot_80() override;
     void Slot_84() override;
     void Slot_88() override;
-    void Slot_8C() override;
-    void Slot_90() override;
-    void Slot_94() override;
-    void Slot_98() override;
+    int CreateGroundTrail(int texture, float strength, float fadeMs, float halfWidth, float vScale, int drawType) override;
+    void TrackGroundTrail(int trail, float x, float z, float dir) override;
+    void CloseGroundTrail(int trail) override;
+    void RemoveGroundTrail(int trail) override;
     int CreateLake(const char* p1, const char* p2, float p3, float p4, short* p5, int p6, short* p7, int p8) override;
     void DestroyLake(int lake) override;
     void Slot_A4() override;
@@ -117,6 +144,8 @@ struct SScene : SIScene {
     void SortModelsIntoCells();                     // 0x6ac210
     void DrawModels(SViewport* vp, int p2);         // 0x6b02a0
     void DrawRivers(SViewport* vp);                 // 0x6b0920
+    void DrawGroundTrails(SViewport* vp);           // 0x6ad0e0
+    float TerrainHeight2(float x, float z) const;   // terrain 0x6f4d10 (0 without a terrain)
     void ModelsMoved() { ModelsSorted = false; }    // 0x6bbbc0
     void AddDeferredModel(SModel* m);               // 0x6d5820 on +0x2a0
     void RemoveModel(SModel* m);
@@ -176,7 +205,9 @@ struct SScene : SIScene {
     int           CellsX;            // +0x1c0
     int           CellsZ;            // +0x1c4
     STerrain*     Terrain;           // +0x1c8 (+0x64 CreateTerrain)
-    unsigned char _1cc[0x220 - 0x1cc];   // decal/trail/lake heaps (+0x1cc, +0x1e0, +0x1f8, +0x20c)
+    unsigned char _1cc[0x1f8 - 0x1cc];   // decal / smoke-trail heaps (+0x1cc, +0x1e0)
+    SHeap<SGroundTrail> GroundTrails;    // +0x1f8 track marks (+0x8c..+0x98, drawn by 0x6ad0e0)
+    unsigned char _20c[0x220 - 0x20c];   // lake heap (+0x20c)
     SHeap<unsigned char[0x74]> Rivers;   // +0x220 water courses (Slot_B0), drawn by 0x6b0920
     int           RiverTexture;      // +0x234
     unsigned char _238[0x2a0 - 0x238];
@@ -204,6 +235,7 @@ static_assert(offsetof(SScene, Models) == 0x178, "SScene layout");
 static_assert(offsetof(SScene, FreeModels) == 0x18c, "SScene layout");
 static_assert(offsetof(SScene, CellLinks) == 0x1ac, "SScene layout");
 static_assert(offsetof(SScene, Terrain) == 0x1c8, "SScene layout");
+static_assert(offsetof(SScene, GroundTrails) == 0x1f8, "SScene layout");
 static_assert(offsetof(SScene, Rivers) == 0x220, "SScene layout");
 static_assert(offsetof(SScene, RiverTexture) == 0x234, "SScene layout");
 static_assert(offsetof(SScene, Deferred) == 0x2a0, "SScene layout");

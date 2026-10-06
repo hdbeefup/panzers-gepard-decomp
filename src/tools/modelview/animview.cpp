@@ -69,7 +69,8 @@ bool EnvBuildingOccupied(SIUnit*, int) { return false; }
 
 namespace pz {
 SUnitAnimEnv g_UnitAnimEnv = { EnvSeed, EnvHeight, EnvLocalPlayer, EnvNoFog, EnvTeam, EnvHasGL,
-                               EnvCanSee, EnvFrame, EnvGetUnit, EnvGLInt, EnvPixie, EnvBuildingOccupied };
+                               EnvCanSee, EnvFrame, EnvGetUnit, EnvGLInt, EnvPixie, EnvBuildingOccupied,
+                               nullptr };
 }
 
 namespace {

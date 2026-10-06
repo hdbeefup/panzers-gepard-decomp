@@ -16,6 +16,7 @@
 #include "pzpixie.h"
 #include "mesh.h"
 #include "shadowmath.h"
+#include "hdmath.h"
 #include <vector>
 #include "timer.h"
 #include "logger.h"
@@ -52,6 +53,7 @@ SScene::SScene(int param)
     Models.FreeHead = -1;
     FreeModels.FreeHead = -1;
     Rivers.FreeHead = -1;
+    GroundTrails.FreeHead = -1;
     Param = param;
     Device = HD().Device;
     TimeMs = 0;
@@ -85,6 +87,10 @@ SScene::~SScene()
         m->Scene = nullptr;
         m->Release();
     }
+    // HD 0x6a0500: every ground trail, closed or not (+0x98).
+    for (int i = GroundTrails.Next(-1); i >= 0; i = GroundTrails.Next(i))
+        RemoveGroundTrail(i);
+    GroundTrails.Free();
     // HD 0x6a0527: the effect manager (0x92f104) drops every effect that
     // still plays in this scene (pixie +0x44).
     if (SIPixie* pixie = GepardPixie())
@@ -671,8 +677,8 @@ void SScene::RenderViewport(SViewport* vp)
     DeferredCount = 0;                                // 0x6a20f0(0) on +0x2a0
     DrawModels(vp, 0);                                // 0x6b02a0
     if (Terrain)
-        STUB_LOG("SScene::DrawTerrainDecals (0x6ad0e0)");
-    STUB_LOG("SScene::DrawTrails (0x6acf20)");
+        DrawGroundTrails(vp);                         // 0x6ad0e0
+    STUB_LOG("SScene::DrawLines (0x6acf20)");       // +0x270 point pairs (0x20 each); none in the menu
     if (Terrain)
         Terrain->RenderLate(vp);                      // 0x6f33c0
     STUB_LOG("SScene::DrawLakes (0x6ad740)");       // LAKS: 0 in menu.map
@@ -992,32 +998,167 @@ void SScene::Slot_88()
     PZ_TRACE("SScene::Slot_88 (0x6a2780)");
 }
 
-// HD SScene vtbl +0x8c -> 0x6a7790 (6 arg dwords)
-void SScene::Slot_8C()
+// PANZERS 0x6a7790
+// A ground trail (track marks): its texture AddRef'd, an empty segment heap.
+int SScene::CreateGroundTrail(int texture, float strength, float fadeMs, float halfWidth, float vScale, int drawType)
 {
-    STUB_LOG("SScene::Slot_8C (0x6a7790)");
-    PZ_TRACE("SScene::Slot_8C (0x6a7790)");
+    PZ_TRACE("SScene::CreateGroundTrail (0x6a7790)");
+    int i = GroundTrails.Add();                               // 0x6a0f30
+    SGroundTrail& t = GroundTrails[i];
+    t.Texture = TerrainAddRefTexture(texture);                // Gepard 0x677f20
+    t.Segments = new SHeap<SGroundTrailSegment>();            // new 0x14 {0, 0, 0, -1, 0}
+    t.Closed = false;
+    t.DrawType = drawType;
+    t.Strength = strength * 256.0f;                           // 0x87c7d8
+    t.FadeMs = fadeMs;
+    t.HalfWidth = halfWidth;
+    t.VScale = vScale;
+    t.HaveLast = false;
+    return i;
 }
 
-// HD SScene vtbl +0x90 -> 0x6bb320 (4 arg dwords)
-void SScene::Slot_90()
+// PANZERS 0x6bb320
+// The first point only records the position. Then, once the track moved at
+// least 0.25 (squared 0.0625, 0x7f59a4) from the last point, a segment spans
+// the two, each widened by the half width across its own direction, the
+// corners on the terrain's second height buffer (0x6f4d10).
+void SScene::TrackGroundTrail(int trail, float x, float z, float dir)
 {
-    STUB_LOG("SScene::Slot_90 (0x6bb320)");
-    PZ_TRACE("SScene::Slot_90 (0x6bb320)");
+    PZ_TRACE("SScene::TrackGroundTrail (0x6bb320)");
+    if (!GroundTrails.Valid(trail))
+        return;
+    SGroundTrail& t = GroundTrails[trail];
+    if (!t.HaveLast) {
+        t.HaveLast = true;
+        t.LastX = x;
+        t.LastZ = z;
+        t.LastDir = dir;
+        return;
+    }
+    float lx = t.LastX, lz = t.LastZ, ld = t.LastDir;
+    float dz = lz - z, dx = lx - x;
+    if (0.0625f > dz * dz + dx * dx)
+        return;
+    int s = t.Segments->Add();                                // 0x6a0fe0
+    SGroundTrailSegment& g = (*t.Segments)[s];
+    double w = (double)t.HalfWidth;
+    double c = HdCos((double)ld) * w;                         // 0x78d480
+    g.V[0][0] = (float)((double)lx + c);
+    double sn = HdSin((double)ld) * w;                        // 0x78d640
+    g.V[0][2] = (float)((double)lz - sn);
+    g.V[0][1] = TerrainHeight2(g.V[0][0], g.V[0][2]) + 0.0f;
+    g.V[2][0] = (float)((double)lx - c);
+    g.V[2][2] = (float)((double)lz + sn);
+    g.V[2][1] = TerrainHeight2(g.V[2][0], g.V[2][2]) + 0.0f;
+    c = HdCos((double)dir) * w;
+    g.V[1][0] = (float)((double)x + c);
+    sn = HdSin((double)dir) * w;
+    g.V[1][2] = (float)((double)z - sn);
+    g.V[1][1] = TerrainHeight2(g.V[1][0], g.V[1][2]) + 0.0f;
+    g.V[3][0] = (float)((double)x - c);
+    g.V[3][2] = (float)((double)z + sn);
+    g.V[3][1] = TerrainHeight2(g.V[3][0], g.V[3][2]) + 0.0f;
+    g.StartTime = TimeMs;                                     // +0xa4
+    g.Noticed = false;
+    t.LastX = x;
+    t.LastZ = z;
+    t.LastDir = dir;
 }
 
-// HD SScene vtbl +0x94 -> 0x6a2710 (1 arg dword)
-void SScene::Slot_94()
+// PANZERS 0x6a2710
+void SScene::CloseGroundTrail(int trail)
 {
-    STUB_LOG("SScene::Slot_94 (0x6a2710)");
-    PZ_TRACE("SScene::Slot_94 (0x6a2710)");
+    PZ_TRACE("SScene::CloseGroundTrail (0x6a2710)");
+    if (GroundTrails.Valid(trail))
+        GroundTrails[trail].Closed = true;
 }
 
-// HD SScene vtbl +0x98 -> 0x6aa320 (1 arg dword)
-void SScene::Slot_98()
+// PANZERS 0x6aa320
+void SScene::RemoveGroundTrail(int trail)
 {
-    STUB_LOG("SScene::Slot_98 (0x6aa320)");
-    PZ_TRACE("SScene::Slot_98 (0x6aa320)");
+    PZ_TRACE("SScene::RemoveGroundTrail (0x6aa320)");
+    if (!GroundTrails.Valid(trail))
+        return;
+    SGroundTrail& t = GroundTrails[trail];
+    PzGepard()->ReleaseTexture(t.Texture);                    // Gepard +0x48
+    if (t.Segments) {
+        t.Segments->Free();
+        delete t.Segments;                                    // 0x14
+        t.Segments = nullptr;
+    }
+    GroundTrails.Remove(trail);                               // 0x6ac870
+}
+
+// The terrain's second height buffer under (x, z) (STerrain 0x6f4d10).
+float SScene::TerrainHeight2(float x, float z) const
+{
+    return Terrain ? Terrain->HeightAt2(x, z) : 0.0f;
+}
+
+// PANZERS 0x6ad0e0
+// Track marks, after the models: textured quads, alpha (1 - age / fade) *
+// strength (vertex colour 0xAAffffff), the trail's draw type as blend mode,
+// no culling, the projection pulled 2.44e-4 towards the camera. A segment
+// not yet seen waits until the visibility map shows its first corner.
+// Faded segments are dropped here, and a closed trail with none left goes.
+void SScene::DrawGroundTrails(SViewport* vp)
+{
+    PZ_TRACE("SScene::DrawGroundTrails (0x6ad0e0)");
+    if (GroundTrails.Count == 0)
+        return;
+    IDirect3DDevice9* dev = HD().Device;
+    if (!dev)
+        return;
+    struct SVertex { float x, y, z; unsigned color; float u, v; };   // FVF 0x142
+    dev->SetFVF(0x142);                                       // device +0x164
+    TerrainSetWorldIdentity(dev);                             // 0x680fe0
+    SRenderPass pass;
+    pass.Init();                                              // 0x687730
+    pass.Lighting = false;
+    vp->ZBias = 2.44140625e-4f;                               // 0x68d890(0x39800000)
+    vp->ApplyTransforms();
+    for (int i = GroundTrails.Next(-1); i >= 0; i = GroundTrails.Next(i)) {
+        SGroundTrail& t = GroundTrails[i];
+        pass.SetTexture(0, t.Texture, true);                  // 0x688d80
+        pass.SetBlendMode(t.DrawType, t.Texture);             // 0x688980
+        pass.SetAlphaOp(0, D3DTOP_MODULATE, D3DTA_TEXTURE, D3DTA_CURRENT);   // 0x688870
+        pass.CullMode = D3DCULL_NONE;
+        pass.Apply();                                         // 0x687a50
+        SHeap<SGroundTrailSegment>* segs = t.Segments;
+        for (int s = segs->Next(-1); s >= 0; s = segs->Next(s)) {
+            SGroundTrailSegment& g = (*segs)[s];
+            float age = (float)(double)(unsigned)(TimeMs - g.StartTime);
+            if (age > t.FadeMs) {
+                segs->Remove(s);
+                continue;
+            }
+            if (!g.Noticed && Terrain && Terrain->Overlay != 0 && !Terrain->Flag5C) {
+                int vx = (int)(g.V[0][0] * 2.0f);             // fistp under 0xc7f (chop)
+                int vz = (int)(g.V[0][2] * 2.0f);
+                const unsigned char* vis = (const unsigned char*)(intptr_t)Terrain->Overlay;
+                if ((vis[(Terrain->Width + 1) * vz * 2 + vx] & 1) == 0)
+                    continue;
+            }
+            g.Noticed = true;
+            int a = (int)((1.0f - age / t.FadeMs) * t.Strength);   // cvttss2si
+            if (a > 0xff)
+                a = 0xff;
+            else if (a < 0)
+                a = 0;
+            unsigned color = ((unsigned)a << 24) | 0xffffff;
+            SVertex v[4] = {
+                { g.V[0][0], g.V[0][1], g.V[0][2], color, 0.0f, 0.0f },
+                { g.V[1][0], g.V[1][1], g.V[1][2], color, 0.0f, 1.0f },
+                { g.V[2][0], g.V[2][1], g.V[2][2], color, 1.0f, 0.0f },
+                { g.V[3][0], g.V[3][1], g.V[3][2], color, 1.0f, 1.0f },
+            };
+            dev->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, v, sizeof(SVertex));   // device +0x14c
+        }
+        if (t.Closed && segs->Count == 0)
+            RemoveGroundTrail(i);                             // vtbl +0x98
+    }
+    vp->ZBias = 0.0f;
+    vp->ApplyTransforms();
 }
 
 // HD SScene vtbl +0x9c -> 0x6a7940 (8 arg dwords)

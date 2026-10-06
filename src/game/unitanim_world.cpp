@@ -75,10 +75,15 @@ static bool WorldBuildingOccupiedByTeam(SIUnit* b, int player)
     return static_cast<SBuildingUnit*>(b)->IsOccupiedByTeam(player);   // 0x5468e0
 }
 
+static SIScene* WorldScene()
+{
+    return g_Scene;
+}
+
 SUnitAnimEnv g_UnitAnimEnv = {
     WorldSeed, WorldTerrainHeight, WorldLocalPlayer, WorldNoFogOfWar, WorldPlayerTeam,
     WorldHasGameLogic, WorldCanSeeGroundUnit, WorldFrame, WorldGetUnit, WorldGameLogicInt,
-    WorldPixie, WorldBuildingOccupiedByTeam,
+    WorldPixie, WorldBuildingOccupiedByTeam, WorldScene,
 };
 
 } // namespace pz

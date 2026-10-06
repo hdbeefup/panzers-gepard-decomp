@@ -101,7 +101,7 @@ Stubs hit on the default path (first-call names):
 | `SGameLogic::SGameLogic (0x55e440)`, `SetRunning (0x5802f0)`, `~SGameLogic (0x55fe00)` | M2 | LoadMenuBackground / Exit |
 | `SGameLogic::Refresh (0x576d80)` | M2 | every 20 Hz tick; only its model part runs (`SWorld::RefreshModels`) |
 | `SGameLogic::UpdateUnitVisuals (0x5638f0)` | M2 | every frame |
-| `SScene::DrawSea (0x6b04d0)`, `DrawSkybox (0x6b7920)`, `DrawTerrainDecals (0x6ad0e0)`, `DrawTrails (0x6acf20)`, `DrawLakes (0x6ad740)`, `DrawWires (0x6b8b10)`, `DrawDecals2 (0x6b7b30)` | A | every frame (nothing to draw in menu.map, except the wires and the trails of moving units in M2) |
+| `SScene::DrawSea (0x6b04d0)`, `DrawSkybox (0x6b7920)`, ~~`DrawTerrainDecals (0x6ad0e0)`~~, `DrawLines (0x6acf20)` (was `DrawTrails`), `DrawLakes (0x6ad740)`, `DrawWires (0x6b8b10)`, `DrawDecals2 (0x6b7b30)` | A | every frame (nothing to draw in menu.map, except the wires). M2-V: 0x6ad0e0 is the ground-trail (track mark) pass, lifted as `SScene::DrawGroundTrails`; 0x6acf20 draws the +0x270 point pairs, renamed `DrawLines` |
 
 No longer hit since M1-D: `SPixie::SPixie`, `SScene::SScene`, the scene
 light setters, `SGepard::LoadModelPrototype`, `SScene::CreateTerrain`,
@@ -151,12 +151,13 @@ Stubs hit on the M2 path, besides the shell / menu3d ones listed above
 
 | Stub | HD address | When |
 |---|---|---|
-| `SDriver::StartEffects`, `StartMoveEffects`, `StartWaterEffects` | 0x55bb80 / 0x55bc50 / 0x55be10 (pixie +0x28 / +0x30 / +0x64 not typed) | a vehicle starts moving (no dust / exhaust effects) |
+| ~~`SDriver::StartEffects`, `StartMoveEffects`, `StartWaterEffects`~~ (lifted in M2-V with pixie +0x28 / +0x30 / +0x64; the water one no longer runs: `SWorld::UpdateWaterMap` 0x608600 is lifted) | 0x55bb80 / 0x55bc50 / 0x55be10 | a vehicle starts moving |
 | `SSingleUnit::UpdateVisuals (0x5aaaa0) board and armour decals` | board part of 0x5aaaa0 | every frame (no health bars) |
 | `SBuildingUnit 0x546f70 building eye heights` | 0x546f70 (engine model +0x100 / +0xd8) | map load (visibility map eye heights next to the house) |
 | `SPanzersSquadUnit::Hook20 (0x59fab0) equipment slots` | 0x59fab0 | squad creation |
 | `SModel::Slot_CC (0x6dad80)`, `SPixie::Slot_14 (0x69ee50)`, `SPUnitAnimation::Slot_0C (0x5cb470)` | engine / animation slots | unit creation (shadow texture, effect, animation prototype hook) |
-| `SPTrailEffect (EffectType 8)`, `SPDecalEffect (4)`, `SPLiteEffect (7)` | 0x6edcd0 / 0x6ea0f0 / 0x6ed790 | effect prototypes of the units |
+| `SPTrailEffect (EffectType 8)`, `SPDecalEffect (4)`, `SPLiteEffect (7)`, `SPCameraShake (10)` | 0x6edcd0 / 0x6ea0f0 / 0x6ed790 / 0x6ee390 | effect prototypes of the units (M2-V: the die / destroy / gunner effects load now, so the camera shake shows up too) |
+| ~~`SPParticles::Init Draw=Object (Gepard +0x20 model prototype)`~~ (lifted in M2-V; drawing object particles, 0x6e5b80, is still a stub, not reached) | 0x6e5eb0 case 1 | die / destroy effect prototypes |
 
 No longer hit: `SGameLogic::Refresh (0x576d80)` and `UpdateUnitVisuals
 (0x5638f0)` as stubs, `SGameLogic::Tick_565e10` (visibility maps lifted),

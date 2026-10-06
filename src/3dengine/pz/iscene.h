@@ -60,10 +60,10 @@ struct SIScene {
     virtual void Slot_80() = 0;                             // +0x80 HD 0x6bb680 (6 arg dwords)
     virtual void Slot_84() = 0;                             // +0x84 HD 0x6aaad0 (0 arg dwords)
     virtual void Slot_88() = 0;                             // +0x88 HD 0x6a2780 (1 arg dword)
-    virtual void Slot_8C() = 0;                             // +0x8c HD 0x6a7790 (6 arg dwords)
-    virtual void Slot_90() = 0;                             // +0x90 HD 0x6bb320 (4 arg dwords)
-    virtual void Slot_94() = 0;                             // +0x94 HD 0x6a2710 (1 arg dword)
-    virtual void Slot_98() = 0;                             // +0x98 HD 0x6aa320 (1 arg dword)
+    virtual int CreateGroundTrail(int texture, float strength, float fadeMs, float halfWidth, float vScale, int drawType) = 0; // +0x8c HD 0x6a7790 (6 arg dwords) track marks; SRunningGear::Init 0x5a9cc0 (tex, 1.0, 30000, w/2, w/2, 0). Returns the heap index (+0x1f8)
+    virtual void TrackGroundTrail(int trail, float x, float z, float dir) = 0; // +0x90 HD 0x6bb320 (4 arg dwords) a new segment every 0.25 units; SRunningGear 0x5aa2c0 per tick
+    virtual void CloseGroundTrail(int trail) = 0;           // +0x94 HD 0x6a2710 (1 arg dword) removed once its segments faded; ~SRunningGear 0x5a9f90
+    virtual void RemoveGroundTrail(int trail) = 0;          // +0x98 HD 0x6aa320 (1 arg dword) now (texture released)
     virtual int CreateLake(const char* p1, const char* p2, float p3, float p4, short* p5, int p6, short* p7, int p8) = 0; // +0x9c HD 0x6a7940 (8 arg dwords) SScene::CreateLake (menu.map has none)
     virtual void DestroyLake(int lake) = 0;                 // +0xa0 HD 0x6aa3f0 (1 arg dword) world 0x607ad0 (name guessed)
     virtual void Slot_A4() = 0;                             // +0xa4 HD 0x6a1f90 (2 arg dwords)

@@ -591,17 +591,17 @@ void SUnit::EnableStaticEffects()
 }
 
 // PANZERS 0x55c900
-// SDriver: the speed of the move and water effects (pixie +0x64(h, s, s);
-// that slot is not typed in pz/ipixie.h).
+// SDriver: the speed of the move and water effects (pixie +0x64(h, s, s)).
 static void DriverSetEffectsSpeed(SDriver* d, float s)
 {
-    (void)s;
+    if (!g_Pixie)
+        return;
     for (int i = 0; i < d->MoveEffects.Size; ++i)
         if (d->MoveEffects.Array[i] >= 0)
-            STUB_LOG("SDriver::SetEffectsSpeed (0x55c900) pixie +0x64");
+            g_Pixie->SetEffectSpeed(d->MoveEffects.Array[i], s, s);
     for (int i = 0; i < d->WaterEffects.Size; ++i)
         if (d->WaterEffects.Array[i] >= 0)
-            STUB_LOG("SDriver::SetEffectsSpeed (0x55c900) pixie +0x64");
+            g_Pixie->SetEffectSpeed(d->WaterEffects.Array[i], s, s);
 }
 
 // PANZERS 0x5bd910
