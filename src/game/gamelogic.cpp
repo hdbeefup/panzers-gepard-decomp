@@ -216,7 +216,7 @@ SGameLogic::SGameLogic(int p1, int p2, int p3)
         const SHeapElem<STriggerVariable>& v = g_World->TriggerVariables.Array[i];
         if (v.Next == kHeapLive && (_stricmp(SStr(v.Data.Name), "TimeCounter") == 0 ||
                                     _stricmp(SStr(v.Data.Name), "UnitCounter") == 0) && Logger.g)
-            Logger.g->Warning("SGameLogic: counter variable '%s' not shown (0x56da00 not lifted)", SStr(v.Data.Name));
+            Logger.g->Log(1, "SGameLogic: counter variable '%s' not shown (0x56da00 not lifted)", SStr(v.Data.Name));
     }
     MessagePlayer = p1;                                           // +0x5c = HD param_2
     MessageCount = 0;                                             // +0x78
@@ -227,7 +227,7 @@ SGameLogic::SGameLogic(int p1, int p2, int p3)
     Mode = p3;                                                    // +0x00 = HD param_4 (menu 0)
     MinimapFrame = p2;                                            // +0x17c = HD param_3 (menu -1)
     if (MinimapFrame >= 0 && Logger.g)
-        Logger.g->Warning("SGameLogic: minimap frame %d (minimap bitmaps 0x669be0 not lifted)", MinimapFrame);
+        Logger.g->Log(1, "SGameLogic: minimap frame %d (minimap bitmaps 0x669be0 not lifted)", MinimapFrame);
     // HD param_3 < 0: +0x180 = -1, +0x18c = +0x190 = 0 (no minimap bitmaps).
     f[0x60] = -1;
     f[0x63] = 0;
@@ -575,7 +575,7 @@ void SGameLogic::Tick_578b00()
         static bool once;
         if (!once) {
             once = true;
-            Logger.g->Warning("SGameLogic 0x578b00: board message lines / counters not lifted");
+            Logger.g->Log(1, "SGameLogic 0x578b00: board message lines / counters not lifted");
         }
     }
 }

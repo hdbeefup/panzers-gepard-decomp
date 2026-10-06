@@ -1022,7 +1022,7 @@ void SGameLogic::RunTriggers()
             if (ty >= 0 && ty < 0x4c && !logged[ty]) {
                 logged[ty] = true;
                 if (Logger.g)
-                    Logger.g->Warning("STUB: SGameLogic::RunTriggers action 0x%x (0x579ab0) not implemented", ty);
+                    Logger.g->Log(1, "STUB: SGameLogic::RunTriggers action 0x%x (0x579ab0) not implemented", ty);
             }
             break;
         }

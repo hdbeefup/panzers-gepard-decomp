@@ -35,6 +35,7 @@
 #include "world.h"
 #include "gamelogic.h"
 #include "pzunitregistry.h"
+#include "m3common.h"
 
 #include "milesconcert.h"
 #if PANZERS_HAVE_BINK
@@ -63,6 +64,10 @@ void PzStub_LoadChatRoomView();                    // 0x658050
 void PzStub_LoadMenuWorld(SSuperWindow* sw);       // maps/menu.map world in 0x658690 (-menu3d off)
 void PzStub_SuperWindowAction(int action);         // OnAction cases beyond the main menu
 const char* PzStub_GetVersionString();             // SVersion::GetVersionString 0x65c070
+
+// M3 (superwindow_m3.cpp): the Training Camp flow, only with -m3 / PZ_M3=1.
+bool SuperWindowM3Action(SSuperWindow* sw, int action, int param);
+void M3RestoreMovedWorld();
 
 static pz::SUnitRegistry* s_UnitRegistry = nullptr;   // HD 0x929a4c (new 0x124)
 
@@ -556,6 +561,10 @@ void SSuperWindow::ReleaseMultiView()
         delete MultiView;
         MultiView = nullptr;
     }
+    // HD then moves the world, logic and scene the market set aside back
+    // (0x929f18 / 0x929f1c / 0x929f20; superwindow_m3.cpp). No-op unless the
+    // M3 market was opened.
+    M3RestoreMovedWorld();
 }
 
 // PANZERS 0x658fc0
@@ -659,6 +668,10 @@ bool SSuperWindow::OnAction(SWidget* source, int action, int param)
     // to the main menu, 0x4f413..0x4f416 / 0x4f564 / 0x4f565 live settings
     // (optionsmenu.cpp).
     if (SuperWindowOptionsAction(this, action, param))
+        return true;
+    // M3 Training Camp path (default off): campaign, game view, market,
+    // mission start and GV_GAMEOVER cases of 0x659250.
+    if (pz::g_M3.Enabled && SuperWindowM3Action(this, action, param))
         return true;
     switch (action) {
     case PZA_MAIN_MULTIPLAYER:                     // 0x4d4d2 -> 0x658a30

@@ -760,7 +760,7 @@ void SUnit::OnDriverStucked()
 // PANZERS 0x5bcb60
 // SUnit::OnDriverReachedTarget: a path target moves on to its next point;
 // otherwise the orders are done and the unit thinks again.
-void SUnit::Slot_48()
+void SUnit::OnDriverReachedTarget()
 {
     STarget* ct = CurrentTarget;
     if (!ct)
@@ -1213,7 +1213,7 @@ float* SUnit::EnvGetEntrance(SIUnit* unit, float* out)
 // and the squads override it).
 void SUnit::EnvOnDriverReachedTarget(SIUnit* unit)
 {
-    unit->Slot_48();
+    unit->OnDriverReachedTarget();
 }
 
 // PANZERS 0x5c1d40 (SUnit +0x9c): +0x112 = p1. SPanzersSquadUnit overrides

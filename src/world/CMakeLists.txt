@@ -23,6 +23,10 @@ add_library(pzworld STATIC
     astar.cpp
     blockmaprefresh.h
     blockmaprefresh.cpp
+    # M3: selection (agent O), AI (agent C), load extras (agent F)
+    selection.h
+    selection.cpp
+    ai.cpp
 )
 target_include_directories(pzworld PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(pzworld PUBLIC ${PANZERS_SRC_DIR}/game)

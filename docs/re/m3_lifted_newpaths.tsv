@@ -1,377 +1,377 @@
-# address	name	class	new_blocks	blocks_hit	STUB_LOG_in_body	file
-0x584d00	SGunner::ServerRefresh	SGunner	301	331	2	game\gunner.cpp
-0x5d5510	SWorld::RemoveRiver;SWorld::RemoveRoad;SWorld::RemoveRoadJunction;SWorld::~SWorld	SWorld	204	204	4	world\world.cpp
-0x5aaaa0	FUN_005aaaa0	~SSingleUnit/STrainUnit	117	206	3	game\unitai.cpp
-0x5ce2a0	SWalkerAnimation::UpdateModel	SWalkerAnimation	117	257	1	game\unitanim.cpp
-0x659250	SSuperWindow::OnAction	SSuperWindow	113	113	0	panzers\superwindow.cpp
-0x576d80	SGameLogic::Refresh	SGameLogic	108	250	0	world\world.cpp
-0x553c00	SDriver::Ghost_NextStep	SDriver	88	147	0	game\driverghost.cpp
-0x5e58d0	SWorld::FindEmptySpace	SWorld	87	101	0	world\unit.cpp
-0x5bfa50	SUnit::ServerRefreshMedic	SUnit	84	87	1	game\unitai.cpp
-0x58fce0	FUN_0058fce0	~SWayPointWithManoeuvres	79	79	0	game\manoeuvre.cpp
-0x6f06c0	FUN_006f06c0	~STerrain	79	79	0	3dengine\pz\pzterrain.cpp
-0x5b37d0	FUN_005b37d0	~SUnit/STarget	77	143	5	game\unitai.cpp
-0x5da050	SWorld::CheckStaticBlockMapInternal	SWorld	76	132	0	world\blockmap.cpp
-0x5cd020	FUN_005cd020	SVehicleAnimation	68	142	0	game\unitanim_vehicle.cpp
-0x583070	FUN_00583070	SGunner	62	67	0	game\gunner.cpp
-0x5b4720	FUN_005b4720	~SUnit/STarget	60	81	1	game\unitai.cpp
-0x6a0440	SScene::DestroyLight;SScene::~SScene	SScene	59	59	0	3dengine\pz\pzscene.cpp
-0x5af890	SSingleUnit::RefreshMisc	SSingleUnit	56	94	2	game\singleunit.cpp
-0x6e6cb0	FUN_006e6cb0	~SPParticles	56	137	1	3dengine\pz\particles.cpp
-0x559ab0	FUN_00559ab0	~SDriver*	52	78	0	game\driver.cpp
-0x59e0d0	FUN_0059e0d0	SPanzersSquadUnit	52	137	1	game\squadrefresh.cpp
-0x54b910	FUN_0054b910	SBuildingUnit	50	69	1	game\buildingunit.cpp
-0x5638f0	FUN_005638f0	~SGameLogic	49	65	1	game\gamelogic.cpp
-0x583570	FUN_00583570	SGunner	49	54	0	game\gunner.cpp
-0x58e860	FUN_0058e860	~SWayPointWithManoeuvres	47	47	0	game\manoeuvre.cpp
-0x607f50	SWorld::UpdateSpeech	SWorld	45	58	0	game\triggers.cpp
-0x55fe00	FUN_0055fe00	~SGameLogic	43	43	0	game\gamelogic.cpp
-0x5e3c80	FUN_005e3c80	~SWorld	41	103	1	world\worldunits.cpp
-0x685e00	FUN_00685e00	SMilesConcert	41	41	0	sound\milesconcert.cpp
-0x555450	FUN_00555450	~SDriver*	38	48	0	game\driverghost.cpp
-0x59f580	SPanzersSquadUnit::SetCurrentTarget;SPanzersSquadUnit::SetRelativePositions	SPanzersSquadUnit	36	63	0	game\squadunit.cpp
-0x5cc8c0	FUN_005cc8c0	SSquadAnimation	35	56	0	game\unitanim.cpp
-0x68e4c0	SPModel::~SPModel	SPModel	35	35	0	3dengine\pz\pmodel.cpp
-0x543d90	FUN_00543d90	~SWidget	34	34	0	panzers\pzwidgets.cpp
-0x554870	FUN_00554870	~SDriver*	33	66	0	game\driverghost.cpp
-0x5a0ac0	SPanzersSquadUnit::SetSquadMemberRelativePosition	SPanzersSquadUnit	32	32	0	game\squadrefresh.cpp
-0x601c10	FUN_00601c10	~SWorld	32	110	0	world\mapload.cpp
-0x579510	FUN_00579510	~SGameLogic	31	89	0	game\movementgroup.cpp
-0x5a8780	SPUnit::LoadResources	SPUnit	31	210	0	game\punit.cpp
-0x5ca690	FUN_005ca690	~SUnitAnimation*	31	41	0	game\unitanim_vehicle.cpp
-0x58e500	FUN_0058e500	~SWayPointWithManoeuvres	30	30	0	game\manoeuvre.cpp
-0x5518c0	FUN_005518c0	~SDriver*	29	29	0	game\driver.cpp
-0x55e440	SGameLogic::SGameLogic	SGameLogic	29	109	0	game\gamelogic.cpp
-0x6a3c80	FUN_006a3c80	~SScene	29	132	0	3dengine\pz\shadowmath.cpp
-0x58f200	FUN_0058f200	~SWayPointWithManoeuvres	28	31	0	game\manoeuvre.cpp
-0x686780	FUN_00686780	SMilesConcert	26	28	0	sound\milesconcert.cpp
-0x562760	SGameLogic::CanSeeGroundUnit	SGameLogic	25	44	0	game\gamelogic.cpp
-0x685bd0	FUN_00685bd0	SMilesConcert	25	25	0	sound\milesconcert.cpp
-0x6f2aa0	FUN_006f2aa0	~STerrain	24	71	0	3dengine\pz\pzterrain.cpp
-0x540ca0	FUN_00540ca0	SScrollbar	23	23	0	panzers\pzwidgets.cpp
-0x546500	FUN_00546500	SBuildingUnit	23	33	1	game\buildingunit.cpp
-0x58d4e0	SWayPointWithManoeuvres::CreateManoeuvres	SWayPointWithManoeuvres	23	86	0	game\manoeuvre.cpp
-0x5bee90	SUnit::ServerRefresh	SUnit	23	53	3	game\unitbase.cpp
-0x5d4e50	FUN_005d4e50	~SWorld	23	23	0	world\mapload.cpp
-0x6e1010	FUN_006e1010	~SFlare	23	23	0	3dengine\pz\particles.cpp
-0x5a1220	FUN_005a1220	SPanzersSquadUnit	22	22	0	game\squadunit.cpp
-0x6f24f0	FUN_006f24f0	STerrain	22	22	0	3dengine\pz\decal.cpp
-0x565530	FUN_00565530	~SGameLogic	21	62	1	game\logicextra.cpp
-0x5c30d0	SUnit::SetActiveDriver;SUnit::StoreUnit	SUnit	21	135	0	game\unitbase.cpp
-0x5ef760	FUN_005ef760	~SWorld	21	72	0	world\unit.cpp
-0x687150	FUN_00687150	SMilesConcert	21	21	0	sound\milesconcert.cpp
-0x6875d0	FUN_006875d0	SMilesConcert	21	31	0	sound\milesconcert.cpp
-0x598ab0	FUN_00598ab0	SPanzersSquadMemberUnit	20	35	0	game\squadrefresh.cpp
-0x599620	FUN_00599620	SPanzersSquadUnit	20	76	0	game\squadrefresh.cpp
-0x5b91b0	FUN_005b91b0	~SUnit/STarget	20	29	0	game\unitbase.cpp
-0x5c93a0	SVehicleAnimation::InitModel	SVehicleAnimation	20	180	0	game\unitanim_vehicle.cpp
-0x685cd0	FUN_00685cd0	SMilesConcert	20	20	0	sound\milesconcert.cpp
-0x540770	FUN_00540770	~SScrollbar	19	19	0	panzers\pzwidgets.cpp
-0x583990	FUN_00583990	~SGunner	19	19	0	game\gunner.cpp
-0x5c1220	FUN_005c1220	~SUnit/STarget	19	22	0	game\driverunit.cpp
-0x69d410	FUN_0069d410	SPixie	19	19	0	3dengine\pz\pzpixie.cpp
-0x59fe30	FUN_0059fe30	SPanzersSquadUnit	18	18	0	game\squadunit.cpp
-0x5460c0	FUN_005460c0	~SWindow	17	17	0	game\buildingunit.cpp
-0x6a8ee0	FUN_006a8ee0	SScene	17	17	0	3dengine\pz\pzscene.cpp
-0x6dafd0	FUN_006dafd0	SModel	17	46	0	3dengine\pz\pzmodel.cpp
-0x5507d0	FUN_005507d0	~SDriver*	16	23	0	game\driver.cpp
-0x557260	SDriver::IsSpinStopNecessary	SDriver	16	23	0	game\driverghost.cpp
-0x597e80	SUnit::EC_Attack	SPanzersSquadMemberUnit	16	16	0	game\squadrefresh.cpp
-0x5bcb60	SUnit::OnDriverReachedTarget	SUnit	16	16	1	game\unitai.cpp
-0x590800	FUN_00590800	~SWayPointWithManoeuvres	15	50	0	game\manoeuvre.cpp
-0x5b7e40	FUN_005b7e40	~SUnit/STarget	15	75	0	game\unitbase.cpp
-0x5c0d10	FUN_005c0d10	~SUnit/STarget	15	27	0	game\unitbase.cpp
-0x6912b0	SPModel::Load4DFile	SPModel	15	273	0	3dengine\pz\pmodel.cpp
-0x69e400	FUN_0069e400	SPixie	15	15	1	3dengine\pz\pzpixie.cpp
-0x6deaf0	FUN_006deaf0	~SEffect	15	24	0	3dengine\pz\effect.cpp
-0x6dec10	FUN_006dec10	~SEffect	15	15	0	3dengine\pz\effect.cpp
-0x6e8150	FUN_006e8150	~SPParticles	15	18	0	3dengine\pz\particles.cpp
-0x5d4310	FUN_005d4310	~SWorld	14	14	0	world\trigger.cpp
-0x675d40	FUN_00675d40	STrackRotationTCB	14	14	0	3dengine\pz\tracks.cpp
-0x678210	FUN_00678210	SGepard	14	24	0	3dengine\pz\pzgepard.cpp
-0x6f8680	FUN_006f8680	STerrain	14	14	0	3dengine\pz\pzterrain.cpp
-0x554fc0	SDriver::HasTheUnitArrivedAtTheWayPoint	SDriver	13	57	0	game\driverghost.cpp
-0x55c530	FUN_0055c530	~SDriver*	13	13	0	game\driverghost.cpp
-0x565e10	FUN_00565e10	~SGameLogic	13	54	1	game\logicextra.cpp
-0x59fab0	FUN_0059fab0	SPanzersSquadUnit	13	19	1	game\squadunit.cpp
-0x5d5330	FUN_005d5330	~SWorld	13	13	0	world\mapload.cpp
-0x5f2a50	FUN_005f2a50	~SWorld	13	80	0	world\mapload.cpp
-0x63b6f0	FUN_0063b6f0	SMainMenu	13	13	0	panzers\mainmenu.cpp
-0x6f5cf0	FUN_006f5cf0	~STerrain	13	75	0	3dengine\pz\decal.cpp
-0x543cf0	FUN_00543cf0	~SWidget	12	12	0	panzers\widgetglue.cpp
-0x546d20	FUN_00546d20	SBuildingUnit	12	22	1	game\buildingunit.cpp
-0x5ba2b0	FUN_005ba2b0	~SUnit/STarget	12	12	1	game\unitai.cpp
-0x5d43d0	FUN_005d43d0	~SWorld	12	12	0	world\trigger.cpp
-0x5dd720	FUN_005dd720	~SWorld	12	14	0	world\trigger.cpp
-0x5e2da0	SWorld::CreateUnit	SWorld	12	45	0	world\unit.cpp
-0x5e3170	SWorld::CreateUnit	SWorld	12	44	1	world\unit.cpp
-0x65ae50	FUN_0065ae50	SSuperWindow	12	47	0	panzers\superwindow.cpp
-0x65b940	FUN_0065b940	~SSuperWindow	12	12	0	panzers\superwindow.cpp
-0x687300	SMilesConcert::SpawnSound	SMilesConcert	12	30	0	sound\milesconcert.cpp
-0x6e2250	FUN_006e2250	~SParticles	12	49	0	3dengine\pz\particles.cpp
-0x6f2910	FUN_006f2910	STerrain	12	12	0	3dengine\pz\decal.cpp
-0x55c6a0	FUN_0055c6a0	SPanzersSquadDriver	11	11	0	game\driverghost.cpp
-0x579ab0	SGameLogic::RunTriggers	SGameLogic	11	150	1	game\triggers.cpp
-0x5f4910	FUN_005f4910	~SWorld	11	22	0	world\blockmaprefresh.cpp
-0x67ea30	SGepard::LoadTexture	SGepard	11	57	0	3dengine\pz\pzgepard.cpp
-0x680620	SGepard::SetLights	SGepard	11	32	0	3dengine\pz\pzscene.cpp
-0x6f33c0	FUN_006f33c0	~STerrain	11	89	0	3dengine\pz\pzterrain.cpp
-0x556ac0	SDriver::InitLocalWayPointsArray	SDriver	10	77	0	game\driverpath.cpp
-0x558a60	SPanzersSquadMemberDriver::MoveTowardNextWayPoint	SPanzersSquadMemberDriver	10	88	0	game\driverghost.cpp
-0x55c020	FUN_0055c020	~SDriver*	10	10	2	game\driver.cpp
-0x58daa0	FUN_0058daa0	~SWayPointWithManoeuvres	10	10	0	game\manoeuvre.cpp
-0x59dda0	FUN_0059dda0	SPanzersSquadUnit	10	59	0	game\squadrefresh.cpp
-0x5a0a10	FUN_005a0a10	SPanzersSquadUnit	10	10	0	game\squadrefresh.cpp
-0x5bd210	STarget::Refresh	STarget	10	38	0	game\target.cpp
-0x600870	FUN_00600870	~SWorld	10	22	0	world\blockmap.cpp
-0x6043a0	FUN_006043a0	~SWorld	10	38	0	world\world.cpp
-0x604620	FUN_00604620	~SWorld	10	200	0	world\blockmaprefresh.cpp
-0x64bc80	FUN_0064bc80	~SRightMenu	10	10	0	panzers\optionsmenu.cpp
-0x65f7a0	FUN_0065f7a0	~SStreamBuffer	10	10	0	core\stream.cpp
-0x67c170	FUN_0067c170	SGepard	10	20	0	game\unitanim_model.cpp
-0x6ceda0	SAnimesh::CreateVertexBuffer	SAnimesh	10	10	0	3dengine\pz\mesh.cpp
-0x55c3f0	FUN_0055c3f0	~SDriver*	9	9	0	game\driverghost.cpp
-0x582f70	FUN_00582f70	SGunner	9	9	0	game\gunner.cpp
-0x5acb30	FUN_005acb30	~SSingleUnit/STrainUnit	9	9	0	game\unitai.cpp
-0x5c2c30	FUN_005c2c30	~SUnit/STarget	9	12	0	game\unitbase.cpp
-0x5ddc30	SWorld::ComputeCamera	SWorld	9	37	1	world\world.cpp
-0x633cd0	FUN_00633cd0	~SSaveMenu	9	9	0	panzers\mainmenu.cpp
-0x68c220	SViewport::Clear;SViewport::Render	SViewport	9	40	1	3dengine\pz\pzviewport.cpp
-0x693550	SPModel::LoadSequences	SPModel	9	97	0	3dengine\pz\pmodel.cpp
-0x6aab20	FUN_006aab20	SScene	9	9	0	3dengine\pz\pzscene.cpp
-0x6baca0	SScene::SetLightPosition	SScene	9	9	0	3dengine\pz\pzscene.cpp
-0x6df1b0	FUN_006df1b0	~SEffectSet	9	9	0	3dengine\pz\effect.cpp
-0x6df3e0	FUN_006df3e0	~SEffectSet	9	9	0	3dengine\pz\effect.cpp
-0x550650	FUN_00550650	~SDriver*	8	8	0	game\driverghost.cpp
-0x58d2f0	FUN_0058d2f0	~SInGameAnimLogic	8	13	0	game\manoeuvre.cpp
-0x5b7040	FUN_005b7040	~SUnit/STarget	8	30	1	game\unitbase.cpp
-0x5b90b0	FUN_005b90b0	~SUnit/STarget	8	12	0	game\unitbase.cpp
-0x5c0c10	FUN_005c0c10	~SUnit/STarget	8	10	1	game\unitbase.cpp
-0x5c1980	FUN_005c1980	~SUnit/STarget	8	8	1	game\unitbase.cpp
-0x5dd650	FUN_005dd650	~SWorld	8	10	0	world\trigger.cpp
-0x658fc0	FUN_00658fc0	SSuperWindow	8	8	0	panzers\superwindow.cpp
-0x69dc20	FUN_0069dc20	SPixie	8	8	0	3dengine\pz\pzpixie.cpp
-0x69f410	FUN_0069f410	SPixie	8	8	1	3dengine\pz\pzpixie.cpp
-0x6a8bc0	SScene::CreateModel	SScene	8	22	0	3dengine\pz\pzscene.cpp
-0x5bd910	FUN_005bd910	~SUnit/STarget	7	43	0	game\unitai.cpp
-0x5d6800	FUN_005d6800	~SWorld	7	7	0	world\mapload.cpp
-0x64bf60	FUN_0064bf60	~SRightMenu	7	7	0	panzers\optionsmenu.cpp
-0x687550	SMilesConcert::StopStreamingPlayback	SMilesConcert	7	7	0	sound\milesconcert.cpp
-0x68c4e0	Gepard::ResetDevice;SViewport::Resize	SViewport	7	25	25	3dengine\pz\pzviewport.cpp
-0x69d1e0	FUN_0069d1e0	SPixie	7	7	0	3dengine\pz\pzpixie.cpp
-0x69e8c0	FUN_0069e8c0	SPixie	7	7	0	3dengine\pz\pzpixie.cpp
-0x6cbe00	FUN_006cbe00	~SBoard	7	72	1	3dengine\pz\mesh.cpp
-0x6e9540	FUN_006e9540	~SParticles	7	11	0	3dengine\pz\particles.cpp
-0x6e9b60	FUN_006e9b60	~SParticles	7	24	0	3dengine\pz\particles.cpp
-0x6f64c0	FUN_006f64c0	~STerrain	7	7	0	3dengine\pz\road.cpp
-0x5468e0	FUN_005468e0	~SBuildingUnit	6	12	0	game\buildingunit.cpp
-0x548240	FUN_00548240	SBuildingUnit	6	9	0	game\buildingunit.cpp
-0x55b3e0	SDriver::SetUnitSpinSpeed	SDriver	6	26	0	game\driverghost.cpp
-0x55b9c0	FUN_0055b9c0	~SDriver*	6	24	0	game\driverghost.cpp
-0x58ce90	FUN_0058ce90	~SInGameAnimLogic	6	38	0	game\manoeuvre.cpp
-0x5a1d30	FUN_005a1d30	~SAStar/SHeapList	6	47	0	world\astar.cpp
-0x5aa900	FUN_005aa900	~SSingleUnit/STrainUnit	6	17	0	3dengine\pz\pzgepard.cpp
-0x5b5ba0	FUN_005b5ba0	~SUnit/STarget	6	8	0	game\unitai.cpp
-0x5bee10	FUN_005bee10	~SUnit/STarget	6	6	0	game\unitai.cpp
-0x5c2200	FUN_005c2200	~SUnit/STarget	6	6	0	game\unitai.cpp
-0x5e4870	FUN_005e4870	~SWorld	6	92	0	world\worldunits.cpp
-0x65b8c0	FUN_0065b8c0	~SSuperWindow	6	6	0	panzers\superwindow.cpp
-0x674e50	FUN_00674e50	STrackPositionBezier	6	13	0	3dengine\pz\tracks.cpp
-0x6ac210	FUN_006ac210	~SScene	6	49	0	3dengine\pz\pzscene.cpp
-0x6c5260	SBoard::GetFontHeight;SBoard::SetText	SBoard	6	6	0	panzers\pzwidgets.cpp
-0x6dc4f0	FUN_006dc4f0	~SModel	6	12	0	3dengine\pz\pzmodel.cpp
-0x6def00	FUN_006def00	SPEffectSet	6	6	0	3dengine\pz\effect.cpp
-0x6df000	FUN_006df000	~SEffectSet	6	6	0	3dengine\pz\effect.cpp
-0x6f29b0	FUN_006f29b0	STerrain	6	8	0	3dengine\pz\decal.cpp
-0x6f8900	FUN_006f8900	STerrain	6	6	0	3dengine\pz\decal.cpp
-0x6f8970	FUN_006f8970	STerrain	6	6	0	3dengine\pz\decal.cpp
-0x6f8a50	FUN_006f8a50	STerrain	6	6	0	3dengine\pz\decal.cpp
-0x5514b0	FUN_005514b0	~SDriver*	5	31	0	game\driverpath.cpp
-0x553960	FUN_00553960	~SDriver*	5	40	0	game\driverghost.cpp
-0x557180	FUN_00557180	~SDriver*	5	5	0	world\astar.cpp
-0x5735a0	FUN_005735a0	~SGameLogic	5	24	0	game\gamelogic.cpp
-0x583950	FUN_00583950	SGunner	5	5	0	game\gunner.cpp
-0x583e30	FUN_00583e30	~SGunner	5	14	1	game\gunner.cpp
-0x5b6fd0	FUN_005b6fd0	~SUnit/STarget	5	5	0	game\unitai.cpp
-0x5c1030	FUN_005c1030	~SUnit/STarget	5	5	0	game\squadrefresh.cpp
-0x5c2270	SUnit::SlotsDecreaseAmount	SUnit	5	5	0	game\squadrefresh.cpp
-0x5f7170	FUN_005f7170	~SWorld	5	5	0	world\mapload.cpp
-0x6aa890	SScene::DestroyLight	SScene	5	5	0	3dengine\pz\pzscene.cpp
-0x6ac7f0	FUN_006ac7f0	SScene	5	5	0	3dengine\pz\pzscene.cpp
-0x6ccdc0	SMesh::~SMesh	SMesh	5	15	0	3dengine\pz\mesh.cpp
-0x6e32d0	FUN_006e32d0	~SParticles	5	9	0	3dengine\pz\particles.cpp
-0x6f2a30	FUN_006f2a30	STerrain	5	5	0	3dengine\pz\road.cpp
-0x6f2a70	FUN_006f2a70	STerrain	5	5	0	3dengine\pz\road.cpp
-0x6f5230	FUN_006f5230	STerrain	5	7	0	3dengine\pz\pzterrain.cpp
-0x6f6560	FUN_006f6560	~STerrain	5	5	0	3dengine\pz\road.cpp
-0x540690	FUN_00540690	~SSaveLoadListBox	4	4	0	panzers\pzwidgets.cpp
-0x550780	FUN_00550780	~SDriver*	4	4	0	game\unitai.cpp
-0x55b5c0	FUN_0055b5c0	~SDriver*	4	4	0	game\drivermath.cpp
-0x55b5f0	FUN_0055b5f0	~SDriver*	4	49	0	game\driverghost.cpp
-0x597a10	FUN_00597a10	SPanzersSquadMemberUnit	4	34	0	game\squadrefresh.cpp
-0x5a0060	FUN_005a0060	~SPanzersSquad*Unit	4	30	0	game\squadrefresh.cpp
-0x5a2f50	FUN_005a2f50	~SAStar/SHeapList	4	4	0	world\astar.cpp
-0x5b95a0	FUN_005b95a0	~SUnit/STarget	4	12	1	game\unitai.cpp
-0x5b9ce0	FUN_005b9ce0	~SUnit/STarget	4	4	0	game\unitai.cpp
-0x5b9f60	FUN_005b9f60	~SUnit/STarget	4	4	0	game\unitbase.cpp
-0x5c7100	FUN_005c7100	SBuildingAnimation	4	4	0	game\unitanim.cpp
-0x658690	FUN_00658690	~SSuperWindow	4	53	0	panzers\superwindow.cpp
-0x65f420	FUN_0065f420	~SStreamBuffer	4	36	0	core\stream.cpp
-0x685810	FUN_00685810	~SMilesConcert	4	79	0	sound\milesconcert.cpp
-0x69f780	FUN_0069f780	~SPixie	4	4	0	3dengine\pz\pzpixie.cpp
-0x6aac20	SScene::GenerateShadowBuffer	SScene	4	122	1	3dengine\pz\shadowmath.cpp
-0x6d0b40	FUN_006d0b40	SAnimesh	4	4	0	3dengine\pz\mesh.cpp
-0x6e95f0	FUN_006e95f0	SParticles	4	10	1	3dengine\pz\particles.cpp
-0x6e9950	FUN_006e9950	~SParticles	4	17	0	3dengine\pz\particles.cpp
-0x550b40	FUN_00550b40	~SDriver*	3	10	0	game\driverpath.cpp
-0x5594a0	FUN_005594a0	~SDriver*	3	43	0	game\driverghost.cpp
-0x58e350	SWayPointWithManoeuvres::SortManoeuvres	SWayPointWithManoeuvres	3	34	0	game\manoeuvre.cpp
-0x5977e0	FUN_005977e0	~SPanzersSquad*Unit	3	8	0	game\squadunit.cpp
-0x5986e0	FUN_005986e0	SPanzersSquadMemberUnit	3	11	0	game\squadrefresh.cpp
-0x599430	FUN_00599430	SPanzersSquadUnit	3	3	0	game\squadrefresh.cpp
-0x59d130	FUN_0059d130	~SPanzersSquad*Unit	3	19	0	game\squadrefresh.cpp
-0x5a0450	FUN_005a0450	~SPanzersSquad*Unit	3	30	0	game\squadrefresh.cpp
-0x5a09d0	SPanzersSquadUnit::SetRelativePositions	SPanzersSquadUnit	3	3	0	game\squadunit.cpp
-0x5a0f30	SPanzersSquadUnit::SetUnitSize	SPanzersSquadUnit	3	9	0	game\squadunit.cpp
-0x5a0fc0	FUN_005a0fc0	~SPanzersSquad*Unit	3	19	0	game\squadrefresh.cpp
-0x5b7390	FUN_005b7390	~SUnit/STarget	3	20	0	game\unitbase.cpp
-0x5b9e60	FUN_005b9e60	~SUnit/STarget	3	5	0	game\unitbase.cpp
-0x5ba680	FUN_005ba680	~SUnit/STarget	3	3	0	game\driverunit.cpp
-0x5bb440	FUN_005bb440	~SUnit/STarget	3	7	0	game\target.cpp
-0x5bb470	FUN_005bb470	~SUnit/STarget	3	5	0	game\unitai.cpp
-0x5bb500	FUN_005bb500	~SUnit/STarget	3	19	0	game\driverunit.cpp
-0x5be240	FUN_005be240	~SUnit/STarget	3	3	0	game\driverunit.cpp
-0x5cafc0	FUN_005cafc0	~SUnitAnimation*	3	9	0	game\unitanim.cpp
-0x5e5700	SWorld::FindEmptySpace	SWorld	3	20	0	world\unit.cpp
-0x5efb40	FUN_005efb40	~SWorld	3	8	0	world\world.cpp
-0x657850	FUN_00657850	SSuperWindow	3	8	0	panzers\superwindow.cpp
-0x6583e0	SSuperWindow::LoadMainMenu	SSuperWindow	3	16	0	panzers\superwindow.cpp
-0x6746d0	FUN_006746d0	~STrackRotationTCB	3	17	0	3dengine\pz\tracks.cpp
-0x6861e0	FUN_006861e0	SMilesConcert	3	3	0	sound\milesconcert.cpp
-0x686220	SMilesConcert::PrecacheSound	SMilesConcert	3	57	0	sound\milesconcert.cpp
-0x68dda0	FUN_0068dda0	SViewport	3	8	0	3dengine\pz\pzviewport.cpp
-0x6bbcb0	FUN_006bbcb0	~SScene	3	68	0	3dengine\pz\pzscene.cpp
-0x6dae20	FUN_006dae20	~SModel	3	18	0	3dengine\pz\pzmodel.cpp
-0x6df090	FUN_006df090	SEffectSet	3	16	0	3dengine\pz\effect.cpp
-0x6e1230	FUN_006e1230	~SFlare	3	11	0	3dengine\pz\particles.cpp
-0x6e9d70	FUN_006e9d70	~SParticles	3	20	0	3dengine\pz\particles.cpp
-0x6f4f60	FUN_006f4f60	~STerrain	3	11	0	3dengine\pz\pzterrain.cpp
-0x540c80	FUN_00540c80	~SScrollbar	2	2	0	panzers\pzwidgets.cpp
-0x54fc60	FUN_0054fc60	~SBuildingUnit	2	12	0	game\manoeuvre.cpp
-0x5532e0	FUN_005532e0	SPanzersSquadDriver	2	10	0	game\driver.cpp
-0x5582a0	SDriver::MoveTowardNextWayPoint	SDriver	2	60	0	game\driverghost.cpp
-0x55c1e0	FUN_0055c1e0	~SDriver*	2	5	0	game\drivermath.cpp
-0x5802f0	FUN_005802f0	~SGameLogic	2	5	1	game\gamelogic.cpp
-0x582e80	FUN_00582e80	SGunner	2	6	0	game\gunner.cpp
-0x583550	FUN_00583550	SGunner	2	2	0	game\gunner.cpp
-0x587bd0	FUN_00587bd0	SGunner	2	4	0	game\gunner.cpp
-0x58ec70	FUN_0058ec70	~SWayPointWithManoeuvres	2	50	0	game\manoeuvre.cpp
-0x597940	FUN_00597940	SPanzersSquadMemberUnit	2	8	0	game\squadunit.cpp
-0x5980b0	FUN_005980b0	SPanzersSquadMemberUnit	2	18	0	game\squadrefresh.cpp
-0x5989d0	FUN_005989d0	SPanzersSquadMemberUnit	2	4	0	game\squadrefresh.cpp
-0x5a0740	SPanzersSquadUnit::SetRelativeNormalPositions	SPanzersSquadUnit	2	20	0	game\squadunit.cpp
-0x5a0d30	FUN_005a0d30	~SPanzersSquad*Unit	2	13	0	game\squadrefresh.cpp
-0x5a7da0	FUN_005a7da0	SPPanzersSquadMemberUnit	2	13	0	game\punit.cpp
-0x5ac4b0	FUN_005ac4b0	~SSingleUnit/STrainUnit	2	10	1	game\unitai.cpp
-0x5b22b0	FUN_005b22b0	~STrigger*	2	29	0	world\trigger.cpp
-0x5b2820	FUN_005b2820	~SUnit/STarget	2	41	0	game\unitbase.cpp
-0x5b33f0	FUN_005b33f0	~SUnit/STarget	2	35	0	game\unitbase.cpp
-0x5b5b50	FUN_005b5b50	~SUnit/STarget	2	2	0	game\unitai.cpp
-0x5b76c0	FUN_005b76c0	~SUnit/STarget	2	2	0	game\unitbase.cpp
-0x5b78a0	FUN_005b78a0	~SUnit/STarget	2	45	0	game\unitai.cpp
-0x5b9d40	FUN_005b9d40	~SUnit/STarget	2	2	0	game\unitbase.cpp
-0x5ba790	FUN_005ba790	~SUnit/STarget	2	8	0	game\driverunit.cpp
-0x5ba8e0	SUnit::SetActiveDriver	SUnit	2	39	0	game\unitbase.cpp
-0x5bb5c0	FUN_005bb5c0	~SUnit/STarget	2	4	0	game\unitai.cpp
-0x5bc5c0	FUN_005bc5c0	~SUnit/STarget	2	9	0	game\unitbase.cpp
-0x5bc700	FUN_005bc700	~SUnit/STarget	2	14	0	game\unitai.cpp
-0x5bd610	FUN_005bd610	~SUnit/STarget	2	71	2	game\unitai.cpp
-0x5c1170	FUN_005c1170	~SUnit/STarget	2	14	0	game\unitbase.cpp
-0x5c1860	FUN_005c1860	~SUnit/STarget	2	2	0	game\target.cpp
-0x5c1f60	FUN_005c1f60	~SUnit/STarget	2	2	0	game\driverunit.cpp
-0x5c6e30	FUN_005c6e30	~SUnitAnimation*	2	21	0	game\unitanim_vehicle.cpp
-0x5cb650	FUN_005cb650	SBuildingAnimation	2	16	0	game\unitanim.cpp
-0x5d8b90	FUN_005d8b90	~SWorld	2	10	0	world\worldunits.cpp
-0x5f08a0	FUN_005f08a0	~SWorld	2	17	0	world\mapload.cpp
-0x64bab0	FUN_0064bab0	~SMarketListBox	2	2	0	panzers\optionsmenu.cpp
-0x65b410	FUN_0065b410	SSuperWindow	2	8	0	panzers\superwindow.cpp
-0x67db20	FUN_0067db20	SGepard	2	54	1	3dengine\pz\pzgepard.cpp
-0x686670	FUN_00686670	SMilesConcert	2	18	0	sound\milesconcert.cpp
-0x68be30	FUN_0068be30	SViewport	2	4	0	3dengine\pz\pzviewport.cpp
-0x68d160	FUN_0068d160	~SViewport	2	7	0	3dengine\pz\pzviewport.cpp
-0x69dc80	SPixie::LoadEffectPrototype	SPixie	2	76	1	3dengine\pz\pzpixie.cpp
-0x69f710	SPixie::UnregisterEffect	SPixie	2	10	0	3dengine\pz\pzpixie.cpp
-0x6a2670	FUN_006a2670	~SScene	2	12	0	3dengine\pz\pzscene.cpp
-0x6cea70	FUN_006cea70	~SMesh	2	2	0	3dengine\pz\mesh.cpp
-0x6d0bd0	FUN_006d0bd0	SAnimesh	2	2	0	3dengine\pz\mesh.cpp
-0x6daa60	FUN_006daa60	SModel	2	2	0	3dengine\pz\pzmodel.cpp
-0x6dee60	FUN_006dee60	~SEffectSet	2	8	0	3dengine\pz\effect.cpp
-0x6def80	FUN_006def80	SEffectSet	2	11	0	3dengine\pz\effect.cpp
-0x6df510	FUN_006df510	SEffectSet	2	11	0	3dengine\pz\effect.cpp
-0x6df620	FUN_006df620	~SEffectSet	2	11	0	3dengine\pz\effect.cpp
-0x6df6d0	FUN_006df6d0	SEffectSet	2	19	0	3dengine\pz\effect.cpp
-0x6e0980	FUN_006e0980	~SFlare	2	16	0	3dengine\pz\particles.cpp
-0x6e5c40	FUN_006e5c40	~SGepard	2	5	0	3dengine\pz\particles.cpp
-0x543bf0	FUN_00543bf0	~SWidget	1	1	0	panzers\pzwidgets.cpp
-0x548f20	FUN_00548f20	SBuildingUnit	1	25	1	game\buildingunit.cpp
-0x549ab0	FUN_00549ab0	~SBuildingUnit	1	3	0	game\unitai.cpp
-0x550600	FUN_00550600	~SDriver*	1	5	0	game\drivermath.cpp
-0x551bc0	FUN_00551bc0	~SDriver*	1	3	0	game\drivermath.cpp
-0x553420	FUN_00553420	SPanzersSquadDriver	1	11	0	game\driver.cpp
-0x557a80	FUN_00557a80	~SDriver*	1	12	0	game\driver.cpp
-0x559740	FUN_00559740	~SDriver*	1	1	0	game\drivermath.cpp
-0x55b0b0	SDriver::SetNextWP	SDriver	1	19	0	game\driverghost.cpp
-0x55b1d0	FUN_0055b1d0	~SDriver*	1	14	0	game\driverpath.cpp
-0x55bb80	FUN_0055bb80	~SDriver*	1	14	1	game\driver.cpp
-0x560d10	FUN_00560d10	~SGameLogic	1	7	0	game\triggers.cpp
-0x5790f0	FUN_005790f0	~SGameLogic	1	6	0	game\movementgroup.cpp
-0x57efd0	FUN_0057efd0	~SGameLogic	1	28	0	game\movementgroup.cpp
-0x57fcb0	SGameLogic::SetMovementGroupBossUnit	SGameLogic	1	37	0	game\movementgroup.cpp
-0x584220	FUN_00584220	SGunner	1	1	0	game\gunner.cpp
-0x58dba0	FUN_0058dba0	~SWayPointWithManoeuvres	1	11	0	game\manoeuvre.cpp
-0x597a00	FUN_00597a00	SPanzersSquadMemberUnit	1	1	0	game\squadrefresh.cpp
-0x59af20	FUN_0059af20	SPanzersSquadUnit	1	8	0	game\squadunit.cpp
-0x59b120	FUN_0059b120	SPanzersSquadUnit	1	13	0	game\squadrefresh.cpp
-0x59d670	FUN_0059d670	SPanzersSquadUnit	1	11	0	game\squadrefresh.cpp
-0x5a1770	FUN_005a1770	~SAStar/SHeapList	1	10	0	world\astar.cpp
-0x5a9cc0	SRunningGear::Init	SRunningGear	1	15	0	game\unitanim_vehicle.cpp
-0x5a9f90	FUN_005a9f90	SRunningGear	1	10	0	game\unitanim_vehicle.cpp
-0x5b02e0	FUN_005b02e0	~SSingleUnit/STrainUnit	1	10	0	game\singleunit.cpp
-0x5b1f30	STriggerCondition::GetPropertyMask	STriggerCondition	1	7	0	world\trigger.cpp
-0x5b7640	FUN_005b7640	~SUnit/STarget	1	6	0	game\driverunit.cpp
-0x5b7d70	SUnit::InitModel	SUnit	1	10	0	game\unitbase.cpp
-0x5b8ea0	FUN_005b8ea0	~SUnit/STarget	1	11	0	game\unitbase.cpp
-0x5b9a20	FUN_005b9a20	~SUnit/STarget	1	27	0	game\driverunit.cpp
-0x5ba820	FUN_005ba820	~SUnit/STarget	1	4	0	game\unitai.cpp
-0x5bb6b0	FUN_005bb6b0	~SUnit/STarget	1	9	0	game\unitai.cpp
-0x5c0cb0	SUnit::SetActiveDriver	SUnit	1	7	0	game\unitbase.cpp
-0x5c76c0	FUN_005c76c0	~SUnitAnimation*	1	1	2	game\unitanim.cpp
-0x5c7c80	FUN_005c7c80	~SUnitAnimation*	1	11	0	game\unitanim.cpp
-0x5c8260	FUN_005c8260	SWalkerAnimation	1	1	0	game\unitanim.cpp
-0x5ca620	FUN_005ca620	SPBuildingAnimation	1	7	0	game\unitanim.cpp
-0x5cb0a0	FUN_005cb0a0	~SUnitAnimation*	1	1	0	game\unitanim.cpp
-0x5d94b0	FUN_005d94b0	~SWorld	1	11	0	world\unit.cpp
-0x5d9eb0	FUN_005d9eb0	~SWorld	1	21	0	world\blockmap.cpp
-0x5ddbc0	FUN_005ddbc0	~SWorld	1	6	0	world\blockmap.cpp
-0x5e7730	FUN_005e7730	~SWorld	1	8	0	world\world.cpp
-0x5f07b0	FUN_005f07b0	~SWorld	1	20	0	world\trigger.cpp
-0x5fec10	FUN_005fec10	~SWorld	1	5	0	world\mapload.cpp
-0x64bdf0	FUN_0064bdf0	~SRightMenu	1	12	0	panzers\mainmenu.cpp
-0x67a720	FUN_0067a720	~SGepard	1	6	0	3dengine\pz\pzgepard.cpp
-0x67c9e0	FUN_0067c9e0	~SGepard	1	7	0	3dengine\pz\pzgepard.cpp
-0x69dc10	FUN_0069dc10	~SPixie	1	1	0	3dengine\pz\effect.cpp
-0x69f6b0	FUN_0069f6b0	SPixie	1	12	0	3dengine\pz\pzpixie.cpp
-0x6abda0	FUN_006abda0	~SScene	1	34	0	core\propertystruct.cpp
-0x6cdb70	SMesh::Draw;SMesh::DrawShadow	SMesh	1	64	0	3dengine\pz\mesh.cpp
-0x6d7c60	FUN_006d7c60	SModel	1	6	1	3dengine\pz\pzmodel.cpp
-0x6d8010	FUN_006d8010	SModel	1	4	2	3dengine\pz\pzmodel.cpp
-0x6d8830	SModel::Render	SModel	1	54	0	3dengine\pz\pzmodel.cpp
-0x6db2a0	FUN_006db2a0	SModel	1	8	0	3dengine\pz\pzmodel.cpp
-0x6e1490	FUN_006e1490	~SParticles	1	19	0	3dengine\pz\particles.cpp
-0x6e1890	FUN_006e1890	~SParticles	1	41	1	3dengine\pz\particles.cpp
-0x6e21a0	FUN_006e21a0	~SParticles	1	10	1	3dengine\pz\particles.cpp
-0x6e3e90	SGepard::GetCosinusValue	SGepard	1	30	3	3dengine\pz\particles.cpp
-0x6e5230	FUN_006e5230	~SGepard	1	7	0	3dengine\pz\particles.cpp
-0x6e6880	FUN_006e6880	SPParticles	1	1	0	3dengine\pz\particles.cpp
-0x6e96b0	FUN_006e96b0	SParticles	1	7	0	3dengine\pz\particles.cpp
-0x6f8c90	FUN_006f8c90	STerrain	1	90	0	3dengine\pz\pzterrain.cpp
+# address	name	class	new_blocks	blocks_hit	STUB_LOG_in_body	file	m3agent
+0x584d00	SGunner::ServerRefresh	SGunner	301	331	2	game\gunner.cpp	C
+0x5d5510	SWorld::RemoveRiver;SWorld::RemoveRoad;SWorld::RemoveRoadJunction;SWorld::~SWorld	SWorld	204	204	4	world\world.cpp	F
+0x5aaaa0	FUN_005aaaa0	~SSingleUnit/STrainUnit	117	206	3	game\unitai.cpp	C
+0x5ce2a0	SWalkerAnimation::UpdateModel	SWalkerAnimation	117	257	1	game\unitanim.cpp	C
+0x659250	SSuperWindow::OnAction	SSuperWindow	113	113	0	panzers\superwindow.cpp	H
+0x576d80	SGameLogic::Refresh	SGameLogic	108	250	0	world\world.cpp	F
+0x553c00	SDriver::Ghost_NextStep	SDriver	88	147	0	game\driverghost.cpp	C
+0x5e58d0	SWorld::FindEmptySpace	SWorld	87	101	0	world\unit.cpp	F
+0x5bfa50	SUnit::ServerRefreshMedic	SUnit	84	87	1	game\unitai.cpp	C
+0x58fce0	FUN_0058fce0	~SWayPointWithManoeuvres	79	79	0	game\manoeuvre.cpp	C
+0x6f06c0	FUN_006f06c0	~STerrain	79	79	0	3dengine\pz\pzterrain.cpp	E
+0x5b37d0	FUN_005b37d0	~SUnit/STarget	77	143	5	game\unitai.cpp	C
+0x5da050	SWorld::CheckStaticBlockMapInternal	SWorld	76	132	0	world\blockmap.cpp	C
+0x5cd020	FUN_005cd020	SVehicleAnimation	68	142	0	game\unitanim_vehicle.cpp	C
+0x583070	FUN_00583070	SGunner	62	67	0	game\gunner.cpp	C
+0x5b4720	FUN_005b4720	~SUnit/STarget	60	81	1	game\unitai.cpp	C
+0x6a0440	SScene::DestroyLight;SScene::~SScene	SScene	59	59	0	3dengine\pz\pzscene.cpp	E
+0x5af890	SSingleUnit::RefreshMisc	SSingleUnit	56	94	2	game\singleunit.cpp	C
+0x6e6cb0	FUN_006e6cb0	~SPParticles	56	137	1	3dengine\pz\particles.cpp	E
+0x559ab0	FUN_00559ab0	~SDriver*	52	78	0	game\driver.cpp	C
+0x59e0d0	FUN_0059e0d0	SPanzersSquadUnit	52	137	1	game\squadrefresh.cpp	C
+0x54b910	FUN_0054b910	SBuildingUnit	50	69	1	game\buildingunit.cpp	C
+0x5638f0	FUN_005638f0	~SGameLogic	49	65	1	game\gamelogic.cpp	F
+0x583570	FUN_00583570	SGunner	49	54	0	game\gunner.cpp	C
+0x58e860	FUN_0058e860	~SWayPointWithManoeuvres	47	47	0	game\manoeuvre.cpp	C
+0x607f50	SWorld::UpdateSpeech	SWorld	45	58	0	game\triggers.cpp	F
+0x55fe00	FUN_0055fe00	~SGameLogic	43	43	0	game\gamelogic.cpp	F
+0x5e3c80	FUN_005e3c80	~SWorld	41	103	1	world\worldunits.cpp	F
+0x685e00	FUN_00685e00	SMilesConcert	41	41	0	sound\milesconcert.cpp	E
+0x555450	FUN_00555450	~SDriver*	38	48	0	game\driverghost.cpp	C
+0x59f580	SPanzersSquadUnit::SetCurrentTarget;SPanzersSquadUnit::SetRelativePositions	SPanzersSquadUnit	36	63	0	game\squadunit.cpp	C
+0x5cc8c0	FUN_005cc8c0	SSquadAnimation	35	56	0	game\unitanim.cpp	C
+0x68e4c0	SPModel::~SPModel	SPModel	35	35	0	3dengine\pz\pmodel.cpp	E
+0x543d90	FUN_00543d90	~SWidget	34	34	0	panzers\pzwidgets.cpp	H
+0x554870	FUN_00554870	~SDriver*	33	66	0	game\driverghost.cpp	C
+0x5a0ac0	SPanzersSquadUnit::SetSquadMemberRelativePosition	SPanzersSquadUnit	32	32	0	game\squadrefresh.cpp	C
+0x601c10	FUN_00601c10	~SWorld	32	110	0	world\mapload.cpp	F
+0x579510	FUN_00579510	~SGameLogic	31	89	0	game\movementgroup.cpp	F
+0x5a8780	SPUnit::LoadResources	SPUnit	31	210	0	game\punit.cpp	C
+0x5ca690	FUN_005ca690	~SUnitAnimation*	31	41	0	game\unitanim_vehicle.cpp	C
+0x58e500	FUN_0058e500	~SWayPointWithManoeuvres	30	30	0	game\manoeuvre.cpp	C
+0x5518c0	FUN_005518c0	~SDriver*	29	29	0	game\driver.cpp	C
+0x55e440	SGameLogic::SGameLogic	SGameLogic	29	109	0	game\gamelogic.cpp	F
+0x6a3c80	FUN_006a3c80	~SScene	29	132	0	3dengine\pz\shadowmath.cpp	E
+0x58f200	FUN_0058f200	~SWayPointWithManoeuvres	28	31	0	game\manoeuvre.cpp	C
+0x686780	FUN_00686780	SMilesConcert	26	28	0	sound\milesconcert.cpp	E
+0x562760	SGameLogic::CanSeeGroundUnit	SGameLogic	25	44	0	game\gamelogic.cpp	F
+0x685bd0	FUN_00685bd0	SMilesConcert	25	25	0	sound\milesconcert.cpp	E
+0x6f2aa0	FUN_006f2aa0	~STerrain	24	71	0	3dengine\pz\pzterrain.cpp	E
+0x540ca0	FUN_00540ca0	SScrollbar	23	23	0	panzers\pzwidgets.cpp	H
+0x546500	FUN_00546500	SBuildingUnit	23	33	1	game\buildingunit.cpp	C
+0x58d4e0	SWayPointWithManoeuvres::CreateManoeuvres	SWayPointWithManoeuvres	23	86	0	game\manoeuvre.cpp	C
+0x5bee90	SUnit::ServerRefresh	SUnit	23	53	3	game\unitbase.cpp	C
+0x5d4e50	FUN_005d4e50	~SWorld	23	23	0	world\mapload.cpp	F
+0x6e1010	FUN_006e1010	~SFlare	23	23	0	3dengine\pz\particles.cpp	E
+0x5a1220	FUN_005a1220	SPanzersSquadUnit	22	22	0	game\squadunit.cpp	C
+0x6f24f0	FUN_006f24f0	STerrain	22	22	0	3dengine\pz\decal.cpp	E
+0x565530	FUN_00565530	~SGameLogic	21	62	1	game\logicextra.cpp	F
+0x5c30d0	SUnit::SetActiveDriver;SUnit::StoreUnit	SUnit	21	135	0	game\unitbase.cpp	C
+0x5ef760	FUN_005ef760	~SWorld	21	72	0	world\unit.cpp	F
+0x687150	FUN_00687150	SMilesConcert	21	21	0	sound\milesconcert.cpp	E
+0x6875d0	FUN_006875d0	SMilesConcert	21	31	0	sound\milesconcert.cpp	E
+0x598ab0	FUN_00598ab0	SPanzersSquadMemberUnit	20	35	0	game\squadrefresh.cpp	C
+0x599620	FUN_00599620	SPanzersSquadUnit	20	76	0	game\squadrefresh.cpp	C
+0x5b91b0	FUN_005b91b0	~SUnit/STarget	20	29	0	game\unitbase.cpp	C
+0x5c93a0	SVehicleAnimation::InitModel	SVehicleAnimation	20	180	0	game\unitanim_vehicle.cpp	C
+0x685cd0	FUN_00685cd0	SMilesConcert	20	20	0	sound\milesconcert.cpp	E
+0x540770	FUN_00540770	~SScrollbar	19	19	0	panzers\pzwidgets.cpp	H
+0x583990	FUN_00583990	~SGunner	19	19	0	game\gunner.cpp	C
+0x5c1220	FUN_005c1220	~SUnit/STarget	19	22	0	game\driverunit.cpp	C
+0x69d410	FUN_0069d410	SPixie	19	19	0	3dengine\pz\pzpixie.cpp	E
+0x59fe30	FUN_0059fe30	SPanzersSquadUnit	18	18	0	game\squadunit.cpp	C
+0x5460c0	FUN_005460c0	~SWindow	17	17	0	game\buildingunit.cpp	C
+0x6a8ee0	FUN_006a8ee0	SScene	17	17	0	3dengine\pz\pzscene.cpp	E
+0x6dafd0	FUN_006dafd0	SModel	17	46	0	3dengine\pz\pzmodel.cpp	E
+0x5507d0	FUN_005507d0	~SDriver*	16	23	0	game\driver.cpp	C
+0x557260	SDriver::IsSpinStopNecessary	SDriver	16	23	0	game\driverghost.cpp	C
+0x597e80	SUnit::EC_Attack	SPanzersSquadMemberUnit	16	16	0	game\squadrefresh.cpp	C
+0x5bcb60	SUnit::OnDriverReachedTarget	SUnit	16	16	1	game\unitai.cpp	C
+0x590800	FUN_00590800	~SWayPointWithManoeuvres	15	50	0	game\manoeuvre.cpp	C
+0x5b7e40	FUN_005b7e40	~SUnit/STarget	15	75	0	game\unitbase.cpp	C
+0x5c0d10	FUN_005c0d10	~SUnit/STarget	15	27	0	game\unitbase.cpp	C
+0x6912b0	SPModel::Load4DFile	SPModel	15	273	0	3dengine\pz\pmodel.cpp	E
+0x69e400	FUN_0069e400	SPixie	15	15	1	3dengine\pz\pzpixie.cpp	E
+0x6deaf0	FUN_006deaf0	~SEffect	15	24	0	3dengine\pz\effect.cpp	E
+0x6dec10	FUN_006dec10	~SEffect	15	15	0	3dengine\pz\effect.cpp	E
+0x6e8150	FUN_006e8150	~SPParticles	15	18	0	3dengine\pz\particles.cpp	E
+0x5d4310	FUN_005d4310	~SWorld	14	14	0	world\trigger.cpp	F
+0x675d40	FUN_00675d40	STrackRotationTCB	14	14	0	3dengine\pz\tracks.cpp	E
+0x678210	FUN_00678210	SGepard	14	24	0	3dengine\pz\pzgepard.cpp	E
+0x6f8680	FUN_006f8680	STerrain	14	14	0	3dengine\pz\pzterrain.cpp	E
+0x554fc0	SDriver::HasTheUnitArrivedAtTheWayPoint	SDriver	13	57	0	game\driverghost.cpp	C
+0x55c530	FUN_0055c530	~SDriver*	13	13	0	game\driverghost.cpp	C
+0x565e10	FUN_00565e10	~SGameLogic	13	54	1	game\logicextra.cpp	F
+0x59fab0	FUN_0059fab0	SPanzersSquadUnit	13	19	1	game\squadunit.cpp	C
+0x5d5330	FUN_005d5330	~SWorld	13	13	0	world\mapload.cpp	F
+0x5f2a50	FUN_005f2a50	~SWorld	13	80	0	world\mapload.cpp	F
+0x63b6f0	FUN_0063b6f0	SMainMenu	13	13	0	panzers\mainmenu.cpp	H
+0x6f5cf0	FUN_006f5cf0	~STerrain	13	75	0	3dengine\pz\decal.cpp	E
+0x543cf0	FUN_00543cf0	~SWidget	12	12	0	panzers\widgetglue.cpp	H
+0x546d20	FUN_00546d20	SBuildingUnit	12	22	1	game\buildingunit.cpp	C
+0x5ba2b0	FUN_005ba2b0	~SUnit/STarget	12	12	1	game\unitai.cpp	C
+0x5d43d0	FUN_005d43d0	~SWorld	12	12	0	world\trigger.cpp	F
+0x5dd720	FUN_005dd720	~SWorld	12	14	0	world\trigger.cpp	F
+0x5e2da0	SWorld::CreateUnit	SWorld	12	45	0	world\unit.cpp	F
+0x5e3170	SWorld::CreateUnit	SWorld	12	44	1	world\unit.cpp	F
+0x65ae50	FUN_0065ae50	SSuperWindow	12	47	0	panzers\superwindow.cpp	H
+0x65b940	FUN_0065b940	~SSuperWindow	12	12	0	panzers\superwindow.cpp	H
+0x687300	SMilesConcert::SpawnSound	SMilesConcert	12	30	0	sound\milesconcert.cpp	E
+0x6e2250	FUN_006e2250	~SParticles	12	49	0	3dengine\pz\particles.cpp	E
+0x6f2910	FUN_006f2910	STerrain	12	12	0	3dengine\pz\decal.cpp	E
+0x55c6a0	FUN_0055c6a0	SPanzersSquadDriver	11	11	0	game\driverghost.cpp	C
+0x579ab0	SGameLogic::RunTriggers	SGameLogic	11	150	1	game\triggers.cpp	F
+0x5f4910	FUN_005f4910	~SWorld	11	22	0	world\blockmaprefresh.cpp	C
+0x67ea30	SGepard::LoadTexture	SGepard	11	57	0	3dengine\pz\pzgepard.cpp	E
+0x680620	SGepard::SetLights	SGepard	11	32	0	3dengine\pz\pzscene.cpp	E
+0x6f33c0	FUN_006f33c0	~STerrain	11	89	0	3dengine\pz\pzterrain.cpp	E
+0x556ac0	SDriver::InitLocalWayPointsArray	SDriver	10	77	0	game\driverpath.cpp	C
+0x558a60	SPanzersSquadMemberDriver::MoveTowardNextWayPoint	SPanzersSquadMemberDriver	10	88	0	game\driverghost.cpp	C
+0x55c020	FUN_0055c020	~SDriver*	10	10	2	game\driver.cpp	C
+0x58daa0	FUN_0058daa0	~SWayPointWithManoeuvres	10	10	0	game\manoeuvre.cpp	C
+0x59dda0	FUN_0059dda0	SPanzersSquadUnit	10	59	0	game\squadrefresh.cpp	C
+0x5a0a10	FUN_005a0a10	SPanzersSquadUnit	10	10	0	game\squadrefresh.cpp	C
+0x5bd210	STarget::Refresh	STarget	10	38	0	game\target.cpp	C
+0x600870	FUN_00600870	~SWorld	10	22	0	world\blockmap.cpp	C
+0x6043a0	FUN_006043a0	~SWorld	10	38	0	world\world.cpp	F
+0x604620	FUN_00604620	~SWorld	10	200	0	world\blockmaprefresh.cpp	C
+0x64bc80	FUN_0064bc80	~SRightMenu	10	10	0	panzers\optionsmenu.cpp	H
+0x65f7a0	FUN_0065f7a0	~SStreamBuffer	10	10	0	core\stream.cpp	E
+0x67c170	FUN_0067c170	SGepard	10	20	0	game\unitanim_model.cpp	C
+0x6ceda0	SAnimesh::CreateVertexBuffer	SAnimesh	10	10	0	3dengine\pz\mesh.cpp	E
+0x55c3f0	FUN_0055c3f0	~SDriver*	9	9	0	game\driverghost.cpp	C
+0x582f70	FUN_00582f70	SGunner	9	9	0	game\gunner.cpp	C
+0x5acb30	FUN_005acb30	~SSingleUnit/STrainUnit	9	9	0	game\unitai.cpp	C
+0x5c2c30	FUN_005c2c30	~SUnit/STarget	9	12	0	game\unitbase.cpp	C
+0x5ddc30	SWorld::ComputeCamera	SWorld	9	37	1	world\world.cpp	F
+0x633cd0	FUN_00633cd0	~SSaveMenu	9	9	0	panzers\mainmenu.cpp	H
+0x68c220	SViewport::Clear;SViewport::Render	SViewport	9	40	1	3dengine\pz\pzviewport.cpp	E
+0x693550	SPModel::LoadSequences	SPModel	9	97	0	3dengine\pz\pmodel.cpp	E
+0x6aab20	FUN_006aab20	SScene	9	9	0	3dengine\pz\pzscene.cpp	E
+0x6baca0	SScene::SetLightPosition	SScene	9	9	0	3dengine\pz\pzscene.cpp	E
+0x6df1b0	FUN_006df1b0	~SEffectSet	9	9	0	3dengine\pz\effect.cpp	E
+0x6df3e0	FUN_006df3e0	~SEffectSet	9	9	0	3dengine\pz\effect.cpp	E
+0x550650	FUN_00550650	~SDriver*	8	8	0	game\driverghost.cpp	C
+0x58d2f0	FUN_0058d2f0	~SInGameAnimLogic	8	13	0	game\manoeuvre.cpp	C
+0x5b7040	FUN_005b7040	~SUnit/STarget	8	30	1	game\unitbase.cpp	C
+0x5b90b0	FUN_005b90b0	~SUnit/STarget	8	12	0	game\unitbase.cpp	C
+0x5c0c10	FUN_005c0c10	~SUnit/STarget	8	10	1	game\unitbase.cpp	C
+0x5c1980	FUN_005c1980	~SUnit/STarget	8	8	1	game\unitbase.cpp	C
+0x5dd650	FUN_005dd650	~SWorld	8	10	0	world\trigger.cpp	F
+0x658fc0	FUN_00658fc0	SSuperWindow	8	8	0	panzers\superwindow.cpp	H
+0x69dc20	FUN_0069dc20	SPixie	8	8	0	3dengine\pz\pzpixie.cpp	E
+0x69f410	FUN_0069f410	SPixie	8	8	1	3dengine\pz\pzpixie.cpp	E
+0x6a8bc0	SScene::CreateModel	SScene	8	22	0	3dengine\pz\pzscene.cpp	E
+0x5bd910	FUN_005bd910	~SUnit/STarget	7	43	0	game\unitai.cpp	C
+0x5d6800	FUN_005d6800	~SWorld	7	7	0	world\mapload.cpp	F
+0x64bf60	FUN_0064bf60	~SRightMenu	7	7	0	panzers\optionsmenu.cpp	H
+0x687550	SMilesConcert::StopStreamingPlayback	SMilesConcert	7	7	0	sound\milesconcert.cpp	E
+0x68c4e0	Gepard::ResetDevice;SViewport::Resize	SViewport	7	25	25	3dengine\pz\pzviewport.cpp	E
+0x69d1e0	FUN_0069d1e0	SPixie	7	7	0	3dengine\pz\pzpixie.cpp	E
+0x69e8c0	FUN_0069e8c0	SPixie	7	7	0	3dengine\pz\pzpixie.cpp	E
+0x6cbe00	FUN_006cbe00	~SBoard	7	72	1	3dengine\pz\mesh.cpp	E
+0x6e9540	FUN_006e9540	~SParticles	7	11	0	3dengine\pz\particles.cpp	E
+0x6e9b60	FUN_006e9b60	~SParticles	7	24	0	3dengine\pz\particles.cpp	E
+0x6f64c0	FUN_006f64c0	~STerrain	7	7	0	3dengine\pz\road.cpp	E
+0x5468e0	FUN_005468e0	~SBuildingUnit	6	12	0	game\buildingunit.cpp	C
+0x548240	FUN_00548240	SBuildingUnit	6	9	0	game\buildingunit.cpp	C
+0x55b3e0	SDriver::SetUnitSpinSpeed	SDriver	6	26	0	game\driverghost.cpp	C
+0x55b9c0	FUN_0055b9c0	~SDriver*	6	24	0	game\driverghost.cpp	C
+0x58ce90	FUN_0058ce90	~SInGameAnimLogic	6	38	0	game\manoeuvre.cpp	C
+0x5a1d30	FUN_005a1d30	~SAStar/SHeapList	6	47	0	world\astar.cpp	C
+0x5aa900	FUN_005aa900	~SSingleUnit/STrainUnit	6	17	0	3dengine\pz\pzgepard.cpp	E
+0x5b5ba0	FUN_005b5ba0	~SUnit/STarget	6	8	0	game\unitai.cpp	C
+0x5bee10	FUN_005bee10	~SUnit/STarget	6	6	0	game\unitai.cpp	C
+0x5c2200	FUN_005c2200	~SUnit/STarget	6	6	0	game\unitai.cpp	C
+0x5e4870	FUN_005e4870	~SWorld	6	92	0	world\worldunits.cpp	F
+0x65b8c0	FUN_0065b8c0	~SSuperWindow	6	6	0	panzers\superwindow.cpp	H
+0x674e50	FUN_00674e50	STrackPositionBezier	6	13	0	3dengine\pz\tracks.cpp	E
+0x6ac210	FUN_006ac210	~SScene	6	49	0	3dengine\pz\pzscene.cpp	E
+0x6c5260	SBoard::GetFontHeight;SBoard::SetText	SBoard	6	6	0	panzers\pzwidgets.cpp	H
+0x6dc4f0	FUN_006dc4f0	~SModel	6	12	0	3dengine\pz\pzmodel.cpp	E
+0x6def00	FUN_006def00	SPEffectSet	6	6	0	3dengine\pz\effect.cpp	E
+0x6df000	FUN_006df000	~SEffectSet	6	6	0	3dengine\pz\effect.cpp	E
+0x6f29b0	FUN_006f29b0	STerrain	6	8	0	3dengine\pz\decal.cpp	E
+0x6f8900	FUN_006f8900	STerrain	6	6	0	3dengine\pz\decal.cpp	E
+0x6f8970	FUN_006f8970	STerrain	6	6	0	3dengine\pz\decal.cpp	E
+0x6f8a50	FUN_006f8a50	STerrain	6	6	0	3dengine\pz\decal.cpp	E
+0x5514b0	FUN_005514b0	~SDriver*	5	31	0	game\driverpath.cpp	C
+0x553960	FUN_00553960	~SDriver*	5	40	0	game\driverghost.cpp	C
+0x557180	FUN_00557180	~SDriver*	5	5	0	world\astar.cpp	C
+0x5735a0	FUN_005735a0	~SGameLogic	5	24	0	game\gamelogic.cpp	F
+0x583950	FUN_00583950	SGunner	5	5	0	game\gunner.cpp	C
+0x583e30	FUN_00583e30	~SGunner	5	14	1	game\gunner.cpp	C
+0x5b6fd0	FUN_005b6fd0	~SUnit/STarget	5	5	0	game\unitai.cpp	C
+0x5c1030	FUN_005c1030	~SUnit/STarget	5	5	0	game\squadrefresh.cpp	C
+0x5c2270	SUnit::SlotsDecreaseAmount	SUnit	5	5	0	game\squadrefresh.cpp	C
+0x5f7170	FUN_005f7170	~SWorld	5	5	0	world\mapload.cpp	F
+0x6aa890	SScene::DestroyLight	SScene	5	5	0	3dengine\pz\pzscene.cpp	E
+0x6ac7f0	FUN_006ac7f0	SScene	5	5	0	3dengine\pz\pzscene.cpp	E
+0x6ccdc0	SMesh::~SMesh	SMesh	5	15	0	3dengine\pz\mesh.cpp	E
+0x6e32d0	FUN_006e32d0	~SParticles	5	9	0	3dengine\pz\particles.cpp	E
+0x6f2a30	FUN_006f2a30	STerrain	5	5	0	3dengine\pz\road.cpp	E
+0x6f2a70	FUN_006f2a70	STerrain	5	5	0	3dengine\pz\road.cpp	E
+0x6f5230	FUN_006f5230	STerrain	5	7	0	3dengine\pz\pzterrain.cpp	E
+0x6f6560	FUN_006f6560	~STerrain	5	5	0	3dengine\pz\road.cpp	E
+0x540690	FUN_00540690	~SSaveLoadListBox	4	4	0	panzers\pzwidgets.cpp	H
+0x550780	FUN_00550780	~SDriver*	4	4	0	game\unitai.cpp	C
+0x55b5c0	FUN_0055b5c0	~SDriver*	4	4	0	game\drivermath.cpp	C
+0x55b5f0	FUN_0055b5f0	~SDriver*	4	49	0	game\driverghost.cpp	C
+0x597a10	FUN_00597a10	SPanzersSquadMemberUnit	4	34	0	game\squadrefresh.cpp	C
+0x5a0060	FUN_005a0060	~SPanzersSquad*Unit	4	30	0	game\squadrefresh.cpp	C
+0x5a2f50	FUN_005a2f50	~SAStar/SHeapList	4	4	0	world\astar.cpp	C
+0x5b95a0	FUN_005b95a0	~SUnit/STarget	4	12	1	game\unitai.cpp	C
+0x5b9ce0	FUN_005b9ce0	~SUnit/STarget	4	4	0	game\unitai.cpp	C
+0x5b9f60	FUN_005b9f60	~SUnit/STarget	4	4	0	game\unitbase.cpp	C
+0x5c7100	FUN_005c7100	SBuildingAnimation	4	4	0	game\unitanim.cpp	C
+0x658690	FUN_00658690	~SSuperWindow	4	53	0	panzers\superwindow.cpp	H
+0x65f420	FUN_0065f420	~SStreamBuffer	4	36	0	core\stream.cpp	E
+0x685810	FUN_00685810	~SMilesConcert	4	79	0	sound\milesconcert.cpp	E
+0x69f780	FUN_0069f780	~SPixie	4	4	0	3dengine\pz\pzpixie.cpp	E
+0x6aac20	SScene::GenerateShadowBuffer	SScene	4	122	1	3dengine\pz\shadowmath.cpp	E
+0x6d0b40	FUN_006d0b40	SAnimesh	4	4	0	3dengine\pz\mesh.cpp	E
+0x6e95f0	FUN_006e95f0	SParticles	4	10	1	3dengine\pz\particles.cpp	E
+0x6e9950	FUN_006e9950	~SParticles	4	17	0	3dengine\pz\particles.cpp	E
+0x550b40	FUN_00550b40	~SDriver*	3	10	0	game\driverpath.cpp	C
+0x5594a0	FUN_005594a0	~SDriver*	3	43	0	game\driverghost.cpp	C
+0x58e350	SWayPointWithManoeuvres::SortManoeuvres	SWayPointWithManoeuvres	3	34	0	game\manoeuvre.cpp	C
+0x5977e0	FUN_005977e0	~SPanzersSquad*Unit	3	8	0	game\squadunit.cpp	C
+0x5986e0	FUN_005986e0	SPanzersSquadMemberUnit	3	11	0	game\squadrefresh.cpp	C
+0x599430	FUN_00599430	SPanzersSquadUnit	3	3	0	game\squadrefresh.cpp	C
+0x59d130	FUN_0059d130	~SPanzersSquad*Unit	3	19	0	game\squadrefresh.cpp	C
+0x5a0450	FUN_005a0450	~SPanzersSquad*Unit	3	30	0	game\squadrefresh.cpp	C
+0x5a09d0	SPanzersSquadUnit::SetRelativePositions	SPanzersSquadUnit	3	3	0	game\squadunit.cpp	C
+0x5a0f30	SPanzersSquadUnit::SetUnitSize	SPanzersSquadUnit	3	9	0	game\squadunit.cpp	C
+0x5a0fc0	FUN_005a0fc0	~SPanzersSquad*Unit	3	19	0	game\squadrefresh.cpp	C
+0x5b7390	FUN_005b7390	~SUnit/STarget	3	20	0	game\unitbase.cpp	C
+0x5b9e60	FUN_005b9e60	~SUnit/STarget	3	5	0	game\unitbase.cpp	C
+0x5ba680	FUN_005ba680	~SUnit/STarget	3	3	0	game\driverunit.cpp	C
+0x5bb440	FUN_005bb440	~SUnit/STarget	3	7	0	game\target.cpp	C
+0x5bb470	FUN_005bb470	~SUnit/STarget	3	5	0	game\unitai.cpp	C
+0x5bb500	FUN_005bb500	~SUnit/STarget	3	19	0	game\driverunit.cpp	C
+0x5be240	FUN_005be240	~SUnit/STarget	3	3	0	game\driverunit.cpp	C
+0x5cafc0	FUN_005cafc0	~SUnitAnimation*	3	9	0	game\unitanim.cpp	C
+0x5e5700	SWorld::FindEmptySpace	SWorld	3	20	0	world\unit.cpp	F
+0x5efb40	FUN_005efb40	~SWorld	3	8	0	world\world.cpp	F
+0x657850	FUN_00657850	SSuperWindow	3	8	0	panzers\superwindow.cpp	H
+0x6583e0	SSuperWindow::LoadMainMenu	SSuperWindow	3	16	0	panzers\superwindow.cpp	H
+0x6746d0	FUN_006746d0	~STrackRotationTCB	3	17	0	3dengine\pz\tracks.cpp	E
+0x6861e0	FUN_006861e0	SMilesConcert	3	3	0	sound\milesconcert.cpp	E
+0x686220	SMilesConcert::PrecacheSound	SMilesConcert	3	57	0	sound\milesconcert.cpp	E
+0x68dda0	FUN_0068dda0	SViewport	3	8	0	3dengine\pz\pzviewport.cpp	E
+0x6bbcb0	FUN_006bbcb0	~SScene	3	68	0	3dengine\pz\pzscene.cpp	E
+0x6dae20	FUN_006dae20	~SModel	3	18	0	3dengine\pz\pzmodel.cpp	E
+0x6df090	FUN_006df090	SEffectSet	3	16	0	3dengine\pz\effect.cpp	E
+0x6e1230	FUN_006e1230	~SFlare	3	11	0	3dengine\pz\particles.cpp	E
+0x6e9d70	FUN_006e9d70	~SParticles	3	20	0	3dengine\pz\particles.cpp	E
+0x6f4f60	FUN_006f4f60	~STerrain	3	11	0	3dengine\pz\pzterrain.cpp	E
+0x540c80	FUN_00540c80	~SScrollbar	2	2	0	panzers\pzwidgets.cpp	H
+0x54fc60	FUN_0054fc60	~SBuildingUnit	2	12	0	game\manoeuvre.cpp	C
+0x5532e0	FUN_005532e0	SPanzersSquadDriver	2	10	0	game\driver.cpp	C
+0x5582a0	SDriver::MoveTowardNextWayPoint	SDriver	2	60	0	game\driverghost.cpp	C
+0x55c1e0	FUN_0055c1e0	~SDriver*	2	5	0	game\drivermath.cpp	C
+0x5802f0	FUN_005802f0	~SGameLogic	2	5	1	game\gamelogic.cpp	F
+0x582e80	FUN_00582e80	SGunner	2	6	0	game\gunner.cpp	C
+0x583550	FUN_00583550	SGunner	2	2	0	game\gunner.cpp	C
+0x587bd0	FUN_00587bd0	SGunner	2	4	0	game\gunner.cpp	C
+0x58ec70	FUN_0058ec70	~SWayPointWithManoeuvres	2	50	0	game\manoeuvre.cpp	C
+0x597940	FUN_00597940	SPanzersSquadMemberUnit	2	8	0	game\squadunit.cpp	C
+0x5980b0	FUN_005980b0	SPanzersSquadMemberUnit	2	18	0	game\squadrefresh.cpp	C
+0x5989d0	FUN_005989d0	SPanzersSquadMemberUnit	2	4	0	game\squadrefresh.cpp	C
+0x5a0740	SPanzersSquadUnit::SetRelativeNormalPositions	SPanzersSquadUnit	2	20	0	game\squadunit.cpp	C
+0x5a0d30	FUN_005a0d30	~SPanzersSquad*Unit	2	13	0	game\squadrefresh.cpp	C
+0x5a7da0	FUN_005a7da0	SPPanzersSquadMemberUnit	2	13	0	game\punit.cpp	C
+0x5ac4b0	FUN_005ac4b0	~SSingleUnit/STrainUnit	2	10	1	game\unitai.cpp	C
+0x5b22b0	FUN_005b22b0	~STrigger*	2	29	0	world\trigger.cpp	F
+0x5b2820	FUN_005b2820	~SUnit/STarget	2	41	0	game\unitbase.cpp	C
+0x5b33f0	FUN_005b33f0	~SUnit/STarget	2	35	0	game\unitbase.cpp	C
+0x5b5b50	FUN_005b5b50	~SUnit/STarget	2	2	0	game\unitai.cpp	C
+0x5b76c0	FUN_005b76c0	~SUnit/STarget	2	2	0	game\unitbase.cpp	C
+0x5b78a0	FUN_005b78a0	~SUnit/STarget	2	45	0	game\unitai.cpp	C
+0x5b9d40	FUN_005b9d40	~SUnit/STarget	2	2	0	game\unitbase.cpp	C
+0x5ba790	FUN_005ba790	~SUnit/STarget	2	8	0	game\driverunit.cpp	C
+0x5ba8e0	SUnit::SetActiveDriver	SUnit	2	39	0	game\unitbase.cpp	C
+0x5bb5c0	FUN_005bb5c0	~SUnit/STarget	2	4	0	game\unitai.cpp	C
+0x5bc5c0	FUN_005bc5c0	~SUnit/STarget	2	9	0	game\unitbase.cpp	C
+0x5bc700	FUN_005bc700	~SUnit/STarget	2	14	0	game\unitai.cpp	C
+0x5bd610	FUN_005bd610	~SUnit/STarget	2	71	2	game\unitai.cpp	C
+0x5c1170	FUN_005c1170	~SUnit/STarget	2	14	0	game\unitbase.cpp	C
+0x5c1860	FUN_005c1860	~SUnit/STarget	2	2	0	game\target.cpp	C
+0x5c1f60	FUN_005c1f60	~SUnit/STarget	2	2	0	game\driverunit.cpp	C
+0x5c6e30	FUN_005c6e30	~SUnitAnimation*	2	21	0	game\unitanim_vehicle.cpp	C
+0x5cb650	FUN_005cb650	SBuildingAnimation	2	16	0	game\unitanim.cpp	C
+0x5d8b90	FUN_005d8b90	~SWorld	2	10	0	world\worldunits.cpp	F
+0x5f08a0	FUN_005f08a0	~SWorld	2	17	0	world\mapload.cpp	F
+0x64bab0	FUN_0064bab0	~SMarketListBox	2	2	0	panzers\optionsmenu.cpp	H
+0x65b410	FUN_0065b410	SSuperWindow	2	8	0	panzers\superwindow.cpp	H
+0x67db20	FUN_0067db20	SGepard	2	54	1	3dengine\pz\pzgepard.cpp	E
+0x686670	FUN_00686670	SMilesConcert	2	18	0	sound\milesconcert.cpp	E
+0x68be30	FUN_0068be30	SViewport	2	4	0	3dengine\pz\pzviewport.cpp	E
+0x68d160	FUN_0068d160	~SViewport	2	7	0	3dengine\pz\pzviewport.cpp	E
+0x69dc80	SPixie::LoadEffectPrototype	SPixie	2	76	1	3dengine\pz\pzpixie.cpp	E
+0x69f710	SPixie::UnregisterEffect	SPixie	2	10	0	3dengine\pz\pzpixie.cpp	E
+0x6a2670	FUN_006a2670	~SScene	2	12	0	3dengine\pz\pzscene.cpp	E
+0x6cea70	FUN_006cea70	~SMesh	2	2	0	3dengine\pz\mesh.cpp	E
+0x6d0bd0	FUN_006d0bd0	SAnimesh	2	2	0	3dengine\pz\mesh.cpp	E
+0x6daa60	FUN_006daa60	SModel	2	2	0	3dengine\pz\pzmodel.cpp	E
+0x6dee60	FUN_006dee60	~SEffectSet	2	8	0	3dengine\pz\effect.cpp	E
+0x6def80	FUN_006def80	SEffectSet	2	11	0	3dengine\pz\effect.cpp	E
+0x6df510	FUN_006df510	SEffectSet	2	11	0	3dengine\pz\effect.cpp	E
+0x6df620	FUN_006df620	~SEffectSet	2	11	0	3dengine\pz\effect.cpp	E
+0x6df6d0	FUN_006df6d0	SEffectSet	2	19	0	3dengine\pz\effect.cpp	E
+0x6e0980	FUN_006e0980	~SFlare	2	16	0	3dengine\pz\particles.cpp	E
+0x6e5c40	FUN_006e5c40	~SGepard	2	5	0	3dengine\pz\particles.cpp	E
+0x543bf0	FUN_00543bf0	~SWidget	1	1	0	panzers\pzwidgets.cpp	H
+0x548f20	FUN_00548f20	SBuildingUnit	1	25	1	game\buildingunit.cpp	C
+0x549ab0	FUN_00549ab0	~SBuildingUnit	1	3	0	game\unitai.cpp	C
+0x550600	FUN_00550600	~SDriver*	1	5	0	game\drivermath.cpp	C
+0x551bc0	FUN_00551bc0	~SDriver*	1	3	0	game\drivermath.cpp	C
+0x553420	FUN_00553420	SPanzersSquadDriver	1	11	0	game\driver.cpp	C
+0x557a80	FUN_00557a80	~SDriver*	1	12	0	game\driver.cpp	C
+0x559740	FUN_00559740	~SDriver*	1	1	0	game\drivermath.cpp	C
+0x55b0b0	SDriver::SetNextWP	SDriver	1	19	0	game\driverghost.cpp	C
+0x55b1d0	FUN_0055b1d0	~SDriver*	1	14	0	game\driverpath.cpp	C
+0x55bb80	FUN_0055bb80	~SDriver*	1	14	1	game\driver.cpp	C
+0x560d10	FUN_00560d10	~SGameLogic	1	7	0	game\triggers.cpp	F
+0x5790f0	FUN_005790f0	~SGameLogic	1	6	0	game\movementgroup.cpp	F
+0x57efd0	FUN_0057efd0	~SGameLogic	1	28	0	game\movementgroup.cpp	O
+0x57fcb0	SGameLogic::SetMovementGroupBossUnit	SGameLogic	1	37	0	game\movementgroup.cpp	F
+0x584220	FUN_00584220	SGunner	1	1	0	game\gunner.cpp	C
+0x58dba0	FUN_0058dba0	~SWayPointWithManoeuvres	1	11	0	game\manoeuvre.cpp	C
+0x597a00	FUN_00597a00	SPanzersSquadMemberUnit	1	1	0	game\squadrefresh.cpp	C
+0x59af20	FUN_0059af20	SPanzersSquadUnit	1	8	0	game\squadunit.cpp	C
+0x59b120	FUN_0059b120	SPanzersSquadUnit	1	13	0	game\squadrefresh.cpp	C
+0x59d670	FUN_0059d670	SPanzersSquadUnit	1	11	0	game\squadrefresh.cpp	C
+0x5a1770	FUN_005a1770	~SAStar/SHeapList	1	10	0	world\astar.cpp	C
+0x5a9cc0	SRunningGear::Init	SRunningGear	1	15	0	game\unitanim_vehicle.cpp	C
+0x5a9f90	FUN_005a9f90	SRunningGear	1	10	0	game\unitanim_vehicle.cpp	C
+0x5b02e0	FUN_005b02e0	~SSingleUnit/STrainUnit	1	10	0	game\singleunit.cpp	C
+0x5b1f30	STriggerCondition::GetPropertyMask	STriggerCondition	1	7	0	world\trigger.cpp	F
+0x5b7640	FUN_005b7640	~SUnit/STarget	1	6	0	game\driverunit.cpp	C
+0x5b7d70	SUnit::InitModel	SUnit	1	10	0	game\unitbase.cpp	C
+0x5b8ea0	FUN_005b8ea0	~SUnit/STarget	1	11	0	game\unitbase.cpp	C
+0x5b9a20	FUN_005b9a20	~SUnit/STarget	1	27	0	game\driverunit.cpp	C
+0x5ba820	FUN_005ba820	~SUnit/STarget	1	4	0	game\unitai.cpp	C
+0x5bb6b0	FUN_005bb6b0	~SUnit/STarget	1	9	0	game\unitai.cpp	C
+0x5c0cb0	SUnit::SetActiveDriver	SUnit	1	7	0	game\unitbase.cpp	C
+0x5c76c0	FUN_005c76c0	~SUnitAnimation*	1	1	2	game\unitanim.cpp	C
+0x5c7c80	FUN_005c7c80	~SUnitAnimation*	1	11	0	game\unitanim.cpp	C
+0x5c8260	FUN_005c8260	SWalkerAnimation	1	1	0	game\unitanim.cpp	C
+0x5ca620	FUN_005ca620	SPBuildingAnimation	1	7	0	game\unitanim.cpp	C
+0x5cb0a0	FUN_005cb0a0	~SUnitAnimation*	1	1	0	game\unitanim.cpp	C
+0x5d94b0	FUN_005d94b0	~SWorld	1	11	0	world\unit.cpp	F
+0x5d9eb0	FUN_005d9eb0	~SWorld	1	21	0	world\blockmap.cpp	C
+0x5ddbc0	FUN_005ddbc0	~SWorld	1	6	0	world\blockmap.cpp	C
+0x5e7730	FUN_005e7730	~SWorld	1	8	0	world\world.cpp	F
+0x5f07b0	FUN_005f07b0	~SWorld	1	20	0	world\trigger.cpp	F
+0x5fec10	FUN_005fec10	~SWorld	1	5	0	world\mapload.cpp	F
+0x64bdf0	FUN_0064bdf0	~SRightMenu	1	12	0	panzers\mainmenu.cpp	H
+0x67a720	FUN_0067a720	~SGepard	1	6	0	3dengine\pz\pzgepard.cpp	E
+0x67c9e0	FUN_0067c9e0	~SGepard	1	7	0	3dengine\pz\pzgepard.cpp	E
+0x69dc10	FUN_0069dc10	~SPixie	1	1	0	3dengine\pz\effect.cpp	E
+0x69f6b0	FUN_0069f6b0	SPixie	1	12	0	3dengine\pz\pzpixie.cpp	E
+0x6abda0	FUN_006abda0	~SScene	1	34	0	core\propertystruct.cpp	E
+0x6cdb70	SMesh::Draw;SMesh::DrawShadow	SMesh	1	64	0	3dengine\pz\mesh.cpp	E
+0x6d7c60	FUN_006d7c60	SModel	1	6	1	3dengine\pz\pzmodel.cpp	E
+0x6d8010	FUN_006d8010	SModel	1	4	2	3dengine\pz\pzmodel.cpp	E
+0x6d8830	SModel::Render	SModel	1	54	0	3dengine\pz\pzmodel.cpp	E
+0x6db2a0	FUN_006db2a0	SModel	1	8	0	3dengine\pz\pzmodel.cpp	E
+0x6e1490	FUN_006e1490	~SParticles	1	19	0	3dengine\pz\particles.cpp	E
+0x6e1890	FUN_006e1890	~SParticles	1	41	1	3dengine\pz\particles.cpp	E
+0x6e21a0	FUN_006e21a0	~SParticles	1	10	1	3dengine\pz\particles.cpp	E
+0x6e3e90	SGepard::GetCosinusValue	SGepard	1	30	3	3dengine\pz\particles.cpp	E
+0x6e5230	FUN_006e5230	~SGepard	1	7	0	3dengine\pz\particles.cpp	E
+0x6e6880	FUN_006e6880	SPParticles	1	1	0	3dengine\pz\particles.cpp	E
+0x6e96b0	FUN_006e96b0	SParticles	1	7	0	3dengine\pz\particles.cpp	E
+0x6f8c90	FUN_006f8c90	STerrain	1	90	0	3dengine\pz\pzterrain.cpp	E

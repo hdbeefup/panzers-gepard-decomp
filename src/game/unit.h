@@ -74,7 +74,7 @@ struct SUnit : SIUnit {
     void RefreshModel() override;                                // 0x5c6130
     void UpdateVisuals(SIViewport* vp) override;                 // 0x5b76c0
     void Slot_44() override;
-    void Slot_48() override;
+    void OnDriverReachedTarget() override;
     void Unplace() override;                                     // 0x5ba850
     void Place(float x, float z, float dir) override;            // 0x5c5160
     void Slot_54() override;
@@ -93,11 +93,11 @@ struct SUnit : SIUnit {
     int GetRank() override;                                      // 0x5b9e60
     void Slot_8C() override;
     void Slot_90() override;
-    void Slot_94() override;
+    void TakeDamage(int p1, int p2, int p3, int p4, int p5, int p6, int p7) override;
     void Slot_98() override;
     void Slot_9C() override;
     void SetCurrentTarget(STarget* target, int p2) override;     // 0x5c0d10
-    void Slot_A4() override;
+    void EC_Default(int p1, int p2) override;
     void Slot_A8() override;
     void EC_Move(int xBits, int zBits, int p3, bool p4, int p5) override;   // 0x5b8ea0
     void Slot_B0() override;
@@ -107,14 +107,14 @@ struct SUnit : SIUnit {
     void Stop() override;                                        // 0x5b91b0
     void ClearTargets() override;                                // 0x5b90b0
     void Slot_C8() override;
-    void Slot_CC() override;
+    void EC_AttackMove(int p1, int p2, int p3) override;
     void Slot_D0() override;
-    void Slot_D4() override;
+    void EC_AssaultBuilding(int p1, int p2) override;
     void Slot_D8() override;
     void Slot_DC() override;
     void Slot_E0() override;
     void Slot_E4() override;
-    void Slot_E8() override;
+    void EC_Attack(int p1, int p2) override;
     void StopGunners() override;                                 // 0x5b9110
     void Slot_F0() override;
     void Slot_F4() override;
@@ -129,7 +129,7 @@ struct SUnit : SIUnit {
     void Slot_118() override;
     void Slot_11C() override;
     void Slot_120() override;
-    void Slot_124() override;
+    void EC_Die() override;
     void Slot_128() override;
     void SetBehavior(int behavior) override;                     // 0x5b8960
     void Slot_130() override;
@@ -171,6 +171,12 @@ struct SUnit : SIUnit {
     void ServerRefreshMedic(float dt) override;                  // 0x5bfa50
     void SetUnitSize() override;                                 // 0x5c21d0
     void GetCenterPosition(float* out) override;                 // 0x5b9d40
+
+    // --- M3 (docs/M3_INTERFACES.md, agent C): the save path of every
+    // mission start (SPanzersCampaign::SaveGameStartMission 0x596e30 ->
+    // SaveGame 0x5966a0 -> per unit). Load runs only for Load Game.
+    void Save(struct SStream* s);                                // 0x5be320 (1) SUnit::Save
+    void Load(struct SStream* s);                                // 0x5bbd30 (1) SUnit::Load
 
     // --- M2-I sub-agent UB (SUnit AI, targeting, orders, effects): add declarations here only.
     // Element types of the unit arrays decoded by UB (unitai.cpp).

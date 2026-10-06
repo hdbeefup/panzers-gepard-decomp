@@ -6,6 +6,15 @@ add_library(pzgame STATIC
     # P0 (shared)
     m2common.h
     m2trace.cpp
+    # M3-P0 (shared): docs/M3_INTERFACES.md
+    m3common.h
+    m3trace.cpp
+    # M3 F: campaign, save; O: packets
+    campaign.h
+    campaign.cpp
+    packets.h
+    packets.cpp
+    unitsave.cpp
     iunit.h
     idriver.h
     iunitanim.h

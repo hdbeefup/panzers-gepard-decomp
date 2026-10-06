@@ -29,6 +29,10 @@
 // status everywhere. Only hit slots have names; "(name guessed)" names rest on
 // the decompiled body or one caller. Slot_XX keep the order (never remove one).
 // Override tables: "*" = that override was executed in the menu.
+// M3-P0 named the combat slots the mission reaches from their HD symbols
+// (+0x48, +0x94 TakeDamage, +0xa4, +0xcc, +0xd4, +0xe8, +0x124 EC_Die); the
+// parameters are typed only by dword count (int pN). Agent C owns them now
+// (docs/M3_INTERFACES.md) and fixes the types when lifting.
 
 #ifndef PZ_IUNIT_H
 #define PZ_IUNIT_H
@@ -63,7 +67,7 @@ struct SIUnit {
     virtual void RefreshModel() = 0;                             // +0x3c HD 0x5c6130 (0 arg dwords) [menu: >=20/s] per tick from Refresh: animation +0x08 UpdateModel, stored units
     virtual void UpdateVisuals(SIViewport* vp) = 0;              // +0x40 HD 0x5b76c0 (1 arg dwords) [menu: >=20/s via SSingleUnit 0x5aaaa0] (name guessed) per frame from UpdateUnitVisuals 0x5638f0: viewport +0x3c projection, CanSeeGroundUnit
     virtual void Slot_44() = 0;                                  // +0x44 HD 0x5bce20 (0 arg dwords)
-    virtual void Slot_48() = 0;                                  // +0x48 HD 0x5bcb60 (0 arg dwords) symbol: SUnit::OnDriverReachedTarget
+    virtual void OnDriverReachedTarget() = 0;                    // +0x48 HD 0x5bcb60 (0 arg dwords) symbol: SUnit::OnDriverReachedTarget
     virtual void Unplace() = 0;                                  // +0x4c HD 0x5ba850 (0 arg dwords) [menu: periodic<1/s] (name guessed) +0x168 (short) = 1; +0x50 clears it
     virtual void Place(float x, float z, float dir) = 0;         // +0x50 HD 0x5c5160 (3 arg dwords) [menu: periodic<1/s] (name guessed) +0x168 = 0, pos +0x8c/+0x94, dir +0xb0, then +0x3c and +0x16c; CREATE
     virtual void Slot_54() = 0;                                  // +0x54 HD 0x546ab0 (0 arg dwords)
@@ -82,11 +86,11 @@ struct SIUnit {
     virtual int GetRank() = 0;                                   // +0x88 HD 0x5b9e60 (0 arg dwords) [menu: >=20/s] (name guessed) XP (+0x64) against the SUnitRegistry thresholds +0x44..
     virtual void Slot_8C() = 0;                                  // +0x8c HD 0x55cee0 (3 arg dwords)
     virtual void Slot_90() = 0;                                  // +0x90 HD 0x5b6040 (2 arg dwords)
-    virtual void Slot_94() = 0;                                  // +0x94 HD 0x5c4080 (7 arg dwords) symbol: SUnit::TakeDamage
+    virtual void TakeDamage(int p1, int p2, int p3, int p4, int p5, int p6, int p7) = 0;               // +0x94 HD 0x5c4080 (7 arg dwords) symbol: SUnit::TakeDamage
     virtual void Slot_98() = 0;                                  // +0x98 HD 0x5c5050 (1 arg dwords)
     virtual void Slot_9C() = 0;                                  // +0x9c HD 0x5c1d40 (1 arg dwords)
     virtual void SetCurrentTarget(STarget* target, int p2) = 0;  // +0xa0 HD 0x5c0d10 (2 arg dwords) [menu: periodic<1/s] SPanzersSquadUnit::SetCurrentTarget (0x59f580); takes a reference into +0x1f4
-    virtual void Slot_A4() = 0;                                  // +0xa4 HD 0x5b8ab0 (2 arg dwords) symbol: SSingleUnit::EC_Default
+    virtual void EC_Default(int p1, int p2) = 0;                 // +0xa4 HD 0x5b8ab0 (2 arg dwords) symbol: SSingleUnit::EC_Default
     virtual void Slot_A8() = 0;                                  // +0xa8 HD 0x5ba3e0 (1 arg dwords)
     virtual void EC_Move(int xBits, int zBits, int p3, bool p4, int p5) = 0; // +0xac HD 0x5b8ea0 (5 arg dwords) [menu: periodic<1/s] (name guessed) new STarget (0x38) type 2 at (x, z) (type 3 + p5 when p4) into +0x1f8, then +0xa0(target, p3)
     virtual void Slot_B0() = 0;                                  // +0xb0 HD 0x5b8d20 (5 arg dwords)
@@ -96,14 +100,14 @@ struct SIUnit {
     virtual void Stop() = 0;                                     // +0xc0 HD 0x5b91b0 (0 arg dwords) [menu: periodic<1/s] (name guessed) drops +0x1f4, active driver 0x55bf50(1), STarget at own position
     virtual void ClearTargets() = 0;                             // +0xc4 HD 0x5b90b0 (? arg dwords) [menu: periodic<1/s] (name guessed) releases the STargets at +0x1f4/+0x1f8
     virtual void Slot_C8() = 0;                                  // +0xc8 HD 0x5b9170 (? arg dwords)
-    virtual void Slot_CC() = 0;                                  // +0xcc HD 0x5b8660 (3 arg dwords) symbol: SUnit::EC_AttackMove
+    virtual void EC_AttackMove(int p1, int p2, int p3) = 0;               // +0xcc HD 0x5b8660 (3 arg dwords) symbol: SUnit::EC_AttackMove
     virtual void Slot_D0() = 0;                                  // +0xd0 HD 0x5b8740 (3 arg dwords)
-    virtual void Slot_D4() = 0;                                  // +0xd4 HD 0x5b82b0 (2 arg dwords) symbol: SUnit::EC_AssaultBuilding
+    virtual void EC_AssaultBuilding(int p1, int p2) = 0;               // +0xd4 HD 0x5b82b0 (2 arg dwords) symbol: SUnit::EC_AssaultBuilding
     virtual void Slot_D8() = 0;                                  // +0xd8 HD 0x5b8fa0 (1 arg dwords)
     virtual void Slot_DC() = 0;                                  // +0xdc HD 0x5b8c90 (1 arg dwords)
     virtual void Slot_E0() = 0;                                  // +0xe0 HD 0x547b90 (2 arg dwords)
     virtual void Slot_E4() = 0;                                  // +0xe4 HD 0x5b8570 (3 arg dwords)
-    virtual void Slot_E8() = 0;                                  // +0xe8 HD 0x5b8440 (2 arg dwords) symbol: SUnit::EC_Attack
+    virtual void EC_Attack(int p1, int p2) = 0;                  // +0xe8 HD 0x5b8440 (2 arg dwords) symbol: SUnit::EC_Attack
     virtual void StopGunners() = 0;                              // +0xec HD 0x5b9110 (0 arg dwords) [menu: periodic<1/s] (name guessed) every gunner (+0x48, count +0x4c) slot +0x28
     virtual void Slot_F0() = 0;                                  // +0xf0 HD 0x5478c0 (2 arg dwords)
     virtual void Slot_F4() = 0;                                  // +0xf4 HD 0x5478e0 (2 arg dwords)
@@ -118,7 +122,7 @@ struct SIUnit {
     virtual void Slot_118() = 0;                                 // +0x118 HD 0x547b50 (1 arg dwords)
     virtual void Slot_11C() = 0;                                 // +0x11c HD 0x547b60 (0 arg dwords)
     virtual void Slot_120() = 0;                                 // +0x120 HD 0x547b70 (1 arg dwords)
-    virtual void Slot_124() = 0;                                 // +0x124 HD 0x5b8b10 (0 arg dwords) symbol: SUnit::EC_Die
+    virtual void EC_Die() = 0;                                   // +0x124 HD 0x5b8b10 (0 arg dwords) symbol: SUnit::EC_Die
     virtual void Slot_128() = 0;                                 // +0x128 HD 0x5b88d0 (0 arg dwords)
     virtual void SetBehavior(int behavior) = 0;                  // +0x12c HD 0x5b8960 (1 arg dwords) [menu: periodic<1/s] (name guessed) +0xe8 = behavior
     virtual void Slot_130() = 0;                                 // +0x130 HD 0x54cd50 (1 arg dwords)

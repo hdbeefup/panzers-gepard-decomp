@@ -221,6 +221,30 @@ struct SWorld {
     // --- end BW
     // --- M2-I sub-agent LG (SWorld rows the logic needs): add declarations here only.
     // --- end LG
+    // --- M3 (docs/M3_INTERFACES.md). Placeholders with the HD dword counts
+    // (RET n); the owner fixes the parameter types when lifting.
+    // Selection and picking: agent V, src/world/selection.cpp. A unit is
+    // selected when unit +0x104 bit 0 is set (the packet builders send
+    // exactly those units, 0x576130); pick filters on player == LocalPlayer
+    // (+0x16c), allies, unit +0x112 (selectable) and +0x150 (hidden).
+    int  PickUnitAt(int p1, int p2);                           // 0x5fc050 (2) (name guessed) click pick
+    void SelectUnitsInBox(int p1, int p2);                     // 0x5fc5b0 (2) (name guessed) drag box
+    void Select_5fc860(int p1);                                // 0x5fc860 (1)
+    void Select_5fcb10(int p1, int p2);                        // 0x5fcb10 (2)
+    void SelectSameType(int p1, int p2, int p3);               // 0x5fcd10 (3) (name guessed) double click
+    void Select_5fd630(int p1, int p2, int p3, int p4);        // 0x5fd630 (4)
+    void Select_5ddb60();                                      // 0x5ddb60 (0)
+    void ShowUnitRange(int p1);                                // 0x5fee00 (1) SWorld::ShowUnitRange (visual)
+    void GetCameraState(unsigned* out5);                       // 0x5e6a70 (1) CamTarget x/z, yaw, +0x50, CamDist (replay records it)
+    // AI and mission start / load extras: agent L, src/world/ai.cpp.
+    void RefreshAI();                                          // 0x5f5c70 (0) (name guessed) AI groups (AIGP), "Call AI (...) support!"; per tick in missions
+    void StartEffects();                                       // 0x5f5b50 (0) (name guessed) mission start: map effects on (+0x73e4, +0x64c)
+    void InitCameraSpline(const char* file);                   // 0x609760 (1) SGameWorld::InitCameraSpline (-csplay file, else "")
+    void LoadMapExtra_5e2d70();                                // 0x5e2d70 (0) SGameView::LoadMap after Initialize
+    void LoadMapExtra_5debb0();                                // 0x5debb0 (0)
+    void LoadMapExtra_607ad0();                                // 0x607ad0 (0)
+    void FixBridges();                                         // 0x5e65f0 (0) SWorld::FixBridges
+    // --- end M3
 
     // +0x000 vptr
     unsigned char _004[4];

@@ -17,6 +17,18 @@ add_library(panzersgame STATIC
     settings.h
     superwindow.cpp
     superwindow.h
+    # M3 skeleton (docs/M3_INTERFACES.md)
+    superwindow_m3.cpp
+    gameview.h
+    gameview.cpp
+    hud.h
+    hud.cpp
+    ingamemenu.h
+    ingamemenu.cpp
+    market.h
+    market.cpp
+    trainingmenu.h
+    trainingmenu.cpp
 )
 target_include_directories(panzersgame PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(panzersgame PRIVATE ${PANZERS_SRC_DIR}/sound ${PANZERS_SRC_DIR}/stubs)

@@ -15,6 +15,7 @@
 #include "superwindow.h"
 #include "pz/pzcommon.h"
 #include "m2common.h"
+#include "m3common.h"
 
 extern HINSTANCE hInstance;
 void RunGame();                       // PANZERS 0x64c800 (src/panzers/gamemain.cpp)
@@ -138,6 +139,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nS
     // Recompile-only "-m2" / "-nom2" (and PZ_M2 / PZ_M2_TRACE / PZ_M2_CRC): M2
     // game logic in the menu world, src/game/m2trace.cpp. Default on.
     pz::M2ParseCommandLine(&__argc, __argv);
+    // Recompile-only "-m3" (and PZ_M3 / PZ_M3_TRACE / PZ_M3_LOADMAP): the M3
+    // Training Camp path, src/game/m3trace.cpp. Default off.
+    pz::M3ParseCommandLine(&__argc, __argv);
 
     WIN32_FILE_ATTRIBUTE_DATA fad;
     if (!GetFileAttributesExA(Settings.GetIniPath(), GetFileExInfoStandard, &fad)) {

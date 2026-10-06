@@ -121,10 +121,10 @@ void SUnit::Slot_90()
     PZ_M2_TRACE("SUnit::Slot_90 (0x5b6040)");
 }
 
-void SUnit::Slot_94()
+void SUnit::TakeDamage(int p1, int p2, int p3, int p4, int p5, int p6, int p7)
 {
-    STUB_LOG("SUnit::Slot_94 (0x5c4080)");
-    PZ_M2_TRACE("SUnit::Slot_94 (0x5c4080)");
+    STUB_LOG("SUnit::TakeDamage (0x5c4080)");
+    PZ_M2_TRACE("SUnit::TakeDamage (0x5c4080)");
 }
 
 void SUnit::Slot_98()
@@ -139,10 +139,10 @@ void SUnit::Slot_9C()
     PZ_M2_TRACE("SUnit::Slot_9C (0x5c1d40)");
 }
 
-void SUnit::Slot_A4()
+void SUnit::EC_Default(int p1, int p2)
 {
-    STUB_LOG("SUnit::Slot_A4 (0x5b8ab0)");
-    PZ_M2_TRACE("SUnit::Slot_A4 (0x5b8ab0)");
+    STUB_LOG("SUnit::EC_Default (0x5b8ab0)");
+    PZ_M2_TRACE("SUnit::EC_Default (0x5b8ab0)");
 }
 
 void SUnit::Slot_A8()
@@ -169,10 +169,10 @@ void SUnit::Slot_C8()
     PZ_M2_TRACE("SUnit::Slot_C8 (0x5b9170)");
 }
 
-void SUnit::Slot_CC()
+void SUnit::EC_AttackMove(int p1, int p2, int p3)
 {
-    STUB_LOG("SUnit::Slot_CC (0x5b8660)");
-    PZ_M2_TRACE("SUnit::Slot_CC (0x5b8660)");
+    STUB_LOG("SUnit::EC_AttackMove (0x5b8660)");
+    PZ_M2_TRACE("SUnit::EC_AttackMove (0x5b8660)");
 }
 
 void SUnit::Slot_D0()
@@ -181,10 +181,10 @@ void SUnit::Slot_D0()
     PZ_M2_TRACE("SUnit::Slot_D0 (0x5b8740)");
 }
 
-void SUnit::Slot_D4()
+void SUnit::EC_AssaultBuilding(int p1, int p2)
 {
-    STUB_LOG("SUnit::Slot_D4 (0x5b82b0)");
-    PZ_M2_TRACE("SUnit::Slot_D4 (0x5b82b0)");
+    STUB_LOG("SUnit::EC_AssaultBuilding (0x5b82b0)");
+    PZ_M2_TRACE("SUnit::EC_AssaultBuilding (0x5b82b0)");
 }
 
 void SUnit::Slot_D8()
@@ -211,10 +211,10 @@ void SUnit::Slot_E4()
     PZ_M2_TRACE("SUnit::Slot_E4 (0x5b8570)");
 }
 
-void SUnit::Slot_E8()
+void SUnit::EC_Attack(int p1, int p2)
 {
-    STUB_LOG("SUnit::Slot_E8 (0x5b8440)");
-    PZ_M2_TRACE("SUnit::Slot_E8 (0x5b8440)");
+    STUB_LOG("SUnit::EC_Attack (0x5b8440)");
+    PZ_M2_TRACE("SUnit::EC_Attack (0x5b8440)");
 }
 
 void SUnit::Slot_F0()
@@ -295,10 +295,10 @@ void SUnit::Slot_120()
     PZ_M2_TRACE("SUnit::Slot_120 (0x547b70)");
 }
 
-void SUnit::Slot_124()
+void SUnit::EC_Die()
 {
-    STUB_LOG("SUnit::Slot_124 (0x5b8b10)");
-    PZ_M2_TRACE("SUnit::Slot_124 (0x5b8b10)");
+    STUB_LOG("SUnit::EC_Die (0x5b8b10)");
+    PZ_M2_TRACE("SUnit::EC_Die (0x5b8b10)");
 }
 
 void SUnit::Slot_128()

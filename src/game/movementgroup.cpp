@@ -253,7 +253,7 @@ void SGameLogic::MoveFoundUnitsToLocation(SFoundUnits* g, int command, const flo
         UnitOrder(u, kOrderAt, command, p[0], p[1], 0, 0, p4, queue);   // 0x5bb980(command, p, p4, queue)
         if (marker) {
             // HD: pixie +0x24 PlayEffect(scene, TargetRingFx, (dest x, 0, dest z), (0, 1, 0), 0).
-            Logger.g->Warning("STUB: MoveFoundUnitsToLocation target marker (0x57efd0)");
+            Logger.g->Log(1, "STUB: MoveFoundUnitsToLocation target marker (0x57efd0)");
         }
     }
 }
