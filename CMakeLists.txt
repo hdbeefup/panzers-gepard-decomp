@@ -121,6 +121,8 @@ add_subdirectory(src/stubs)
 option(PZ_MENU_WORLD "Run the 3D menu world (maps/menu.map) by default" ON)
 add_subdirectory(src/3dengine/pz)
 add_subdirectory(src/world)
+# M2 game logic (docs/M2_INTERFACES.md). -m2 or PZ_M2=1 runs it in the menu.
+add_subdirectory(src/game)
 
 # Bink intro player (src/panzers/bink.*), lifted from SSuperWindow. A separate
 # library so SSuperWindow (src/panzers) and tools can link it.

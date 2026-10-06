@@ -22,7 +22,8 @@ namespace pz {
 
 struct SIViewport;
 struct SITerrain;
-struct SUnit;
+struct SMenuUnit;
+struct STrigger;
 
 // HD SHeap<T> (0x14 bytes): {array, size, max, free head, live count}.
 // Each element is {int Next; T Data;}; Next == kHeapLive marks a live slot,
@@ -49,7 +50,7 @@ struct SHeap {
 // the free-list tail and a reuse barrier (a freed slot is only reused after
 // a number of frames).
 struct SUnitHeap {
-    struct Elem { int Next; SUnit* Unit; };
+    struct Elem { int Next; SMenuUnit* Unit; };
     Elem* Array;           // +0x00 (World+0x4d4)
     int Size;              // +0x04
     int Max;               // +0x08
@@ -132,7 +133,7 @@ struct SWorld {
     int  CreateUnit(struct SUnitDef* def);                     // 0x5e2da0
     int  AllocUnitSlot();                                      // 0x5d94b0
     void RemoveUnit(int index);                                // 0x5f8060
-    SUnit* GetUnit(int index);
+    SMenuUnit* GetUnit(int index);
 
     // Camera and terrain queries.
     void ResetCamera();                                        // 0x5ecc20
@@ -221,7 +222,9 @@ struct SWorld {
     SHeap<SMapRoadJunction> Junctions;   // +0x7410 RODJ (element 0x68)
     unsigned char _7424[4];
     int           WireTearFx;            // +0x7428 "effects/extras/wiretear.fx"
-    unsigned char _742c[0x74bc - 0x742c];
+    unsigned char _742c[0x7474 - 0x742c];
+    SHdArray<STrigger> Triggers;         // +0x7474 TRIG (0x5f0140, element 0x2c; src/world/trigger.h)
+    unsigned char _7480[0x74bc - 0x7480];
     void*         Minimap;               // +0x74bc MINI bitmap (not decoded in M1)
     int           LoadParam3;            // +0x74c0
     int           LoadParam4;            // +0x74c4
@@ -238,7 +241,8 @@ struct SWorld {
     int           BlockSize;             // +0x74f4 BlockW * BlockH
     int           BlockW;                // +0x74f8 TerrainW * 4
     int           BlockH;                // +0x74fc TerrainH * 4
-    unsigned char _7500[0x751c - 0x7500];
+    unsigned char _7500[0x7518 - 0x7500];
+    unsigned      RandomSeed;            // +0x7518 hashed into the world CRC 0x56aa10 every tick
     SString       MinimapName;           // +0x751c MINA
     SString       Atmosphere;            // +0x7524 ATMS
     SString       Skybox;                // +0x752c KSYB (0x5fec10)
@@ -281,6 +285,8 @@ static_assert(offsetof(SWorld, Effects) == 0x73d0, "dtor param_1[0x1cf4]");
 static_assert(offsetof(SWorld, Roads) == 0x73fc, "0x6043a0 +0x73fc");
 static_assert(offsetof(SWorld, Junctions) == 0x7410, "0x6043a0 +0x7410");
 static_assert(offsetof(SWorld, WireTearFx) == 0x7428, "Initialize +0x7428");
+static_assert(offsetof(SWorld, Triggers) == 0x7474, "TRIG 0x5f0140 +0x7474");
+static_assert(offsetof(SWorld, RandomSeed) == 0x7518, "0x56aa10 +0x7518");
 static_assert(offsetof(SWorld, Minimap) == 0x74bc, "LoadMap MINI +0x74bc");
 static_assert(offsetof(SWorld, LoadAborted) == 0x74d4, "LoadMap +0x74d4");
 static_assert(offsetof(SWorld, LoadIconSet) == 0x74d8, "0x5edca0 +0x74d8");

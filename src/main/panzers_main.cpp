@@ -14,6 +14,7 @@
 #include "settings.h"
 #include "superwindow.h"
 #include "pz/pzcommon.h"
+#include "m2common.h"
 
 extern HINSTANCE hInstance;
 void RunGame();                       // PANZERS 0x64c800 (src/panzers/gamemain.cpp)
@@ -134,6 +135,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nS
     // Recompile-only "-menu3d" / "-nomenu3d" (and PZ_MENU3D / PZ_MENU3D_TRACE): 3D menu
     // world test hook, src/3dengine/pz/pztrace.cpp.
     pz::Menu3DParseCommandLine(&__argc, __argv);
+    // Recompile-only "-m2" (and PZ_M2 / PZ_M2_TRACE / PZ_M2_CRC): M2 game
+    // logic in the menu world, src/game/m2trace.cpp. Default off.
+    pz::M2ParseCommandLine(&__argc, __argv);
 
     WIN32_FILE_ATTRIBUTE_DATA fad;
     if (!GetFileAttributesExA(Settings.GetIniPath(), GetFileExInfoStandard, &fad)) {

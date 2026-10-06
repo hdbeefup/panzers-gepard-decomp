@@ -21,7 +21,7 @@ struct SProperties;
 
 namespace pz {
 
-struct SUnit;
+struct SMenuUnit;
 struct SUnitDef;
 
 // HD unit class types (Unit.Common.ClassType; switch in LoadUnitFiles).
@@ -45,7 +45,7 @@ struct SUnitType {
     virtual ~SUnitType();                      // HD vtbl +0x00 (scalar deleting dtor)
     virtual void LoadHeader(SProperties* p);    // HD vtbl +0x04 (property tree "Unit")
     virtual void Load(SProperties* p);          // HD vtbl +0x08 (full load: models, weapons, ...)
-    virtual SUnit* CreateUnit(int worldIndex);  // HD vtbl +0x10
+    virtual SMenuUnit* CreateUnit(int worldIndex);  // HD vtbl +0x10
 
     unsigned char _04[0x40 - 0x04];
     int      ClassType;           // +0x40 Unit.Common.ClassType
@@ -162,10 +162,11 @@ void SkipSingleVariable(SStream* s, int type);                     // 0x670e10
 
 // M1 stand-in for HD SUnit (115-slot vtables; SSingleUnit, SPanzersSquadUnit,
 // SPanzersSquadMemberUnit, SBuildingUnit). Only places the unit's model in the
-// scene; no driver, no AI, no Refresh.
-struct SUnit {
-    explicit SUnit(SUnitType* type, int worldIndex);
-    virtual ~SUnit();
+// scene; no driver, no AI, no Refresh. Renamed from SUnit in M2-P0 so the HD
+// name is free for the real class (src/game/unit.h); agent U replaces it.
+struct SMenuUnit {
+    explicit SMenuUnit(SUnitType* type, int worldIndex);
+    virtual ~SMenuUnit();
     void Initialize(SUnitDef* def);         // HD vtbl +0x08 (model placement only)
     void RefreshModel();                    // HD 0x5ce2a0 subset (idle tick)
 

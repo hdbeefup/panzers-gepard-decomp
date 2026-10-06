@@ -73,15 +73,15 @@ void SUnitType::Load(SProperties* p)
         g_UnitRegistry->GetPUnit(SStr(SquadMemberName), true);
 }
 
-SUnit* SUnitType::CreateUnit(int worldIndex)
+SMenuUnit* SUnitType::CreateUnit(int worldIndex)
 {
-    return new SUnit(this, worldIndex);
+    return new SMenuUnit(this, worldIndex);
 }
 
 // ---------------------------------------------------------------------------
 // SUnit (stand-in)
 
-SUnit::SUnit(SUnitType* type, int worldIndex)
+SMenuUnit::SMenuUnit(SUnitType* type, int worldIndex)
     : Type(type), WorldIndex(worldIndex), Player(0), Dir(0.0f), Stored(false),
       Model(nullptr), MemberCount(0), Walker(false)
 {
@@ -90,7 +90,7 @@ SUnit::SUnit(SUnitType* type, int worldIndex)
         Members[i] = -1;
 }
 
-SUnit::~SUnit()
+SMenuUnit::~SMenuUnit()
 {
     if (Model) {
         Model->Release();
@@ -98,7 +98,7 @@ SUnit::~SUnit()
     }
 }
 
-static void PlaceUnitModel(SUnit* u)
+static void PlaceUnitModel(SMenuUnit* u)
 {
     g_WorldStats.UnitModels++;
     if (u->Type->ModelProto < 0)
@@ -143,7 +143,7 @@ static void PlaceUnitModel(SUnit* u)
 // +0x70(0.05) (LAB_005ce5d7). Vehicles (SVehicleAnimation) only keep their
 // pose. The previous-tick pose is stored first, as SGameLogic::Refresh does
 // for doodads (model +0x3c), so the render interpolates between ticks.
-void SUnit::RefreshModel()
+void SMenuUnit::RefreshModel()
 {
     if (!Model)
         return;
@@ -152,7 +152,7 @@ void SUnit::RefreshModel()
         Model->AdvanceAnimation(0.05f);                           // model +0x70
 }
 
-void SUnit::Initialize(SUnitDef* def)
+void SMenuUnit::Initialize(SUnitDef* def)
 {
     SWorld* w = g_World;
     Player = def->Player;
@@ -179,7 +179,7 @@ void SUnit::Initialize(SUnitDef* def)
     float rx = cosf(Dir), rz = -sinf(Dir);
     for (int k = 0; k < n; ++k) {
         int idx = w->AllocUnitSlot();
-        SUnit* m = mt->CreateUnit(idx);
+        SMenuUnit* m = mt->CreateUnit(idx);
         w->Units.Array[idx].Unit = m;
         float off = ((float)k - (float)(n - 1) * 0.5f) * 1.5f;
         m->Player = Player;
@@ -217,7 +217,7 @@ int SWorld::AllocUnitSlot()
     return Units.Size++;
 }
 
-SUnit* SWorld::GetUnit(int index)
+SMenuUnit* SWorld::GetUnit(int index)
 {
     if (!Units.IsLive(index))
         Logger.g->Panic("SHeapTRB::operator[]: invalid index (%d)", index);
@@ -229,7 +229,7 @@ void SWorld::RemoveUnit(int index)
 {
     if (!Units.IsLive(index))
         return;
-    SUnit* u = Units.Array[index].Unit;
+    SMenuUnit* u = Units.Array[index].Unit;
     if (u && Logger.g)
         Logger.g->Log(1, "Remove unit from player %d class %s WorldIdx %d x: %g z: %g",
                       u->Player, SStr(u->Type->Name), index, (double)u->Pos[0], (double)u->Pos[2]);
@@ -239,7 +239,7 @@ void SWorld::RemoveUnit(int index)
     // HD 0x5f7920 (SHeapTRB::Remove): link the slot at the tail of the free
     // list, stamped with the current frame.
     Units.Array[index].Next = -1;
-    Units.Array[index].Unit = (SUnit*)(size_t)Units.Frame;
+    Units.Array[index].Unit = (SMenuUnit*)(size_t)Units.Frame;
     if (Units.Free < 0)
         Units.Free = index;
     else
@@ -255,7 +255,7 @@ int SWorld::CreateUnit(SUnitDef* def)
     if (!type)
         return -1;
     int idx = AllocUnitSlot();
-    SUnit* unit = type->CreateUnit(idx);                          // type vtbl +0x10
+    SMenuUnit* unit = type->CreateUnit(idx);                          // type vtbl +0x10
     Units.Array[idx].Unit = unit;
     unit->Initialize(def);                                        // unit vtbl +0x08
     g_WorldStats.UnitsTotal++;
