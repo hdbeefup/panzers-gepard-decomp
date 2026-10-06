@@ -573,6 +573,55 @@ void SPropertyStruct::GetTrackFloat(const char* name, STrackFloat* out)
     }
 }
 
+// PANZERS 0x665da0
+int SPropertyStruct::GetInt(int index, const char* name)
+{
+    return static_cast<SPropertyInt*>(At(index, PROPERTY_TYPE_INT, name, "GetInt"))->Value;
+}
+
+// PANZERS 0x6656d0
+unsigned SPropertyStruct::GetColor(int index, const char* name)
+{
+    return static_cast<SPropertyColor*>(At(index, PROPERTY_TYPE_COLOR, name, "GetColor"))->Value;
+}
+
+// PANZERS 0x6658a0
+int SPropertyStruct::GetEnum(int index, const char* name)
+{
+    return static_cast<SPropertyEnum*>(At(index, PROPERTY_TYPE_ENUM, name, "GetEnum"))->Value;
+}
+
+// PANZERS 0x6654a0
+// The first Array child of that name (HD's message names SPropertyTrack).
+int SPropertyStruct::GetArraySize(const char* name)
+{
+    for (SProperty* c : Children) {
+        if (c->Type() != PROPERTY_TYPE_ARRAY)
+            continue;
+        if (c->Name.empty() ? (!name || !*name) : (name && *name && _stricmp(c->Name.c_str(), name) == 0))
+            return (int)static_cast<SPropertyArray*>(c)->Children.size();
+    }
+    Logger.g->Panic("SPropertyTrack::GetArraySize(): Invalid property-tree.");
+    return 0;
+}
+
+// PANZERS 0x665370
+SProperty* SPropertyStruct::GetArrayItem(const char* name, int index)
+{
+    for (SProperty* c : Children) {
+        if (c->Type() != PROPERTY_TYPE_ARRAY)
+            continue;
+        if (c->Name.empty() ? (!name || !*name) : (name && *name && _stricmp(c->Name.c_str(), name) == 0)) {
+            SPropertyArray* a = static_cast<SPropertyArray*>(c);
+            if (index < 0 || index >= (int)a->Children.size())
+                Logger.g->Panic("SPropertyStruct::GetArrayItem(): Invalid array property index.");
+            return a->Children[index];
+        }
+    }
+    Logger.g->Panic("SPropertyTrack::GetArraySize(): Invalid property-tree.");
+    return nullptr;
+}
+
 // PANZERS 0x663250
 SPropertyMulti::SPropertyMulti(SPPropertyMulti* proto, int index)
     : SProperty(proto), Index(index)

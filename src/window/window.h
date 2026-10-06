@@ -90,6 +90,11 @@ struct SWindow : SWidget {
     void SetWindowStyle(unsigned int style);
     void UpdateMouse();
     void UpdateMouseCursorRestriction();
+
+    // HD-only (PANZERS addresses in window.cpp)
+    void SetModalWidget(SWidget *widget);                  // 0x544fe0 non-blocking: events go to the widget's subtree
+    void UnsetModalWidget(SWidget *widget);                // 0x5450e0
+    void GetLastMousePosition(int *x, int *y);             // 0x544c20
 };
 
 #endif // WINDOW_SWINDOW_H

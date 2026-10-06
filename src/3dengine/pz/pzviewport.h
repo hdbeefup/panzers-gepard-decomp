@@ -10,6 +10,7 @@
 #ifndef PZ_PZVIEWPORT_H
 #define PZ_PZVIEWPORT_H
 
+#include <vector>
 #include "iviewport.h"
 
 namespace pz {
@@ -31,26 +32,26 @@ struct SViewport : SIViewport {
     void SetProjection(float fovRadians, float nearZ, float farZ) override;
     void Slot_2C() override;
     void Slot_30() override;
-    void Slot_34() override;
-    void Slot_38() override;
+    void ScreenToRay(float* out6, int x, int y) override;
+    void GetSelectionPlanes(float* out16, int x1, int y1, int x2, int y2) override;
     void ProjectToScreen(const float* pos, float size, float* x, float* y, float* screenSize, float* z, int* fogAlpha) override;
     void Slot_40() override;
-    void Slot_44() override;
+    void GetGroundCorners(float height, float* out12) override;
     void Slot_48() override;
     SIBoard* GetBoard() override;
     void Render(SIScene* scene, unsigned clearColor) override;
-    int Slot_54_SelectSubport(int p1, int p2, int p3, int p4) override;
-    void Slot_58_SelectSubport(int index) override;
+    int CreateSubport(int x, int y, int w, int h) override;
+    void DestroySubport(int index) override;
     void Slot_5C() override;
-    void Slot_60() override;
+    int GetSubportCount() override;
     void Slot_64() override;
     void Slot_68() override;
     void Slot_6C() override;
     void Slot_70() override;
     void Slot_74() override;
     void FrontBufferScreenshot(int p1, int p2, int p3, int p4) override;
-    void Slot_7C() override;
-    void Slot_80() override;
+    void SetFlag240(bool on) override;
+    void SetFlag241(bool on) override;
 
     void Clear(unsigned color, float z, unsigned stencil);   // 0x689f10
     void UpdateScreenMatrix();                               // 0x68c070
@@ -68,6 +69,11 @@ struct SViewport : SIViewport {
     float         ScreenM[16];   // +0x130 viewport scale/offset
     float         ViewProjScreen[16]; // +0x170
     float         SizeScale;     // +0x1f0 Proj[0] * Width / 2
+    float         InvViewProjScreen[16]; // +0x1b0 inverse of +0x170 (screen -> world)
+    int           Mode = 0;      // +0x78 0 primary windowed, 3 sub viewport
+    std::vector<SViewport*> Subports; // +0x1f8 SDArray<SViewport*> (CreateSubport)
+    bool          Flag240 = false;    // +0x240
+    bool          Flag241 = false;    // +0x241
 };
 
 } // namespace pz

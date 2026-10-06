@@ -117,6 +117,12 @@ struct SWidget {
     SWindow *GetWindowParent();
     SWidget *GetWindowOrScalerParent();
     void GetWindowOrParentScalerPosition(int *x, int *y, float *scaleFactor);
+
+    // HD-only helpers (PANZERS addresses in widget.cpp)
+    SWidget *GetWindow();                                  // 0x5435b0 this or the nearest window parent
+    void GetWindowPosition(int *x, int *y);                // 0x5435d0
+    bool IsFocused();                                      // 0x543670
+    static void FormatKeyHint(SString *out, const char *text, unsigned int scanCode); // 0x543c00
 };
 
 // Timer data for global TimerList

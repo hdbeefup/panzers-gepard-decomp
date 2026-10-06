@@ -7,6 +7,7 @@
 
 #include "iscene.h"
 #include "pmodel.h"
+#include "propertystruct.h"
 
 namespace pz {
 
@@ -60,6 +61,63 @@ struct SCellLink {
     int Next;
 };
 
+// Smoke trail point (HD SDArray stride 0x1c).
+struct SSmokeTrailPoint {
+    float Pos[3];      // +0x00
+    float V;           // +0x0c texture V (VScale per unit along the trail)
+    float Alpha;       // +0x10 alpha scale (TrackSmokeTrail p5)
+    float Width;       // +0x14 half width added to the second track (p6)
+    int   Time;        // +0x18 scene +0xa4 when placed (ms)
+};
+static_assert(sizeof(SSmokeTrailPoint) == 0x1c, "HD smoke-trail point 0x1c");
+struct SSmokeTrailPoints {     // HD SDArray (new 0xc)
+    SSmokeTrailPoint* Data;
+    int Count;
+    int Max;
+};
+
+// Smoke trail (HD SHeap value 0x38, entry 0x3c, scene +0x1e0).
+struct SSmokeTrail {
+    SSmokeTrailPoints* Points;          // +0x00
+    int   Texture;                      // +0x04 (Gepard AddRef'd)
+    bool  Closed;                       // +0x08 (+0x88): removed once every point faded
+    unsigned Color;                     // +0x0c RGB (draw type 0)
+    float Strength;                     // +0x10 strength * 256 (not read by the draw)
+    float FadeSpeed;                    // +0x14 (not read)
+    float UScale;                       // +0x18 (not read)
+    float VScale;                       // +0x1c V per unit of length
+    int   DrawType;                     // +0x20 blend mode: 0 alpha (Color), 1 additive (grey)
+    const STrackFloat* AlphaTrack;      // +0x24 the SPTrailEffect's "Alpha"
+    const STrackFloat* WidthTrack;      // +0x28 its second track (width over age)
+    int   AlphaCursor;                  // +0x2c
+    int   WidthCursor;                  // +0x30
+    float InvDuration;                  // +0x34 1 / Duration (age in s * this = track time)
+};
+static_assert(sizeof(SSmokeTrail) == 0x38, "HD smoke-trail entry 0x3c");
+
+// Wire point (HD SDArray stride 0x18).
+struct SWirePoint {
+    float    Pos[3];   // +0x00
+    unsigned Color;    // +0x0c
+    float    Dist;     // +0x10 length along the wire (texture U)
+    float    Sag;      // +0x14 cosh(sag) - cosh(sag * t): scales the wind sway
+};
+static_assert(sizeof(SWirePoint) == 0x18, "HD wire point 0x18");
+
+// Wire (HD SHeap value 0x34, entry 0x38, scene +0x238).
+struct SWire {
+    float From[3];        // +0x00
+    float To[3];          // +0x0c
+    float Length;         // +0x18 |To - From|; (int)Length + 1 segments
+    float SagParam;       // +0x1c catenary parameter
+    float Width;          // +0x20 half width of the ribbon
+    SWirePoint* Points;   // +0x24 SDArray {data, count, max}
+    int   Count;          // +0x28
+    int   Max;            // +0x2c
+    bool  Visible;        // +0x30 this frame (DrawWires)
+};
+static_assert(sizeof(SWire) == 0x34, "HD wire entry 0x38");
+
 struct SScene : SIScene {
     explicit SScene(int param);   // 0x69faf0
     ~SScene();                    // 0x6a0440 (non-virtual: deleted by Release)
@@ -95,10 +153,13 @@ struct SScene : SIScene {
     void Slot_70() override;
     void Slot_74() override;
     void Slot_78() override;
-    void Slot_7C() override;
-    void Slot_80() override;
-    void Slot_84() override;
-    void Slot_88() override;
+    int CreateSmokeTrail(int texture, float x, float y, float z, unsigned color, float strength,
+                         float fadeSpeed, float uScale, float vScale, bool additive,
+                         const void* alphaTrack, const void* track2, float duration,
+                         float p14, float p15) override;
+    void TrackSmokeTrail(int trail, float x, float y, float z, float p5, float p6) override;
+    void DestroyAllSmokeTrails() override;
+    void CloseSmokeTrail(int trail) override;
     int CreateGroundTrail(int texture, float strength, float fadeMs, float halfWidth, float vScale, int drawType) override;
     void TrackGroundTrail(int trail, float x, float z, float dir) override;
     void CloseGroundTrail(int trail) override;
@@ -114,16 +175,16 @@ struct SScene : SIScene {
     void Slot_BC() override;
     void Slot_C0() override;
     void Slot_C4() override;
-    void Slot_C8() override;
+    int CreateWire(const float* from, const float* to, float sag, float width) override;
     void UpdateWire(int wire, int* p2) override;
-    void Slot_D0() override;
+    void DestroyWire(int wire) override;
     void Slot_D4() override;
     void Slot_D8() override;
     void Slot_DC() override;
     void Slot_E0() override;
     void Slot_E4() override;
     void Slot_E8() override;
-    void Slot_EC() override;
+    void ClearLines() override;
     void Slot_F0() override;
     void Slot_F4() override;
     void Slot_F8() override;
@@ -145,6 +206,11 @@ struct SScene : SIScene {
     void DrawModels(SViewport* vp, int p2);         // 0x6b02a0
     void DrawRivers(SViewport* vp);                 // 0x6b0920
     void DrawGroundTrails(SViewport* vp);           // 0x6ad0e0
+    void DestroySmokeTrail(int trail);              // 0x6aa9e0 (SParticles dtor, DestroyAllSmokeTrails)
+    void DrawSmokeTrails(SViewport* vp);            // 0x6b7b30
+    void DrawSkybox(SViewport* vp, unsigned fogColor); // 0x6b7920
+    void DrawWires(SViewport* vp, bool shadowPass); // 0x6b8b10
+    void RebuildWire(int wire);                     // 0x6c05d0 catenary points
     float TerrainHeight2(float x, float z) const;   // terrain 0x6f4d10 (0 without a terrain)
     void ModelsMoved() { ModelsSorted = false; }    // 0x6bbbc0
     void AddDeferredModel(SModel* m);               // 0x6d5820 on +0x2a0
@@ -205,12 +271,27 @@ struct SScene : SIScene {
     int           CellsX;            // +0x1c0
     int           CellsZ;            // +0x1c4
     STerrain*     Terrain;           // +0x1c8 (+0x64 CreateTerrain)
-    unsigned char _1cc[0x1f8 - 0x1cc];   // decal / smoke-trail heaps (+0x1cc, +0x1e0)
+    unsigned char _1cc[0x1e0 - 0x1cc];   // heap +0x1cc (not on the M3 path)
+    SHeap<SSmokeTrail> SmokeTrails;      // +0x1e0 (+0x7c..+0x88, drawn by 0x6b7b30)
+    int           SmokeTrailVB;      // +0x1f4 dynamic VB format 0x142 (-1: not made yet)
     SHeap<SGroundTrail> GroundTrails;    // +0x1f8 track marks (+0x8c..+0x98, drawn by 0x6ad0e0)
     unsigned char _20c[0x220 - 0x20c];   // lake heap (+0x20c)
     SHeap<unsigned char[0x74]> Rivers;   // +0x220 water courses (Slot_B0), drawn by 0x6b0920
     int           RiverTexture;      // +0x234
-    unsigned char _238[0x2a0 - 0x238];
+    SHeap<SWire>  Wires;             // +0x238 (+0xc8..+0xd0, drawn by 0x6b8b10)
+    unsigned char _24c[0x260 - 0x24c];   // heap +0x24c (not on the M3 path)
+    int           WireVB;            // +0x260 dynamic VB format 0x142 (-1: not made yet)
+    int           WireTexture;       // +0x264 wire/wire_a.tga
+    int           WireShadowTexture; // +0x268 wire/wire_shadow.tga
+    int           WireDecl;          // +0x26c vertex declaration for the shadow shader
+    void*         Lines;             // +0x270 SDArray of 0x20-byte debug lines (0x6acf20)
+    int           LineCount;         // +0x274
+    int           LineMax;           // +0x278
+    int           _27c;              // +0x27c (ctor 3)
+    bool          SkyboxOn;          // +0x280
+    unsigned char _281[3];
+    int           SkyboxTextures[6]; // +0x284 front right back left top bottom
+    float         SkyboxRadius;      // +0x29c
     SModel**      Deferred;          // +0x2a0 alpha models drawn last
     int           DeferredCount;     // +0x2a4
     int           DeferredMax;       // +0x2a8
@@ -235,7 +316,14 @@ static_assert(offsetof(SScene, Models) == 0x178, "SScene layout");
 static_assert(offsetof(SScene, FreeModels) == 0x18c, "SScene layout");
 static_assert(offsetof(SScene, CellLinks) == 0x1ac, "SScene layout");
 static_assert(offsetof(SScene, Terrain) == 0x1c8, "SScene layout");
+static_assert(offsetof(SScene, SmokeTrails) == 0x1e0, "SScene layout");
+static_assert(offsetof(SScene, SmokeTrailVB) == 0x1f4, "SScene layout");
 static_assert(offsetof(SScene, GroundTrails) == 0x1f8, "SScene layout");
+static_assert(offsetof(SScene, Wires) == 0x238, "SScene layout");
+static_assert(offsetof(SScene, WireVB) == 0x260, "SScene layout");
+static_assert(offsetof(SScene, Lines) == 0x270, "SScene layout");
+static_assert(offsetof(SScene, SkyboxOn) == 0x280, "SScene layout");
+static_assert(offsetof(SScene, SkyboxRadius) == 0x29c, "SScene layout");
 static_assert(offsetof(SScene, Rivers) == 0x220, "SScene layout");
 static_assert(offsetof(SScene, RiverTexture) == 0x234, "SScene layout");
 static_assert(offsetof(SScene, Deferred) == 0x2a0, "SScene layout");

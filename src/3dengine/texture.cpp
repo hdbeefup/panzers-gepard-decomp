@@ -1345,190 +1345,75 @@ void SBitmap::MakeOpaque()
   }
 }
 
-//----- (00465FF0) --------------------------------------------------------
-
+// PANZERS 0x66f100
+// HD halves 8-bit (HD format 0xe), 32-bit ARGB (2) and 24-bit RGB (1, rows
+// padded to 4 bytes) bitmaps; SWINE's body (0x465ff0) took ARGB only. The
+// recompile's SBitmap keeps D3DFORMATs: L8 / A8 / P8, A8R8G8B8 / X8R8G8B8
+// and R8G8B8 stand for HD's three. 2x2 boxes average as (a+b+c+d+2)>>2,
+// single rows or columns as (a+b+1)/2; the size must be 1 or even.
 void SBitmap::NextMipLevel()
-
 {
-  int Width;
-  int Height;
-  bool v4;
-  int v5; // kr0C_4
-  unsigned char *v6; // eax
-  unsigned char *v7; // ecx
-  int v8;
-  int Pitch;
-  int v10;
-  unsigned char *v11; // edi
-  unsigned char *v12; // eax
-  unsigned char *v13; // ecx
-  unsigned char *v14; // edi
-  int v15;
-  int v16;
-  int v17;
-  unsigned char *v18; // edx
-  int v19;
-  unsigned char *v20; // eax
-  unsigned char *Data; // edx
-  unsigned char *v22; // edi
-  int v23;
-  unsigned char *v24; // eax
-  int v25;
-  unsigned char *v26; // eax
-  int v27;
-  int v28;
-  unsigned char *v29;
-  unsigned char *v30;
-  unsigned char *v31;
-  unsigned char *v32;
-  unsigned char *v33;
-  if ( this->Format != D3DFMT_A8R8G8B8 )
-    Logger.g->Panic("SBitmap::NextMipLevel: Bitmap should be 32 bit ARGB");
-  Width = this->Width;
-  if ( this->Width != 1 && (Width & 1) != 0 || (Height = this->Height, Height != 1) && (Height & 1) != 0 )
-    Logger.g->Panic(
-      "SBitmap::NextMipLevel: Bitmap size is unsupported (%d x %d)",
-      Width,
-      this->Height);
-  v4 = Width == 1;
-  if ( Width > 1 )
+  int w = this->Width;
+  int h = this->Height;
+  if ( (w != 1 && (w & 1) != 0) || (h != 1 && (h & 1) != 0) )
+    Logger.g->Panic("SBitmap::NextMipLevel: Bitmap size is unsupported (%d x %d)", w, h);
+  int bpp;
+  switch ( this->Format )
   {
-    if ( Height > 1 )
-    {
-      v5 = this->Width;
-      this->Height = Height / 2;
-      this->Width = v5 / 2;
-      v6 = new unsigned char[4 * v5 / 2 * (Height / 2)];
-      v7 = &this->Data[this->Start];
-      v8 = this->Height;
-      v32 = v6;
-      v33 = v6;
-      v29 = v7;
-      if ( v8 )
-      {
-        Pitch = this->Pitch;
-        do
-        {
-          v10 = this->Width;
-          --v8;
-          v11 = v7;
-          if ( this->Width )
-          {
-            do
-            {
-              v11 += 8;
-              *v33 = (*(v11 - 8) + v11[this->Pitch - 4] + *(v11 - 4) + 2 + (unsigned int)v11[this->Pitch - 8]) >> 2;
-              v33[1] = (v11[this->Pitch - 7] + v11[this->Pitch - 3] + *(v11 - 7) + 2 + (unsigned int)*(v11 - 3)) >> 2;
-              v33[2] = (v11[this->Pitch - 2] + *(v11 - 2) + *(v11 - 6) + 2 + (unsigned int)v11[this->Pitch - 6]) >> 2;
-              v33[3] = (v11[this->Pitch - 1] + *(v11 - 1) + *(v11 - 5) + (unsigned int)v11[this->Pitch - 5] + 2) >> 2;
-              v33 += 4;
-              --v10;
-            }
-            while ( v10 );
-            Pitch = this->Pitch;
-            v7 = v29;
-          }
-          v7 += 2 * Pitch;
-          v29 = v7;
-        }
-        while ( v8 );
-      }
-LABEL_32:
-      Data = this->Data;
-      goto LABEL_33;
-    }
-    v4 = Width == 1;
+    case D3DFMT_L8:
+    case D3DFMT_A8:
+    case D3DFMT_P8:
+      bpp = 1;
+      break;
+    case D3DFMT_A8R8G8B8:
+    case D3DFMT_X8R8G8B8:
+      bpp = 4;
+      break;
+    case D3DFMT_R8G8B8:
+      bpp = 3;
+      break;
+    default:
+      Logger.g->Panic("SBitmap::NextMipLevel: Unsupported format");
   }
-  if ( v4 )
-  {
-    if ( Height != 1 )
-    {
-      this->Height = Height / 2;
-      v12 = new unsigned char[4 * (Height / 2)];
-      v13 = &this->Data[this->Start];
-      v14 = v12;
-      v15 = this->Height;
-      v32 = v12;
-      v30 = v13;
-      if ( v15 )
-      {
-        v16 = this->Pitch;
-        do
-        {
-          v17 = this->Width;
-          v28 = v15 - 1;
-          v18 = v13;
-          if ( this->Width )
-          {
-            do
-            {
-              v18 += 4;
-              *v14 = (v18[this->Pitch - 4] + 1 + (unsigned int)*(v18 - 4)) >> 1;
-              v14[1] = (v18[this->Pitch - 3] + 1 + (unsigned int)*(v18 - 3)) >> 1;
-              v14[2] = (v18[this->Pitch - 2] + 1 + (unsigned int)*(v18 - 2)) >> 1;
-              v14[3] = (v18[this->Pitch - 1] + (unsigned int)*(v18 - 1) + 1) >> 1;
-              v14 += 4;
-              --v17;
-            }
-            while ( v17 );
-            v16 = this->Pitch;
-            v13 = v30;
-          }
-          v15 = v28;
-          v13 += 2 * v16;
-          v30 = v13;
-        }
-        while ( v28 );
-      }
-      goto LABEL_32;
-    }
-LABEL_34:
+  if ( w == 1 && h == 1 )
     Logger.g->Panic("SBitmap::NextMipLevel: 1x1 Bitmap cannot be shrinked");
-  }
-  if ( Height != 1 )
-    goto LABEL_34;
-  v19 = Width / 2;
-  this->Width = v19;
-  v20 = new unsigned char[4 * v19];
-  Data = this->Data;
-  v22 = v20;
-  v23 = this->Height;
-  v32 = v20;
-  v24 = &Data[this->Start];
-  v31 = v24;
-  if ( v23 )
+  int nw = w >= 2 ? w / 2 : w;
+  int nh = h >= 2 ? h / 2 : h;
+  int pitch = bpp == 3 ? (nw * 3 + 3) & ~3 : nw * bpp;
+  unsigned char *out = new unsigned char[pitch * nh];
+  const unsigned char *src = &this->Data[this->Start];
+  int sp = this->Pitch;
+  for ( int y = 0; y < nh; ++y )
   {
-    do
+    unsigned char *o = out + y * pitch;
+    for ( int x = 0; x < nw; ++x )
     {
-      v25 = this->Width;
-      --v23;
-      if ( this->Width )
+      for ( int c = 0; c < bpp; ++c )
       {
-        v26 = v24 + 5;
-        do
+        if ( w >= 2 && h >= 2 )
         {
-          v27 = *(v26 - 5);
-          v26 += 8;
-          *v22 = (v27 + 1 + (unsigned int)*(v26 - 9)) >> 1;
-          v22[1] = (*(v26 - 12) + 1 + (unsigned int)*(v26 - 8)) >> 1;
-          v22[2] = (*(v26 - 11) + 1 + (unsigned int)*(v26 - 7)) >> 1;
-          v22[3] = (*(v26 - 10) + (unsigned int)*(v26 - 6) + 1) >> 1;
-          v22 += 4;
-          --v25;
+          const unsigned char *s = src + 2 * y * sp + 2 * x * bpp + c;
+          o[x * bpp + c] = (unsigned char)((s[0] + s[bpp] + s[sp] + s[sp + bpp] + 2) >> 2);
         }
-        while ( v25 );
-        v24 = v31;
+        else if ( w == 1 )
+        {
+          const unsigned char *s = src + 2 * y * sp + x * bpp + c;
+          o[x * bpp + c] = (unsigned char)((s[0] + s[sp] + 1) / 2);
+        }
+        else
+        {
+          const unsigned char *s = src + y * sp + 2 * x * bpp + c;
+          // HD bug kept: the 8-bit row case pairs pixel 2x with 2x + 4, not 2x + 1.
+          o[x * bpp + c] = (unsigned char)((s[0] + s[bpp == 1 ? 4 : bpp] + 1) / 2);
+        }
       }
-      v24 += this->Pitch;
-      v31 = v24;
     }
-    while ( v23 );
-    goto LABEL_32;
   }
-LABEL_33:
-  this->Pitch = 4 * this->Width;
-  delete[] Data;
-  this->Data = v32;
+  this->Width = nw;
+  this->Height = nh;
+  this->Pitch = pitch;
+  delete[] this->Data;
+  this->Data = out;
   this->Start = 0;
 }
 

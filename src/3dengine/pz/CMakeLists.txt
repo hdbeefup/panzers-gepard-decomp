@@ -23,6 +23,7 @@ add_library(pz3d STATIC
     pzviewport.cpp
     pzscene.h
     pzscene.cpp
+    pzscene_m3.cpp
     pzmodel.h
     pzmodel.cpp
     # agent A: .4d prototypes, CANM animations, tracks, meshes
@@ -49,9 +50,16 @@ add_library(pz3d STATIC
     effectrender.h
     effectrender.cpp
     particles.cpp
+    # agent M3-E: decal, sound, lite, trail and camera-shake effects
+    effecttypes.cpp
 )
 target_include_directories(pz3d PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(pz3d PRIVATE ${PANZERS_SRC_DIR}/stubs)
 target_compile_definitions(pz3d PRIVATE _USE_MATH_DEFINES PZ_MENU_WORLD=$<BOOL:${PZ_MENU_WORLD}>)
 target_compile_options(pz3d PRIVATE /FI"${PANZERS_SRC_DIR}/3dengine/dxsdk_math_fix.h")
 target_link_libraries(pz3d PUBLIC 3dengine core)
+# SSoundEffect plays through SMilesConcert (HD 0x92e798) on the Miles backend.
+if(GEPARD_AUDIO_BACKEND STREQUAL "miles")
+    target_link_libraries(pz3d PUBLIC sound)
+    target_compile_definitions(pz3d PRIVATE PZ_AUDIO_MILES=1)
+endif()

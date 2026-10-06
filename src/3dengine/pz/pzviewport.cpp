@@ -22,6 +22,7 @@
 // D3DSBT_ALL state block restores the device state for the SWINE board.
 
 #include <d3d9.h>
+#include <d3dx9.h>
 #include <math.h>
 #include <string.h>
 #include "pzviewport.h"
@@ -115,10 +116,14 @@ SViewport::SViewport()
 
 SViewport::~SViewport()
 {
+    for (SViewport* sub : Subports)
+        delete sub;   // HD ~SViewport 0x6893e0 frees the subports (0x68e3d0)
 }
 
 static void ReadDeviceViewport(SViewport* vp)
 {
+    if (vp->Mode == 3)
+        return;   // recompile: a sub viewport keeps its own rectangle (HD +0x120..+0x12c)
     IDirect3DDevice9* dev = HD().Device;
     D3DVIEWPORT9 v;
     if (dev && SUCCEEDED(dev->GetViewport(&v)) && v.Width && v.Height) {
@@ -202,8 +207,8 @@ void SViewport::SetProjection(float fovRadians, float nearZ, float farZ)
 void SViewport::ApplyTransforms()
 {
     IDirect3DDevice9* dev = HD().Device;
-    if (!dev)
-        return;
+    if (!dev || Mode == 3)
+        return;   // recompile: sub viewports are not drawn through the shared device yet
     float v[16];
     Mat34To44(v, View);
     dev->SetTransform(D3DTS_VIEW, (const D3DMATRIX*)v);
@@ -234,6 +239,7 @@ void SViewport::UpdateScreenMatrix()
     Mat34To44(v, View);
     Mul44(vp, v, Proj);
     Mul44(ViewProjScreen, vp, ScreenM);
+    D3DXMatrixInverse((D3DXMATRIX*)InvViewProjScreen, nullptr, (const D3DXMATRIX*)ViewProjScreen);   // 0x7c6a90
     SizeScale = Proj[0] * ScreenM[0];
 }
 
@@ -329,12 +335,21 @@ void SViewport::Render(SIScene* scene, unsigned clearColor)
 
 // ---- generated slot stubs (HD vtable order) ----
 
-// HD SViewport vtbl +0x00 -> 0x68d0d0 (4 arg dwords)
+// PANZERS 0x68d0d0
+// Sub viewports only (mode 3); HD panics on the others.
 void SViewport::SetPosition(int x, int y, int w, int h)
 {
-    STUB_LOG("SViewport::SetPosition (0x68d0d0)");
     PZ_TRACE("SViewport::SetPosition (0x68d0d0)");
-    (void)x; (void)y; (void)w; (void)h;
+    if (Mode != 3)
+        Logger.g->Panic("SViewport::SetPosition(): Invalid ViewportMode.");
+    bool proj = Camera.Fov != 0.0f;
+    Left = x;
+    Top = y;
+    Width = w;
+    Height = h;
+    if (proj)
+        Proj[5] = (Proj[0] / (float)h) * (float)w;   // +0xec
+    UpdateScreenMatrix();                            // 0x68c070
 }
 
 // PANZERS 0x68c4e0
@@ -426,18 +441,70 @@ void SViewport::Slot_30()
     PZ_TRACE("SViewport::Slot_30 (0x68ce50)");
 }
 
-// HD SViewport vtbl +0x34 -> 0x689c20 (3 arg dwords)
-void SViewport::Slot_34()
+// PANZERS 0x689c20
+// The screen point (x, y) unprojected onto the near plane (z 0) through the
+// inverse screen matrix +0x1b0, minus the eye.
+void SViewport::ScreenToRay(float* out, int x, int y)
 {
-    STUB_LOG("SViewport::Slot_34 (0x689c20)");
-    PZ_TRACE("SViewport::Slot_34 (0x689c20)");
+    PZ_TRACE("SViewport::ScreenToRay (0x689c20)");
+    const float* m = InvViewProjScreen;
+    float fx = (float)x, fy = (float)y;
+    float ex = Camera.X, ey = Camera.Y, ez = Camera.Z;   // +0x84..+0x8c
+    out[0] = ex;
+    out[1] = ey;
+    out[2] = ez;
+    out[3] = (m[4] * fy + m[0] * fx + m[8] * 0.0f + m[12]) - ex;
+    out[4] = (m[1] * fx + m[5] * fy + m[9] * 0.0f + m[13]) - ey;
+    out[5] = (m[2] * fx + m[6] * fy + m[10] * 0.0f + m[14]) - ez;
 }
 
-// HD SViewport vtbl +0x38 -> 0x6898b0 (5 arg dwords)
-void SViewport::Slot_38()
+// HD 0x688df0: the 4 side planes of the pyramid eye / a / b / c / d (each
+// plane = cross product of two edges from the eye, d = -(eye . n)).
+static void PyramidPlanes(float* out, const float* e, const float* a, const float* b, const float* c, const float* d)
 {
-    STUB_LOG("SViewport::Slot_38 (0x6898b0)");
-    PZ_TRACE("SViewport::Slot_38 (0x6898b0)");
+    const float* q[5] = { a, b, c, d, a };
+    for (int k = 0; k < 4; ++k) {
+        const float* p0 = q[k];
+        const float* p1 = q[k + 1];
+        float ux = p0[0] - e[0], uy = p0[1] - e[1], uz = p0[2] - e[2];
+        float vx = p1[0] - e[0], vy = p1[1] - e[1], vz = p1[2] - e[2];
+        float nx = uy * vz - uz * vy;
+        float ny = uz * vx - ux * vz;
+        float nz = ux * vy - uy * vx;
+        out[k * 4 + 0] = nx;
+        out[k * 4 + 1] = ny;
+        out[k * 4 + 2] = nz;
+        out[k * 4 + 3] = -(e[1] * ny + e[0] * nx + e[2] * nz);
+    }
+}
+
+// PANZERS 0x6898b0
+// The box corners are put in order (min, max) first.
+void SViewport::GetSelectionPlanes(float* out, int x1, int y1, int x2, int y2)
+{
+    PZ_TRACE("SViewport::GetSelectionPlanes (0x6898b0)");
+    int xr = x2, yb = y2;
+    if (x2 < x1) {
+        xr = x1;
+        x1 = x2;
+    }
+    if (y2 < y1) {
+        yb = y1;
+        y1 = y2;
+    }
+    const float* m = InvViewProjScreen;
+    auto unproject = [m](float x, float y, float* o) {
+        o[0] = m[4] * y + m[0] * x + m[8] * 0.0f + m[12];
+        o[1] = m[5] * y + m[1] * x + m[9] * 0.0f + m[13];
+        o[2] = m[6] * y + m[2] * x + m[10] * 0.0f + m[14];
+    };
+    float a[3], b[3], c[3], d[3];
+    unproject((float)x1, (float)y1, a);
+    unproject((float)x1, (float)yb, b);
+    unproject((float)xr, (float)yb, c);
+    unproject((float)xr, (float)y1, d);
+    float eye[3] = { Camera.X, Camera.Y, Camera.Z };
+    PyramidPlanes(out, eye, a, b, c, d);
 }
 
 // HD SViewport vtbl +0x40 -> 0x68da50 (8 arg dwords)
@@ -447,11 +514,30 @@ void SViewport::Slot_40()
     PZ_TRACE("SViewport::Slot_40 (0x68da50)");
 }
 
-// HD SViewport vtbl +0x44 -> 0x68b940 (2 arg dwords)
-void SViewport::Slot_44()
+// PANZERS 0x68b940
+// The four screen corners (view-space directions (+-1/m00, +-1/m11, 1)
+// through the inverse view) intersected with the plane y = height, in the
+// order (-x, +y), (+x, +y), (+x, -y), (-x, -y).
+void SViewport::GetGroundCorners(float height, float* out)
 {
-    STUB_LOG("SViewport::Slot_44 (0x68b940)");
-    PZ_TRACE("SViewport::Slot_44 (0x68b940)");
+    PZ_TRACE("SViewport::GetGroundCorners (0x68b940)");
+    float dy = height - Camera.Y;
+    float v[16];
+    Mat34To44(v, View);                                     // 0x676f60
+    D3DXMATRIX inv;
+    D3DXMatrixInverse(&inv, nullptr, (const D3DXMATRIX*)v); // 0x7c59c0
+    float sx1 = 1.0f / Proj[0], sx0 = -1.0f / Proj[0];      // 0x7f1b58, 0x7f5a98
+    float sy1 = 1.0f / Proj[5], sy0 = -1.0f / Proj[5];
+    const float cx[4] = { sx0, sx1, sx1, sx0 };
+    const float cy[4] = { sy1, sy1, sy0, sy0 };
+    for (int k = 0; k < 4; ++k) {
+        float wx = inv._21 * cy[k] + inv._11 * cx[k] + inv._31;
+        float wy = inv._22 * cy[k] + inv._12 * cx[k] + inv._32;
+        float wz = inv._23 * cy[k] + inv._13 * cx[k] + inv._33;
+        out[k * 3 + 0] = (wx / wy) * dy + Camera.X;
+        out[k * 3 + 1] = height;
+        out[k * 3 + 2] = (wz / wy) * dy + Camera.Z;
+    }
 }
 
 // HD SViewport vtbl +0x48 -> 0x68bbf0 (tail call)
@@ -461,21 +547,34 @@ void SViewport::Slot_48()
     PZ_TRACE("SViewport::Slot_48 (0x68bbf0)");
 }
 
-// HD SViewport vtbl +0x54 -> 0x68ab40 (4 arg dwords)
-int SViewport::Slot_54_SelectSubport(int p1, int p2, int p3, int p4)
+// PANZERS 0x68ab40
+// HD also re-applies its own device viewport and transforms first (0x68d620,
+// 0x68d160) and, with a render target (+0x71), resets the device's render
+// target; the recompile's facade has neither.
+int SViewport::CreateSubport(int x, int y, int w, int h)
 {
-    STUB_LOG("SViewport::Slot_54_SelectSubport (0x68ab40)");
-    PZ_TRACE("SViewport::Slot_54_SelectSubport (0x68ab40)");
-    (void)p1; (void)p2; (void)p3; (void)p4;
-    return 0;
+    PZ_TRACE("SViewport::CreateSubport (0x68ab40)");
+    int i = (int)Subports.size();                           // 0x6896a0
+    SViewport* sub = new SViewport();                       // new 0x244, 0x689130
+    Subports.push_back(sub);
+    sub->Mode = 3;                                          // +0x78
+    sub->Left = x;
+    sub->Top = y;
+    sub->Width = w;
+    sub->Height = h;
+    sub->SetCamera(Camera.X, Camera.Y, Camera.Z, Camera.Yaw, Camera.Pitch);   // sub +0x20
+    sub->SetProjection(Camera.Fov, Camera.NearZ, Camera.FarZ);               // sub +0x28
+    return i;
 }
 
-// HD SViewport vtbl +0x58 -> 0x68b0f0 (1 arg dword)
-void SViewport::Slot_58_SelectSubport(int index)
+// PANZERS 0x68b0f0
+void SViewport::DestroySubport(int index)
 {
-    STUB_LOG("SViewport::Slot_58_SelectSubport (0x68b0f0)");
-    PZ_TRACE("SViewport::Slot_58_SelectSubport (0x68b0f0)");
-    (void)index;
+    PZ_TRACE("SViewport::DestroySubport (0x68b0f0)");
+    if (index < 0 || index >= (int)Subports.size())
+        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "class SViewport *", index);
+    delete Subports[index];                                  // 0x6893e0
+    Subports.erase(Subports.begin() + index);                // 0x68c1a0
 }
 
 // HD SViewport vtbl +0x5c -> 0x68bde0 (1 arg dword)
@@ -485,11 +584,10 @@ void SViewport::Slot_5C()
     PZ_TRACE("SViewport::Slot_5C (0x68bde0)");
 }
 
-// HD SViewport vtbl +0x60 -> 0x68b930 (0 arg dwords)
-void SViewport::Slot_60()
+// PANZERS 0x68b930
+int SViewport::GetSubportCount()
 {
-    STUB_LOG("SViewport::Slot_60 (0x68b930)");
-    PZ_TRACE("SViewport::Slot_60 (0x68b930)");
+    return (int)Subports.size();
 }
 
 // HD SViewport vtbl +0x64 -> 0x68b470 (1 arg dword)
@@ -535,18 +633,16 @@ void SViewport::FrontBufferScreenshot(int p1, int p2, int p3, int p4)
     (void)p1; (void)p2; (void)p3; (void)p4;
 }
 
-// HD SViewport vtbl +0x7c -> 0x68b200 (1 arg dword)
-void SViewport::Slot_7C()
+// PANZERS 0x68b200
+void SViewport::SetFlag240(bool on)
 {
-    STUB_LOG("SViewport::Slot_7C (0x68b200)");
-    PZ_TRACE("SViewport::Slot_7C (0x68b200)");
+    Flag240 = on;
 }
 
-// HD SViewport vtbl +0x80 -> 0x68b210 (1 arg dword)
-void SViewport::Slot_80()
+// PANZERS 0x68b210
+void SViewport::SetFlag241(bool on)
 {
-    STUB_LOG("SViewport::Slot_80 (0x68b210)");
-    PZ_TRACE("SViewport::Slot_80 (0x68b210)");
+    Flag241 = on;
 }
 
 } // namespace pz

@@ -13,9 +13,10 @@
 //                slots; pz::SIEffect in ipixie.h has the same order).
 //   SPParticles  EffectType 0 prototype (0x1a0, ctor 0x6e08b0, vftable 0x883e54)
 //   SParticles   EffectType 0 instance (0x490, ctor 0x6e0980, vftable 0x883e70)
-// The other effect types (flare, rain, snow, decal, sound, atmosphere,
-// lite, trail, shock wave, camera shake, sandstorm) are logged stubs in
-// SPixie::InitEffectPrototype; the menu's three effects are particles only.
+// EffectTypes 4 (decal), 5 (sound), 7 (lite), 8 (trail) and 10 (camera
+// shake) are in effecttypes.cpp (agent M3-E). Flare, rain, snow,
+// atmosphere, shock wave and sandstorm are still logged stubs in
+// SPixie::InitEffectPrototype (the Training Camp path creates none).
 //
 // Field comments give the HD offsets. The objects are internal to agent C,
 // so only SPixie (pzpixie.h) is held to the HD size.
@@ -442,6 +443,190 @@ float EffectRand();
 // recompile writes the text to the log; it must not become the SWINE modal
 // Warning box, which stops a nested prototype load until it is clicked.
 void EffectSetLastError(const char* fmt, ...);
+
+// ---------------------------------------------------------------------------
+// Other effect types (effecttypes.cpp). HD sizes in the comments; the
+// objects are internal, so only the field order follows HD.
+// ---------------------------------------------------------------------------
+
+// EffectType 4 "04_DECALEFFECT": a terrain effect decal (STerrain +0x60..+0x74).
+struct SPDecalEffect : SPEffect {                                     // 0x68, ctor 0x6ea0f0, vftable 0x884098
+    SPDecalEffect();
+    ~SPDecalEffect();                                                 // 0x6ea1d0 (0x6ea320 deleting)
+    bool Init(SPropertyStruct* ts, const char* name) override;        // +0x0c 0x6ea3c0
+    SEffect* CreateInstance(SIScene* scene, float param) override;    // +0x14 0x6ea350
+
+    int   NumTextures;       // +0x14
+    int   Textures[8];       // +0x18 Gepard textures ("effects/media/<name>"), -1
+    int   BlendType;         // +0x38
+    bool  ForceBright;       // +0x3c (the decal's flag and pass)
+    bool  RealTime;          // +0x3d timer seconds instead of scene time (runs in pause)
+    float Duration;          // +0x40
+    STrackFloat AlphaTrack;  // +0x44
+    STrackFloat ScaleTrack;  // +0x54
+    bool  Unstoppable;       // +0x64
+    bool  RandomRotate;      // +0x65
+};
+
+struct SDecalEffect : SEffect {                                       // 0x6c, ctor 0x6e9f70, vftable 0x8840b4
+    SDecalEffect(SIScene* scene, SPDecalEffect* proto);
+    ~SDecalEffect();                                                  // +0x00 0x6ea2a0
+    bool Process() override;                                          // +0x1c 0x6ea650
+    void Render(SIViewport* vp) override;                             // +0x20 0x6ea740
+    void Stop() override;                                             // +0x2c 0x6ea810
+
+    SIScene* Scene;          // +0x44
+    SPDecalEffect* P;        // +0x48
+    int   CurAlpha;          // +0x4c
+    int   CurScale;          // +0x50
+    int   Decal;             // +0x54 terrain effect decal
+    float Alpha;             // +0x58
+    float Scale;             // +0x5c
+    float Time;              // +0x60
+    float LastSeconds;       // +0x64 (RealTime)
+    bool  Stopped;           // +0x68
+};
+
+// EffectType 5 "05_SOUNDEFFECT": Miles sounds through SMilesConcert (HD 0x92e798).
+struct SPSoundEffect : SPEffect {                                     // 0x60, ctor 0x6ec900, vftable 0x88440c
+    SPSoundEffect();
+    ~SPSoundEffect();                                                 // 0x6ec9e0 (0x6ecae0 deleting)
+    bool Init(SPropertyStruct* ts, const char* name) override;        // +0x0c 0x6ecc40
+    SEffect* CreateInstance(SIScene* scene, float param) override;    // +0x14 0x6ecb90
+
+    std::string SoundFile[3];  // +0x14 SString x3
+    bool  Looping;             // +0x2c
+    bool  Positional;          // +0x2d
+    int   SoundGroup;          // +0x30 0 ambient, 1 engine
+    float DistanceMin;         // +0x34
+    STrackFloat VolumeTrack;   // +0x38
+    float Duration;            // +0x48
+    float Frequency;           // +0x4c 1 +- RNDFrequency % (not read by the instance)
+    int   NumSounds;           // +0x50
+    int   Sounds[3];           // +0x54 concert cache indices (+0x24 PrecacheSound)
+};
+
+struct SSoundEffect : SEffect {                                       // 0x68, vftable 0x884428
+    SSoundEffect(SIScene* scene, SPSoundEffect* proto);               // (inline in 0x6ecb90)
+    ~SSoundEffect();                                                  // +0x00 0x6ecb10
+    bool Process() override;                                          // +0x1c 0x6ece40
+    void Render(SIViewport* vp) override;                             // +0x20 0x6ed0a0 nop
+    void Stop() override;                                             // +0x2c 0x6ed140
+    void SetSpeed(float p1, float p2) override;                       // +0x30 0x6ed0b0
+
+    int   CurVolume;         // +0x44
+    SIScene* Scene;          // +0x48
+    SPSoundEffect* P;        // +0x4c
+    bool  Stopped;           // +0x50
+    float Time;              // +0x54
+    float VolumeScale;       // +0x58 SetSpeed p2 * 0.5 + 0.5
+    float FrequencyScale;    // +0x5c SetSpeed p1
+    bool  VolumeDirty;       // +0x60
+    bool  FrequencyDirty;    // +0x61
+    int   Sound;             // +0x64 concert sound id (looping sounds), -1
+};
+
+// EffectType 7 "07_LITE": a scene point light.
+struct SPLiteEffect : SPEffect {                                      // 0x48, ctor 0x6ed790, vftable 0x8844a0
+    SPLiteEffect();
+    ~SPLiteEffect();                                                  // 0x6ed900
+    bool Init(SPropertyStruct* ts, const char* name) override;        // +0x0c 0x6ed9e0
+    SEffect* CreateInstance(SIScene* scene, float param) override;    // +0x14 0x6ed970
+
+    float Color[4];          // +0x14 RGB / 255, alpha 0
+    float Duration;          // +0x24
+    float Range;             // +0x28
+    float Attenuation;       // +0x2c
+    STrackFloat BrightnessTrack; // +0x30 (loop flag +0x3c)
+    bool  Unstoppable;       // +0x40
+    float Altitude;          // +0x44 Altitude * 0.5 (0: the effect height)
+};
+
+struct SLiteEffect : SEffect {                                        // 0x60, ctor 0x6ed700, vftable 0x8844bc
+    SLiteEffect(SIScene* scene, SPLiteEffect* proto);
+    ~SLiteEffect();                                                   // +0x00 0x6ed890
+    bool Process() override;                                          // +0x1c 0x6edaf0
+    void Render(SIViewport* vp) override;                             // +0x20 0x6edba0
+    void Stop() override;                                             // +0x2c 0x6edcc0
+
+    SIScene* Scene;          // +0x44
+    SPLiteEffect* P;         // +0x48
+    int   CurBrightness;     // +0x4c
+    int   Light;             // +0x50 scene light, -1
+    float Brightness;        // +0x54
+    float Time;              // +0x58
+    bool  Stopped;           // +0x5c
+};
+
+// EffectType 8 "08_TRAIL": a scene smoke trail (SIScene +0x7c..+0x88).
+struct SPTrailEffect : SPEffect {                                     // 0x58, ctor 0x6edcd0, vftable 0x8844f4
+    SPTrailEffect();
+    ~SPTrailEffect();                                                 // 0x6edd70 (0x6ede90 deleting)
+    bool Init(SPropertyStruct* ts, const char* name) override;        // +0x0c 0x6edff0
+    SEffect* CreateInstance(SIScene* scene, float param) override;    // +0x14 0x6edf40
+
+    unsigned Color;          // +0x14
+    float Strength;          // +0x18
+    float FadeSpeed;         // +0x1c
+    float UScale;            // +0x20
+    float VScale;            // +0x24
+    int   DrawType;          // +0x28 0 normal, 1 add
+    STrackFloat AlphaTrack;  // +0x2c
+    STrackFloat SizeTrack;   // +0x3c
+    float Duration;          // +0x4c
+    int   Texture;           // +0x50
+    SIScene* LastScene;      // +0x54
+};
+
+struct STrailEffect : SEffect {                                       // 0x68, vftable 0x884510
+    STrailEffect(SIScene* scene, SPTrailEffect* proto);               // (inline in 0x6edf40)
+    ~STrailEffect();                                                  // +0x00 0x6edec0
+    void SetAlphaScale(float s) override { AlphaScale = s; }          // +0x0c 0x6ee210
+    void SetSizeScale(float s) override { SizeScale = s; }            // +0x10 0x6ee230
+    bool Process() override;                                          // +0x1c 0x6ee0d0
+    void Render(SIViewport* vp) override;                             // +0x20 0x6ee120
+    void Stop() override { Stopped = true; }                          // +0x2c 0x6ee250
+
+    float FrameSeconds;      // +0x44
+    SIScene* Scene;          // +0x48
+    SPTrailEffect* P;        // +0x4c
+    int   Trail;             // +0x54 scene smoke trail, -1
+    bool  Stopped;           // +0x5c
+    float AlphaScale;        // +0x60 (1)
+    float SizeScale;         // +0x64 (0)
+};
+
+// EffectType 10 "10_CAMERASHAKE": adds an offset to the viewport eye (+0xc0).
+struct SPCameraShake : SPEffect {                                     // 0x30, ctor 0x6ee390, vftable 0x884548
+    SPCameraShake();
+    ~SPCameraShake();                                                 // 0x6ee460
+    bool Init(SPropertyStruct* ts, const char* name) override;        // +0x0c 0x6ee5e0
+    SEffect* CreateInstance(SIScene* scene, float param) override;    // +0x14 0x6ee570
+
+    bool  Positional;        // +0x14 strength * 30 / distance^2
+    float Strength;          // +0x18
+    STrackFloat AmplitudeTrack; // +0x1c
+    float Duration;          // +0x2c
+};
+
+struct SCameraShake : SEffect {                                       // 0x70, ctor 0x6ee260, vftable 0x884564
+    SCameraShake(SIScene* scene, SPCameraShake* proto);
+    ~SCameraShake() {}                                                // +0x00 0x6ee430
+    bool Process() override;                                          // +0x1c 0x6ee650
+    void Render(SIViewport* vp) override;                             // +0x20 0x6ee6a0
+    void Stop() override { Stopped = true; }                          // +0x2c 0x6ee8d0
+
+    int   CurAmplitude;      // +0x44
+    SIScene* Scene;          // +0x48
+    SPCameraShake* P;        // +0x4c
+    bool  Stopped;           // +0x50
+    float Time;              // +0x54
+    float Phase[6];          // +0x58 rand() * 2 pi each
+};
+
+// HD 0x6ee4d0: add a camera shake offset to the root viewport's eye offset
+// (+0xc0; SViewport::SetCamera adds it and clears it).
+void ViewportAddCameraOffset(SIViewport* vp, const float* offset);
 
 } // namespace pz
 

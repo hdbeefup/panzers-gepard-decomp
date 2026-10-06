@@ -135,7 +135,8 @@ static int ParticleCount(pz::SPixie* px)
         pz::SEffectSet* set = px->Effects[i];
         for (int k = 0; k < set->Effects.Size(); ++k)
             if (set->Effects.Valid(k))
-                n += (int)static_cast<pz::SParticles*>(set->Effects[k])->Particles.size();
+                if (pz::SParticles* ps = dynamic_cast<pz::SParticles*>(set->Effects[k]))   // M3: other effect types too
+                    n += (int)ps->Particles.size();
     }
     return n;
 }

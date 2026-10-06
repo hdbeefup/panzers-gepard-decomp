@@ -759,14 +759,47 @@ void SWindow::SetWindowStyle(unsigned int style)
   SetWindowLongA(hWnd, -16, style);
 }
 
-//----- (00497890) --------------------------------------------------------
-
+// PANZERS 0x545110
+// HD also sends the target a mouse move with the last buttons, so the hover
+// state of the widget now under the cursor is refreshed.
 void SWindow::UpdateMouse()
 
 {
   int target_x;
   int target_y;
-  this->GetEventTarget(this->LastMouseX, this->LastMouseY, &target_x, &target_y);
+  SWidget *target = this->GetEventTarget(this->LastMouseX, this->LastMouseY, &target_x, &target_y);
+  if ( target )
+    target->OnMouseMove(target_x, target_y, this->LastMouseButtons);
+}
+
+// PANZERS 0x544fe0
+// The window's events go to this widget's subtree until UnsetModalWidget
+// (GetEventTarget reads ModalTarget). A captured widget loses the capture.
+void SWindow::SetModalWidget(SWidget *widget)
+
+{
+  if ( this->ModalTarget )
+    Logger.g->Panic("SWindow::SetModalWidget: There can be only one modal widget.");
+  this->ModalTarget = widget;
+  if ( SWidget::CaptureTarget )
+    SWidget::CaptureTarget->ReleaseMouse();
+}
+
+// PANZERS 0x5450e0
+void SWindow::UnsetModalWidget(SWidget *widget)
+
+{
+  if ( this->ModalTarget != widget )
+    Logger.g->Panic("SWindow::UnsetModalWidget: This widget wasn't modal.");
+  this->ModalTarget = 0;
+}
+
+// PANZERS 0x544c20
+void SWindow::GetLastMousePosition(int *x, int *y)
+
+{
+  *x = this->LastMouseX;
+  *y = this->LastMouseY;
 }
 
 //----- (004978C0) --------------------------------------------------------
@@ -900,11 +933,8 @@ $LN45_6:
 $LN42_10:
           v32 = v5;
           break;
-        case 0x24u:
-          *(DWORD *)(v5 + 24) = 800;
-          result = 0;
-          *(DWORD *)(v5 + 28) = 600;
-          return result;
+        // HD 0x545200 has no WM_GETMINMAXINFO case (SWINE set an
+        // 800x600 minimum tracking size); it goes to DefWindowProc.
         case 0x46u:
           // HD 0x545200 (WM_WINDOWPOSCHANGING): when a frame change arrives
           // while the window is maximized, the window is placed so that its
@@ -1034,7 +1064,10 @@ $LN23_12:
       v18->OnMouseUp(2, target_x, v30, wParam);
       return 0;
     case 0x20Au:
-      v20 = this->GetEventTarget((short)v5 - this->X, (short)HIWORD(v5) - this->Y, &target_x, &target_y);
+      // HD 0x545200 hit-tests the wheel at the last client mouse
+      // position (+0x80 / +0x84); the WM_MOUSEWHEEL lParam is in screen
+      // coordinates (SWINE subtracted the window position instead).
+      v20 = this->GetEventTarget(this->LastMouseX, this->LastMouseY, &target_x, &target_y);
       v20->OnMouseWheel((short)HIWORD(wParam) / 120, target_x, target_y, (unsigned short)wParam);
       return 0;
     case 0x2E0u:

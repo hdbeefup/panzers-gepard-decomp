@@ -13,6 +13,7 @@ struct SLabel : SDXWidget {
     int TextFrame;
     SString Text;
     unsigned int Color;
+    int Align;            // HD +0x6c: 0 left, 1 right (x = Width), passed to SetText
 
     SLabel();
     ~SLabel() override;

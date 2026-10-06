@@ -30,6 +30,7 @@ SRadioButton::SRadioButton()
   this->RadioFont = -1;
   this->RadioDisabledFont = -1;
   this->RadioHLFont = -1;
+  this->HdControlsFont = -1;
 }
 
 //----- (004903D0) --------------------------------------------------------
@@ -90,72 +91,6 @@ char *SRadioButton::GetText()
   return (char *)"";
 }
 
-//----- (00490640) --------------------------------------------------------
-
-bool SRadioButton::OnKeyDown(int keycode, bool repeat)
-
-{
-  if ( Options->GetKeyboardMode() )
-  {
-    if ( keycode == 13 )
-    {
-LABEL_19:
-      Concert->PlaySound(
-        "menu/radiobutton.wav",
-        -12.0f,
-        0,
-        -1);
-      this->bChecked = 1;
-      this->Update();
-      this->SendAction(271682, 0);
-      return 1;
-    }
-  }
-  else
-  {
-    switch ( keycode )
-    {
-      case 38:
-        this->SendAction(324866, 0);
-        return 1;
-      case 40:
-        this->SendAction(324866, 1);
-        return 1;
-      case 37:
-      case 39:
-        return 1;
-      case 13:
-        return 1;
-    }
-  }
-  switch ( keycode )
-  {
-    case ' ':
-      goto LABEL_19;
-    case '&':
-      if ( this->Up )
-      {
-        this->Active = 0;
-        this->Update();
-        this->Up->SetFocus();
-        return 1;
-      }
-      break;
-    case '(':
-      if ( this->Down )
-      {
-        this->Active = 0;
-        this->Update();
-        this->Down->SetFocus();
-        return 1;
-      }
-      break;
-    default:
-      return 0;
-  }
-  return 1;
-}
-
 //----- (00490770) --------------------------------------------------------
 
 void SRadioButton::OnMouseDown(int button, int x, int y, int shift)
@@ -171,22 +106,21 @@ void SRadioButton::OnMouseDown(int button, int x, int y, int shift)
   SDXWidget::OnMouseDown(button, x, y, shift);
 }
 
-//----- (004907C0) --------------------------------------------------------
-
+// PANZERS 0x53ebc0
+// HD order: clear the hover and redraw first, then the SDXWidget handler.
 void SRadioButton::OnMouseOut()
 
 {
-  SDXWidget::OnMouseOut();
   this->Active = 0;
   this->Update();
+  SDXWidget::OnMouseOut();
 }
 
-//----- (004907E0) --------------------------------------------------------
-
+// PANZERS 0x53ebe0
+// HD sends only 0x42543 (SWINE first sent its gamepad-focus action 0x4f501).
 void SRadioButton::OnMouseOver()
 
 {
-  this->SendAction(324865, 0);
   Concert->PlaySound(
     "menu/button_over.wav",
     -30.0f,
@@ -245,24 +179,6 @@ void SRadioButton::SetCheck(bool checked)
   this->Update();
 }
 
-//----- (00490930) --------------------------------------------------------
-
-void SRadioButton::SetFocus()
-
-{
-  Concert->PlaySound(
-    "menu/button_over.wav",
-    -30.0f,
-    0,
-    -1);
-  if ( !this->Active )
-  {
-    this->Active = 1;
-    this->Update();
-  }
-  SWidget::SetFocus();
-}
-
 //----- (00490980) --------------------------------------------------------
 
 void SRadioButton::SetText(const char *text)
@@ -284,11 +200,61 @@ void SRadioButton::SetVisible(bool visible)
   }
 }
 
+// PANZERS 0x53eaf0
+// HD Create: no fonts of its own; the radio glyphs come from the menu
+// controls font (HD 0x8da788, menu/controls_hq.tga), the text frame at x 0x18
+// and the glyph frame at x 4, cursor 0. HD has no colour or font arguments:
+// the label is drawn in board font 3 (Update). Callers pass the controls
+// font handle (the Panzers code keeps it in pz g_MenuControlsFont).
+void SRadioButton::CreateHD(int a2, int controlsFont)
+
+{
+  SDXWidget::Create(a2);
+  this->HdControlsFont = controlsFont;
+  this->TextFrame = Board->CreateFrame(FT_TEXT, this->BackFrame, 0x18, 0, 0, 0);
+  this->RadioFrame = Board->CreateFrame(FT_SPRITE, this->BackFrame, 4, 0, 0, 0);
+  this->Cursor = 0;   // 0x543970(0, -1)
+  this->Update();
+}
+
+// PANZERS 0x53ed30
+// HD Update (CreateHD widgets): controls glyph 0x11 / 0x12 (unchecked /
+// checked), 0x13 / 0x14 when disabled; text colour 0x666666 disabled,
+// 0xffffff hovered or pressed, else 0xd0d0d0; font 3; width = text + 0x18.
+void SRadioButton::UpdateHD()
+
+{
+  int width;
+  int height;
+  unsigned int color;
+  if ( this->BackFrame < 0 )
+    return;
+  if ( !this->Enabled )
+  {
+    Board->SetSpriteGlyph(this->RadioFrame, this->HdControlsFont, this->bChecked ? 0x14 : 0x13);
+    color = 0x666666;
+  }
+  else
+  {
+    Board->SetSpriteGlyph(this->RadioFrame, this->HdControlsFont, this->bChecked ? 0x12 : 0x11);
+    color = ( this->Pressed || this->Active ) ? 0xFFFFFF : 0xD0D0D0;
+  }
+  Board->SetTextColor(this->TextFrame, color);
+  Board->SetText(this->TextFrame, 3, 0, this->Text.buf ? this->Text.buf : "");
+  Board->GetFrameSize(this->TextFrame, &width, &height);
+  this->Resize(width + 0x18, height);
+}
+
 //----- (004909D0) --------------------------------------------------------
 
 void SRadioButton::Update()
 
 {
+  if ( this->HdControlsFont >= 0 )
+  {
+    this->UpdateHD();
+    return;
+  }
   bool bChecked; // al
   bool v4;
   char *v6; // edx

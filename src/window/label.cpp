@@ -13,8 +13,8 @@
 // Classes: SLabel
 // Function count: 11
 
-//----- (0048C9B0) --------------------------------------------------------
-
+// PANZERS 0x53bad0
+// HD: text "", colour 0xffffff, alignment 0 (+0x6c; SWINE had none).
 SLabel::SLabel()
 
 {
@@ -22,16 +22,17 @@ SLabel::SLabel()
   this->Text.buf[0] = '\0';
   this->Text.size = 0;
   this->Color = 0xFFFFFF;
+  this->Align = 0;
 }
 
-//----- (0048CAA0) --------------------------------------------------------
-
+// PANZERS 0x53bb90
+// HD makes a fixed-text frame (type 3); SWINE made a plain text frame.
 void SLabel::Create(int a2, int font)
 
 {
   SDXWidget::Create(a2);
   this->Font = font;
-  this->TextFrame = Board->CreateFrame(FT_TEXT, this->BackFrame, 0, 0, 0, 0);
+  this->TextFrame = Board->CreateFrame(FT_FIXTEXT, this->BackFrame, 0, 0, 0, 0);
   this->Update();
 }
 
@@ -138,8 +139,9 @@ void SLabel::SetTextV(const char *format, char *args)
   this->Update();
 }
 
-//----- (0048CD30) --------------------------------------------------------
-
+// PANZERS 0x53bc90
+// HD passes the alignment to SetText, moves the frame to x = Width when
+// right-aligned (1) and re-applies the colour every time.
 void SLabel::Update()
 
 {
@@ -147,7 +149,9 @@ void SLabel::Update()
   {
     Board->ResizeFrame(this->TextFrame, this->Width, this->Height);
     const char *buf = this->Text.buf ? this->Text.buf : "";
-    Board->SetText(this->TextFrame, this->Font, 0, buf);
+    Board->SetText(this->TextFrame, this->Font, this->Align, buf);
+    Board->MoveFrame(this->TextFrame, this->Align == 1 ? this->Width : 0, 0);
+    Board->SetTextColor(this->TextFrame, this->Color);
   }
 }
 

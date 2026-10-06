@@ -19,7 +19,7 @@
 //                alpha) into the pixie's dynamic VB, one draw per effect.
 //   1 Billboard  world-space vertical quads turned to the camera yaw
 //   2 Cloud      world-space horizontal quads
-//   3 Trail      world-space ribbons (not ported)
+//   3 Trail      world-space ribbons along the particle direction
 // The texture is one horizontal strip of TotalAnimFrames frames ("One
 // file"), or one file per frame ("More files"). BlendType 0 = alpha blend
 // from the texture alpha, 1 = additive (ONE/ONE, black fog).
@@ -31,6 +31,7 @@
 #include "effect.h"
 #include "effectrender.h"
 #include "pzpixie.h"
+#include "pzscene.h"
 #include "iviewport.h"
 #include "igepardhd.h"
 #include "logger.h"
@@ -410,9 +411,18 @@ SParticles::SParticles(SIScene* scene, SPParticles* proto, float lifeTime)
 // PANZERS 0x6e1230
 SParticles::~SParticles()
 {
-    if (Prototype->DrawType == 2 && SPixie::Instance())
+    if (Prototype->DrawType == 1) {
         for (SParticleData& p : Particles)
-            SPixie::Instance()->StopEffect(p.SubEffect);
+            static_cast<SIModel*>(p.Model)->Release();   // model +0x04
+    } else if (Prototype->DrawType == 2 && SPixie::Instance()) {
+        for (SParticleData& p : Particles) {
+            SPixie::Instance()->DestroyEffect(p.SubEffect);   // pixie +0x3c
+            SPixie::Instance()->StopEffect(p.SubEffect);      // pixie +0x34
+        }
+    } else if (Prototype->DrawType == 3 && TrailHandle >= 0) {
+        static_cast<SScene*>(Scene)->DestroySmokeTrail(TrailHandle);   // 0x6aa9e0
+        TrailHandle = -1;
+    }
 }
 
 // PANZERS 0x6e96b0
@@ -535,7 +545,7 @@ bool SParticles::Process()
 {
     SPParticles* pr = Prototype;
     if (pr->BirthStyle != 0 && Model && pr->Radius == 0.0f)
-        STUB_LOG("SParticles::Process birth from model (SModel +0x10)");
+        reinterpret_cast<SIModel*>(Model)->GetPosition(Pos);   // model +0x10: follow the birth model
     if (DurationLeft <= 0.0f || Active) {
         WaitLeft -= (float)((double)(unsigned)SceneFrameMs(Scene) * 0.001);
         if (0.0f < WaitLeft)
@@ -545,8 +555,18 @@ bool SParticles::Process()
             return false;
         if (r == 1)
             return true;
-        if (pr->DrawType == 3)
-            STUB_LOG("SParticles::Process trail (scene +0x80, smoketrail_a.tga)");
+        if (pr->DrawType == 3 && TrailHandle == -1) {
+            // HD loads and at once releases the trail texture (Gepard +0x44 /
+            // +0x48); nothing in HD sets TrailHandle, so the trail branch
+            // below never runs and Draw "Trail" particles only move.
+            SIGepardHD* g = PzGepard();
+            g->ReleaseTexture(g->LoadTexture("effects/media/smoketrail_a.tga", 1, true));
+        }
+        if (pr->DrawType == 3 && TrailHandle >= 0 && (PrevPos[0] != Pos[0] || PrevPos[1] != Pos[1] || PrevPos[2] != Pos[2])) {
+            // 0x5a38b0 on PrevPos (+0x10) is read as "the emitter moved" (not verified).
+            Scene->TrackSmokeTrail(TrailHandle, Pos[0], Pos[1], Pos[2], 1.0f, 1.0f);   // scene +0x80
+            return !Stopped;
+        }
         UpdateWind(Dt);
         bool alive;
         if (pr->MoveType == 0)
@@ -974,18 +994,29 @@ void SParticles::UpdateParticleSpins()
         InitParticleSpin(i);
 }
 
-// HD 0x6e5b80: Draw "Object" particles get a model from the scene (+0x58).
+// PANZERS 0x6e5b80
+// Draw "Object" particles get a model from the scene (+0x58, flag 1: drawn
+// without terrain cells) placed at the particle.
 void SParticles::InitParticleModel(int i)
 {
-    (void)i;
-    if (Prototype->DrawType == 1)
-        STUB_LOG("SParticles::InitParticleModel (0x6e5b80)");
+    if (Prototype->DrawType != 1)
+        return;
+    if (i < 0 || i >= (int)Particles.size())
+        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "struct SParticleData", i);
+    SIModel* m = Scene->CreateModelFromPrototype(Prototype->ModelProto, 1);
+    Particles[i].Model = m;
+    m->SetPosition(Particles[i].Pos[0], Particles[i].Pos[1], Particles[i].Pos[2]);
 }
 
 // PANZERS 0x6e9540
 void SParticles::RemoveParticle(int i)
 {
     SPParticles* pr = Prototype;
+    if (pr->DrawType == 1) {
+        if (i < 0 || i >= (int)Particles.size())
+            Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "struct SParticleData", i);
+        static_cast<SIModel*>(Particles[i].Model)->Release();   // model +0x04
+    }
     if (pr->DrawType == 2 && SPixie::Instance())
         SPixie::Instance()->StopEffect(Particles[i].SubEffect);
     if (i < 0 || i >= (int)Particles.size())
@@ -1058,7 +1089,7 @@ void SParticles::Render(SIViewport* vp)
 {
     SPParticles* pr = Prototype;
     if (pr->BirthStyle != 0 && Model && pr->Radius == 0.0f)
-        STUB_LOG("SParticles::Render birth from model (SModel +0x10)");
+        reinterpret_cast<SIModel*>(Model)->GetPosition(Pos);   // model +0x10
     if (pr->DrawType == 3)
         return;
     SetupMaterial();
@@ -1359,29 +1390,119 @@ void SParticles::RenderCloud(SIViewport* vp)
     }
 }
 
-// HD 0x6e5290: ParticleType 3, camera-facing ribbons along the particle
-// direction (TrailLength). Not used by the menu effects.
+// PANZERS 0x6e5290
+// ParticleType 3: world-space ribbons along each particle's direction
+// (+0x0c), turned to the camera (side = (pos - eye) x dir, normalized, times
+// the size). TrailOrientation 0 centres the ribbon on the particle (half
+// length on each side), 1 starts it there. Same vertex format, texture strip
+// and colour as the billboards.
 void SParticles::RenderTrail(SIViewport* vp)
 {
-    (void)vp;
-    STUB_LOG("SParticles::RenderTrail (0x6e5290)");
-    PZ_TRACE("SParticles::RenderTrail (0x6e5290)");
+    SPParticles* pr = Prototype;
+    SPixie* px = SPixie::Instance();
+    float cx = 0.0f, cy = 0.0f, cz = 0.0f, yaw, pitch;
+    vp->GetCamera(&cx, &cy, &cz, &yaw, &pitch);                // vp +0x24
+    int count = (int)Particles.size();
+    if (count == 0)
+        return;
+    float* out = nullptr;
+    int drawn = 0;
+    if (!pr->MultiFile)
+        out = EffectLockDynamicVB(px->WorldVB, count * 6);
+    for (int i = 0; i < count; ++i) {
+        if (pr->MultiFile) {
+            out = EffectLockDynamicVB(px->WorldVB, count * 6);
+            drawn = 0;
+        }
+        SParticleData& p = Particles[i];
+        float tz = p.Pos[2] - cz, ty = p.Pos[1] - cy, tx = p.Pos[0] - cx;
+        float sx = ty * p.Dir[2] - tz * p.Dir[1];
+        float sy = tz * p.Dir[0] - tx * p.Dir[2];
+        float sz = tx * p.Dir[1] - ty * p.Dir[0];
+        double inv = 1.0 / sqrt((double)(sy * sy + sx * sx + sz * sz));
+        float size = p.Size;
+        sx = (float)((double)sx * inv) * size;
+        sy = (float)((double)sy * inv) * size;
+        sz = (float)((double)sz * inv) * size;
+        float L = pr->TrailLength;
+        float ax, ay, az, bx, by, bz;
+        if (pr->TrailOrientation == 0) {
+            float hx = p.Dir[0] * size * 0.5f, hy = p.Dir[1] * size * 0.5f, hz = p.Dir[2] * size * 0.5f;
+            ay = (p.Pos[1] + hy * L) - sy * 0.5f;
+            ax = (p.Pos[0] + hx * L) - sx * 0.5f;
+            az = (p.Pos[2] + hz * L) - sz * 0.5f;
+            bx = (p.Pos[0] - hx * L) - sx * 0.5f;
+            by = (p.Pos[1] - hy * L) - sy * 0.5f;
+            bz = (p.Pos[2] - hz * L) - sz * 0.5f;
+        } else {
+            bx = p.Pos[0] - sx * 0.5f;
+            ay = (p.Pos[1] + p.Dir[1] * size * L) - sy * 0.5f;
+            ax = (p.Dir[0] * size * L + p.Pos[0]) - sx * 0.5f;
+            az = (p.Pos[2] + p.Dir[2] * size * L) - sz * 0.5f;
+            bz = p.Pos[2] - sz * 0.5f;
+            by = p.Pos[1] - sy * 0.5f;
+        }
+        float a2x = sx + ax, a2y = sy + ay, a2z = sz + az;
+        float b2x = sx + bx, b2y = sy + by, b2z = sz + bz;
+        float u0, u1;
+        if (!pr->MultiFile) {
+            u0 = (float)p.Frame * pr->InvTotalFrames;
+            u1 = (float)(p.Frame + 1) * pr->InvTotalFrames;
+        } else {
+            u0 = 0.0f; u1 = 1.0f;
+            s_Material.SetTexture(pr->FrameTex[p.Frame], false);   // 0x688d80
+        }
+        unsigned col = WorldColor(this, p, 1.0f);
+        ++drawn;
+        PutXYZ(out + 0,  bx, by, bz, col, u1, 1.0f);
+        PutXYZ(out + 6,  ax, ay, az, col, u1, 0.0f);
+        PutXYZ(out + 12, b2x, b2y, b2z, col, u0, 1.0f);
+        PutXYZ(out + 18, b2x, b2y, b2z, col, u0, 1.0f);
+        PutXYZ(out + 24, ax, ay, az, col, u1, 0.0f);
+        PutXYZ(out + 30, a2x, a2y, a2z, col, u0, 0.0f);
+        out += 36;
+        if (pr->MultiFile) {
+            EffectUnlockDynamicVB();
+            s_Material.Apply();
+            EffectDrawDynamicVB(D3DPT_TRIANGLELIST, drawn * 2);
+            EffectAdvanceDynamicVB(drawn * 6);
+            drawn = 0;
+        }
+    }
+    if (!pr->MultiFile) {
+        EffectUnlockDynamicVB();
+        s_Material.Apply();
+        EffectDrawDynamicVB(D3DPT_TRIANGLELIST, drawn * 2);
+        EffectAdvanceDynamicVB(drawn * 6);
+    }
 }
 
-// HD 0x6e5150: Draw "Object" (models per particle).
-void SParticles::RenderObjects(SIViewport* vp)
+// PANZERS 0x6e5150
+// Draw "Object": the particle models (scene models made by InitParticleModel)
+// follow their particles: position (+0x18) and spin (+0x20 yaw/pitch/roll).
+// The scene draws them with the other models.
+void SParticles::RenderObjects(SIViewport*)
 {
-    (void)vp;
-    STUB_LOG("SParticles::RenderObjects (0x6e5150)");
-    PZ_TRACE("SParticles::RenderObjects (0x6e5150)");
+    for (int i = 0; i < (int)Particles.size(); ++i) {
+        SParticleData& p = Particles[i];
+        SIModel* m = static_cast<SIModel*>(p.Model);
+        m->SetPosition(p.Pos[0], p.Pos[1], p.Pos[2]);
+        m->SetRotationYawPitchRoll(p.Spin[0], p.Spin[1], p.Spin[2]);
+    }
 }
 
-// HD 0x6e4660: Draw "Effect" (the sub-effects follow their particles).
-void SParticles::RenderSubEffect(SIViewport* vp)
+// PANZERS 0x6e4660
+// Draw "Effect": every particle carries a persistent sub-effect that follows
+// it with the particle's alpha and size.
+void SParticles::RenderSubEffect(SIViewport*)
 {
-    (void)vp;
-    STUB_LOG("SParticles::RenderSubEffect (0x6e4660)");
-    PZ_TRACE("SParticles::RenderSubEffect (0x6e4660)");
+    SPixie* px = SPixie::Instance();
+    for (int i = 0; i < (int)Particles.size(); ++i) {
+        SParticleData& p = Particles[i];
+        px->SetEffectPosition(p.SubEffect, p.Pos);                // pixie +0x4c
+        px->SetEffectAlphaScale(p.SubEffect, p.Alpha);            // 0x69f280
+        px->SetEffectSizeScale(p.SubEffect, p.Size);              // 0x69f3c0
+    }
 }
 
 } // namespace pz

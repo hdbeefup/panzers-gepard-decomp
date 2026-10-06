@@ -163,21 +163,14 @@ LABEL_14:
   }
 }
 
-//----- (00496150) --------------------------------------------------------
-
+// PANZERS 0x543300
+// HD only records the capture target; it never calls the Win32 SetCapture
+// (SWINE did). The window then routes every mouse event to the target while
+// the cursor is inside the client area (SWindow::GetEventTarget).
 void SWidget::CaptureMouse()
 
 {
-  SWindow *i; // esi
-  HWND v2;
   SWidget::CaptureTarget = this;
-  for ( i = (SWindow *)this->Parent; i; i = (SWindow *)i->Parent )
-  {
-    if ( i->IsWindow() )
-      break;
-  }
-  v2 = (HWND)*i;
-  SetCapture(v2);
 }
 
 //----- (00496190) --------------------------------------------------------
@@ -247,13 +240,7 @@ LABEL_10:
     {
       *target_x = x;
       *target_y = v5;
-      if ( SWidget::LastMouseTarget != this )
-      {
-        if ( SWidget::LastMouseTarget )
-          SWidget::LastMouseTarget->OnMouseOut();
-        SWidget::LastMouseTarget = this;
-        this->OnMouseOver();
-      }
+      this->SetMouseTarget();   // HD 0x543390 ends in 0x543a70
       return this;
     }
     else
@@ -553,16 +540,13 @@ void SWidget::ReleaseFocus()
   }
 }
 
-//----- (004966A0) --------------------------------------------------------
-
+// PANZERS 0x5437c0
+// HD: no Win32 ReleaseCapture (see CaptureMouse).
 void SWidget::ReleaseMouse()
 
 {
   if ( SWidget::CaptureTarget == this )
-  {
     SWidget::CaptureTarget = 0;
-    ReleaseCapture();
-  }
 }
 
 //----- (004966C0) --------------------------------------------------------
@@ -672,8 +656,9 @@ void SWidget::SendAction(int action, int param)
   }
 }
 
-//----- (00496850) --------------------------------------------------------
-
+// PANZERS 0x543990
+// HD then re-runs the window's hover test (0x545110), so a widget that gets
+// disabled under the cursor loses the hover at once.
 void SWidget::SetEnable(bool enable)
 
 {
@@ -681,14 +666,17 @@ void SWidget::SetEnable(bool enable)
   this->Enabled = enable;
   if ( !enable )
   {
-    if ( SWidget::CaptureTarget != this || (SWidget::CaptureTarget = 0, !this->Enabled) )
-    {
-      Parent = this->Parent;
-      if ( Parent->Focus == this )
-        Parent->Focus = this->FocusSibling;
-    }
+    if ( SWidget::CaptureTarget == this )
+      SWidget::CaptureTarget = 0;
+    Parent = this->Parent;
+    if ( Parent && Parent->Focus == this )
+      Parent->Focus = this->FocusSibling;
   }
   this->Update();
+  // Recompile: null checks (HD's widgets are always inserted in a window).
+  SWindow *w = (SWindow *)this->GetWindow();
+  if ( w )
+    w->UpdateMouse();
 }
 
 //----- (00496890) --------------------------------------------------------
@@ -734,17 +722,28 @@ void SWidget::SetGravity(int gravity)
   this->Gravity = gravity;
 }
 
-//----- (004968F0) --------------------------------------------------------
-
+// PANZERS 0x543a70
+// HD also tells the window (found from the new target, itself included):
+// window +0x80 HideStatusMessage(old target) after the old OnMouseOut, and
+// window +0x7c ShowStatusMessage(new target) after the new OnMouseOver
+// (SSuperWindow 0x658fc0 / 0x659020 show the hovered widget's status text).
 void SWidget::SetMouseTarget()
 
 {
   if ( SWidget::LastMouseTarget != this )
   {
+    SWindow *w = (SWindow *)this->GetWindow();
     if ( SWidget::LastMouseTarget )
-      SWidget::LastMouseTarget->OnMouseOut();
+    {
+      SWidget *old = SWidget::LastMouseTarget;
+      old->OnMouseOut();
+      if ( w )
+        w->HideStatusMessage(old);
+    }
     SWidget::LastMouseTarget = this;
     this->OnMouseOver();
+    if ( w )
+      w->ShowStatusMessage(this);
   }
 }
 
@@ -867,8 +866,9 @@ int SWidget::SetTimer(UINT elapse)
   return result;
 }
 
-//----- (00496B60) --------------------------------------------------------
-
+// PANZERS 0x543ca0
+// As SetEnable (0x543990) without the Update: HD re-runs the window's hover
+// test (0x545110) after every show / hide.
 void SWidget::SetVisible(bool visible)
 
 {
@@ -876,13 +876,15 @@ void SWidget::SetVisible(bool visible)
   this->Visible = visible;
   if ( !visible )
   {
-    if ( SWidget::CaptureTarget != this || (SWidget::CaptureTarget = 0, !this->Visible) )
-    {
-      Parent = this->Parent;
-      if ( Parent->Focus == this )
-        Parent->Focus = this->FocusSibling;
-    }
+    if ( SWidget::CaptureTarget == this )
+      SWidget::CaptureTarget = 0;
+    Parent = this->Parent;
+    if ( Parent && Parent->Focus == this )
+      Parent->Focus = this->FocusSibling;
   }
+  SWindow *w = (SWindow *)this->GetWindow();
+  if ( w )
+    w->UpdateMouse();
 }
 
 //----- (00496C10) --------------------------------------------------------
@@ -893,6 +895,88 @@ void SWidget::TranslateEventFromWindow(int *x, int *y)
   if ( !this->Parent->IsWindow() )
     this->Parent->TranslateEventFromWindow(x, y);
   this->ParentToChild(x, y);
+}
+
+// PANZERS 0x5435b0
+// The first widget from this one upwards (itself included) that is a window.
+SWidget *SWidget::GetWindow()
+
+{
+  SWidget *w = this;
+  while ( w && !w->IsWindow() )
+    w = w->Parent;
+  return w;
+}
+
+// PANZERS 0x5435d0
+// Position relative to the window: this widget's X/Y plus every parent's up
+// to (not including) the window.
+void SWidget::GetWindowPosition(int *x, int *y)
+
+{
+  SWidget *p = this->Parent;
+  *x = this->X;
+  *y = this->Y;
+  while ( p && !p->IsWindow() )
+  {
+    *x += p->X;
+    *y += p->Y;
+    p = p->Parent;
+  }
+}
+
+// PANZERS 0x543670
+// True when the focus chain reaches this widget from the root: every parent
+// has the child on the path as its Focus.
+bool SWidget::IsFocused()
+
+{
+  SWidget *w = this;
+  SWidget *p = this->Parent;
+  while ( p )
+  {
+    if ( p->Focus != w )
+      return false;
+    w = p;
+    p = p->Parent;
+  }
+  return true;
+}
+
+// PANZERS 0x543970
+// HD stores (cursor, variant) at +0x3c / +0x40; the SWINE SWidget has no
+// variant field (size tripwire), so the variant is dropped, as Board +0x9c's
+// variant argument is (docs/ENGINE_DIFF.md section 6).
+void SWidget::SetCursor(int cursor)
+
+{
+  this->Cursor = cursor;
+}
+
+// PANZERS 0x543c00
+// SString helper: the text, then " (<key name>)" when scanCode != 0
+// (GetKeyNameTextA of the scan code with the "don't care" bit 0x200).
+// SGameView Create 0x619c90 / 0x626290 build the command hints with it.
+void SWidget::FormatKeyHint(SString *out, const char *text, unsigned int scanCode)
+
+{
+  static char keyName[0x400];   // HD 0x8f1c70
+  *out = text ? text : "";
+  if ( !scanCode )
+    return;
+  GetKeyNameTextA((LONG)((scanCode | 0x200) << 16), keyName, sizeof(keyName));
+  char suffix[0x410];
+  _snprintf(suffix, sizeof(suffix) - 1, " (%s)", keyName);
+  suffix[sizeof(suffix) - 1] = 0;
+  int n = (int)strlen(suffix);
+  int old = out->size;
+  char *buf = new char[old + n + 1];
+  if ( out->buf )
+    memcpy(buf, out->buf, old);
+  memcpy(buf + old, suffix, n + 1);
+  delete[] out->buf;
+  out->buf = buf;
+  out->size = old + n;
 }
 
 // ============================================================

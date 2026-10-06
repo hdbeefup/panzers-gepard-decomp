@@ -490,3 +490,151 @@ How HD behaves when the window is resized or maximized (the window is resizable,
 - **Maximize:** see `WM_WINDOWPOSCHANGING` above: HD's maximized client is the full screen.
 - **Not ported:** `SViewport::Resize`'s subport scaling, the board +0xc4 hardware-cursor refresh, and the full-screen projection branch (the SWINE device handles full-screen mode).
 - **Mod, not HD:** `PANZERS_MOD_WIDESCREEN` (OFF by default, `src/core/mods.h`, `src/panzers/mod_widescreen.*`) replaces this behaviour on windows wider than 4:3. The root scaler gets a virtual size of (768 * w / h) x 768, so the UI keeps its aspect; top-level widgets are moved by the extra width (right-aligned ones, X + width at the 1024 edge) or half of it (the rest); the top and bottom bars are centred and extended with 230-px tiles cut from their own textures; `GetEventTarget` maps through the same virtual width; and the projection keeps the 4:3 vertical field of view (m11 = 4/3 / tan(fov/2), m00 = m11 * h / w). The hooks sit in `#if PANZERS_MOD_WIDESCREEN` blocks; with the switch off, the default build's `.text`, `.data` and `.rsrc` are byte-identical, and `.rdata` differs only in the debug directory.
+
+## M3 widget audit (M3-E)
+
+Scope: the E rows of `docs/re/m3_coverage.tsv` in lib/net/ui and ui (0x44819c..0x545fd0), the shell
+rows 0x634a70 / 0x63f240 / 0x64bd50 / 0x64c2a0, and SMessageBox 0x53e0d0. Each HD function was read
+in Ghidra (decompile, and disassembly where the decompile was unclear), placed by its vftable slot and
+callers, and compared with the SWINE-shared body in `src/window` by behaviour (the layouts differ,
+section 4). Several worklist class labels were wrong; the "class" column below is the real one.
+
+**Summary (111 rows):** 33 match · 12 differed and were fixed (`// PANZERS`) · 10 HD-only, lifted ·
+11 differ, not fixed (reason given) · 3 HD-only, not lifted · 25 lifted by agent H · 17 n/a.
+
+Verdicts: **M** matches, **F** differed, fixed, **L** HD-only, lifted, **D** differs, not fixed,
+**X** HD-only, not lifted, **H** lifted by H (hudwidgets.cpp / market.cpp / minimap), **n/a** library or
+compiler artefact.
+
+| HD | Class | Role | V | Note |
+|---|---|---|---|---|
+| 0x44819c, 0x44b63e, 0x44b709, 0x44c332, 0x44c36c, 0x4bdf82, 0x4c721f | D3DX (static lib) | thunk, vertex-declaration builders, sincos | n/a | statically linked D3DX code, not game code |
+| 0x537a20, 0x537a80, 0x537b30, 0x537bc0, 0x537bf0, 0x537c40, 0x537d10, 0x537d60, 0x537df0 | SButton | ctor, Create, OnMouseDown/Out/Over/Up, SetGlyphs, SetState, SetStuck | H | lifted by H (hudwidgets.cpp). The SWINE body in `window/button.cpp` (still used by credits and the main menu) differs in two places, see "Not changed" |
+| 0x537ae0 | SWidget (folded) | +0x44 OnAction: return false | M | |
+| 0x537af0 | SWidget (folded) | +0x1c OnChar: return false | M | |
+| 0x5387c0, 0x538a10 | SComplexButton | GetText (SString copy), SetText (+ board SetText, Update) | X | the class lives in `src/panzers/mainmenu.cpp`; lift there |
+| 0x539930 | SDXWidget | dtor: DestroyFrame(BackFrame), ~SWidget | M | SWINE also frees its tooltip frame / font |
+| 0x539b10, 0x539b20, 0x539b30, 0x539b40 | SDXWidget | +0x24 OnMouseDown, +0x2c Move, +0x38 Out, +0x28 Up: empty | M | SWINE's tooltip code in these runs only after `SetTooltipText`, which no Panzers code calls |
+| 0x539b90 | SDXWidget | setter of +0x54 | X | field meaning unknown (callers SGameView Create, 0x62fcb0, 0x53b2b0); no SWINE field |
+| 0x539c40 | SDXWidget | +0x6c SetVisible: SWidget::SetVisible, board ShowFrame | M | |
+| 0x539f10 | SDXWindow | +0xb4 IsFullScreen | M | |
+| 0x53a170 | SDXWindow / SWindow | +0x38 OnMouseOut: empty | M | |
+| 0x53a750, 0x53adf0, 0x53ae10, 0x53ae80 | SEditBox | Create(font, framed), OnTimer caret blink (500 ms), SetText, Update | D | SWINE editbox draws the SWINE skin; HD uses the controls glyphs, frame types 3 / 1 and caret glyph 0x7c. Unused in the recompile; HD users: SGameView Create 0x619c90 (chat line), SEditBoxWithText. Lift with its first consumer |
+| 0x53b200, 0x53b2d0 | SEditBoxWithText | Create, SetLabel | D | as SEditBox |
+| 0x53b1a0, 0x53b450, 0x53b2c0, 0x53b360 | SEditBoxWithText / SInputDialog | dtor bodies (member dtors), thunks to SetFocus 0x5439f0 / SetText 0x53ae10 | n/a | compiler artefacts |
+| 0x53b480, 0x53b5c0, 0x53ba60 | SInputDialog | dtor, Create(title, label, text, type 0/1/4), +0x6c SetVisible (modal) | D | HD dialogs are non-blocking widgets that go modal through `SWindow::SetModalWidget` (now lifted) and answer with actions; SWINE's are blocking `RunModal` dialogs. Market 0x6407d0 and SGameView use it: lift with H |
+| 0x53bad0 | SLabel | ctor: colour 0xffffff, alignment 0 | F | `Align` added (HD +0x6c) |
+| 0x53bb90 | SLabel | Create: fixed-text frame (type 3) | F | SWINE made type 2 |
+| 0x53bc00, 0x53bc30 | SLabel | +0x08 SetPosition + Update, SetText | M | |
+| 0x53bc90 | SLabel | +0x78 Update: resize, SetText(font, align), move to x = W when right-aligned, SetTextColor | F | SWINE ignored align and colour here |
+| 0x53e0d0, 0x53e190, 0x53e2d0, 0x53e3b0, 0x53e6e0, 0x53e890, 0x53e8d0, 0x53e9a0 | SMessageBox | ctor, dtor, deleting dtor, Create(title, text, type, modal), OnAction (0x4d581..0x4d585), send result, SetTarget, SetVisible (modal) | H | lifted by H (hudwidgets.cpp). The SWINE `window/messagebox.cpp` is a different (blocking) class |
+| 0x53e910, 0x541860, 0x541910, 0x5419d0 | STextBox | SetText, SGenericListBox<STextBoxLine> ctor, ctor, dtor | H | lifted by H (hudwidgets.cpp) |
+| 0x53e9f0, 0x53ea70 | SRadioButton | ctor ("SRadioButton"), dtor | M | |
+| 0x53eaf0 | SRadioButton | Create: text frame at x 0x18, glyph frame at x 4, controls font, cursor 0 | L | `SRadioButton::CreateHD(a2, controlsFont)` |
+| 0x53eb70, 0x53ec30 | SRadioButton | OnMouseDown, OnMouseUp (radiobutton.wav, checked, 0x42542) | M | |
+| 0x53ebc0 | SRadioButton | OnMouseOut | F | HD order: hover off and redraw, then the SDXWidget handler |
+| 0x53ebe0 | SRadioButton | OnMouseOver | F | SWINE also sent its gamepad action 0x4f501 first |
+| 0x53ecd0, 0x53ecf0 | SRadioButton | SetCheck, SetText | M | |
+| 0x53ed30 | SRadioButton | Update | L | `UpdateHD`: glyphs 0x11 / 0x12 (0x13 / 0x14 disabled), colours 0xd0d0d0, 0xffffff hovered, 0x666666 disabled, font 3, width + 0x18. Used after CreateHD; the SWINE skin stays for `Create` |
+| (none) | SRadioButton | SWINE OnKeyDown / SetFocus overrides | F | removed: HD has neither (+0x14 is the default; SetFocus is not virtual in HD) |
+| 0x541960, 0x545fd0 | SDArray<...> | element cleanup loops | n/a | container instances |
+| 0x543040 | SWidget | ctor | D | HD starts X / Y at 0x80000000 (the "centre me" sentinel of SWindow::Create) and clears +0x04..+0x10 / +0x40. Kept at 0: SWindow::Create already centres from options.ini, and recompiled widgets that never call SetPosition would land at -2^31 |
+| 0x5430e0 | SWidget | dtor | M | |
+| 0x543250 | SHeap<STimer> | Add | n/a | container instance |
+| 0x543300 | SWidget | CaptureMouse | F | HD only sets the capture target; no Win32 SetCapture |
+| 0x543310 | SWidget | +0x60 ParentToChild | M | |
+| 0x543330 | SWidget | static capture-target getter | n/a | SWINE reads the static member |
+| 0x543340 | SWidget | GetCurrentCursor (cursor and variant of the first target with one) | M | the variant (+0x40) has no SWINE field; board +0x9c ignores it anyway |
+| 0x543390 | SWidget | +0x5c GetEventTarget | M | HD handles the capture here (walks the capture's parents, converts down); SWINE does it in SWindow::GetEventTarget, with the same result. The leaf now goes through SetMouseTarget, as in HD |
+| 0x543560, 0x543580 | SWidget | key event target (focus chain), +0x04 GetPosition | M | |
+| 0x5435b0 | SWidget | the window (this or a parent) | L | `GetWindow()` |
+| 0x5435d0 | SWidget | position relative to the window | L | `GetWindowPosition()` |
+| 0x543630, 0x5437e0 | SWidget | +0x54 InsertChild, +0x58 RemoveChild | M | |
+| 0x543670 | SWidget | on the focus path from the root | L | `IsFocused()` |
+| 0x543690, 0x543b10 | SWidget | KillTimer, SetTimer | M | |
+| 0x5437c0 | SWidget | ReleaseMouse | F | no Win32 ReleaseCapture |
+| 0x543890, 0x543af0, 0x543930 | SWidget | +0x10 Resize (gravity), +0x08 SetPosition, SendAction | M | |
+| 0x543970 | SWidget | SetCursor(cursor, variant) | L | `SetCursor(cursor)`; the variant is dropped (no field) |
+| 0x543990 | SWidget | +0x70 SetEnable | F | HD re-runs the window hover test (UpdateMouse 0x545110) |
+| 0x5439f0 | SWidget | SetFocus (iterative, not virtual in HD) | M | SWINE recurses through the virtual; no Panzers parent overrides it |
+| 0x543a60 | SString | assign thunk | n/a | |
+| 0x543a70 | SWidget | SetMouseTarget | F | HD calls window +0x80 HideStatusMessage(old) and +0x7c ShowStatusMessage(new) |
+| 0x543c00 | SWidget (static) | text + " (<key name>)" | L | `SWidget::FormatKeyHint` (SGameView command hints) |
+| 0x543ca0 | SWidget | +0x6c SetVisible | F | HD re-runs the window hover test |
+| 0x544a50 | SWindow | EventFrame (record / playback) | M | |
+| 0x544c20 | SWindow | last mouse position | L | `GetLastMousePosition` (SGameView mouse handlers) |
+| 0x544fe0, 0x5450e0 | SWindow | SetModalWidget, UnsetModalWidget | L | non-blocking modal (training menu, market, SSuperWindow 0x659250); SWINE's GetEventTarget already honours `ModalTarget` |
+| 0x545110 | SWindow | UpdateMouse | F | HD also sends OnMouseMove(x, y, last buttons) to the target |
+| 0x545150 | SWindow | static WindowProc (hwnd registry) | D | SWINE keeps one window (section 1) |
+| 0x545200 | SWindow | +0x98 WindowProc | F (part) | Fixed: the wheel hit-tests at the last client mouse position (SWINE used screen minus window position); no WM_GETMINMAXINFO case (SWINE forced an 800x600 minimum). Not changed: HD calls OnSetCursor for every hit-test code (SWINE only for HTCLIENT, so the resize cursors still show); HD passes the scan code `(lParam >> 16) & 0x1ff` as OnKeyDown / OnKeyUp's 2nd argument (SWINE passes the repeat bit; no Panzers handler reads it); during event playback HD still lets the 'O' key through. SWINE extras kept: WM_CREATE DPI, WM_ACTIVATEAPP, cursor clipping. The body keeps its SWINE marker |
+| 0x634a70 | SMainMenu | deleting dtor | n/a | the dtor 0x633cd0 is lifted |
+| 0x63f240 | SGenericListBox<SMarketListBoxItem> | ctor | H | market |
+| 0x64bd50 | SFullScreenMenu | Create(title) | H | lifted by H (market.cpp) |
+| 0x64c2a0 | SMinimap | ctor | H | minimap |
+
+**Behaviour changes for H (and anyone using the SWINE widgets):**
+- Showing, hiding, enabling or disabling a widget makes its window re-test the hover at the last mouse
+  position, so OnMouseOut / OnMouseOver / OnMouseMove can fire at that moment.
+- Every hover change calls the window's `HideStatusMessage(old)` / `ShowStatusMessage(new)` (empty in
+  SWindow; SSuperWindow's HD versions 0x658fc0 / 0x659020 are not lifted yet).
+- `CaptureMouse` no longer grabs the Win32 mouse: a button released outside the client area is not
+  seen (as in HD).
+- New: `SWindow::SetModalWidget` / `UnsetModalWidget` (panic on a second modal widget or a wrong
+  unset), `SWidget::GetWindow`, `GetWindowPosition`, `IsFocused`, `SetCursor`, `FormatKeyHint`,
+  `SWindow::GetLastMousePosition`.
+- `SRadioButton` no longer handles keys or `SetFocus` and no longer sends 0x4f501; `CreateHD` gives the
+  HD look (pass `pz::g_MenuControlsFont`).
+- `SLabel` uses a fixed-text frame, applies `Align` and re-applies the colour in Update.
+
+**Not changed, reported:**
+- SWINE `SButton` (`window/button.cpp`, used by credits and the main menu): OnMouseOver also sends
+  0x4f501 (HD 0x537bf0 does not), and SetState shows the pressed glyph when stuck, where HD 0x537d60
+  shows the special glyph if there is one, else the pressed glyph.
+- `SSuperWindow::GetEventTarget` (superwindow.cpp) stores the raw client position in LastMouseX/Y and
+  then calls `SDXWindow::GetEventTarget`, which overwrites them with the 1024x768 virtual position;
+  HD 0x657850 does not chain, so +0x80 / +0x84 stay raw. UpdateMouse and the wheel re-map the stored
+  position, which is only right at 1024x768.
+
+**Not verified:** the SRadioButton HD skin and SLabel alignment at run time (no user yet); the HD
+SetFocus / GetEventTarget equivalence was read, not traced.
+
+## M3 effects, sound effects and viewport (M3-E)
+
+`src/3dengine/pz/effecttypes.cpp` lifts the .fx effect types the Training Camp trace creates
+(HD instance counts in that run: sound 1,411, lite 1,446, trail 94, decal 77, camera shake 28):
+
+| Type | Prototype / instance (HD) | What it drives |
+|---|---|---|
+| 4 decal | SPDecalEffect 0x6ea0f0 / SDecalEffect 0x6e9f70 | a terrain effect decal (STerrain +0x60..+0x74, scale 0x6f89e0): alpha and scale tracks over Duration, random texture of up to 8, optional random rotation; "RealTime" uses the STimer instead of scene time |
+| 5 sound | SPSoundEffect 0x6ec900 / SSoundEffect 0x6ecb90 | SMilesConcert (0x92e798). One-shots: one of up to 3 files, 2D `PlaySoundById` (+0x54) or 3D `PlaySound3DByIdEx` (+0x5c), then the instance dies. Looping: `CreateSoundByIdEx` (+0x30) / `CreateSound3DByIdEx` (+0x38) once, then volume (+0x48), position (+0x40) and frequency (+0x44, `(int)(speed * 30000 + 14100)`) from SEffect +0x30 SetSpeed (SDriver::SetEffectsSpeed 0x55c900) |
+| 7 lite | SPLiteEffect 0x6ed790 / SLiteEffect 0x6ed700 | a scene point light (+0x30 / +0x34 / 0x6bab60 / +0x38) with a brightness track; "Altitude" puts it that high above the terrain |
+| 8 trail | SPTrailEffect 0x6edcd0 / STrailEffect 0x6edf40 | a scene smoke trail (SIScene +0x7c..+0x88, drawn by `SScene::DrawSmokeTrails` 0x6b7b30) |
+| 10 camera shake | SPCameraShake 0x6ee390 / SCameraShake 0x6ee260 | two sines per axis (fixed frequencies, random phases) times the amplitude track; positional shakes scale by 30 / distance^2; added to the viewport eye offset +0xc0 (0x6ee4d0), which the next SetCamera applies |
+
+Particles gain Draw "Object" (scene models per particle, 0x6e5b80 / 0x6e5150, released in 0x6e9540 /
+0x6e1230), Draw "Effect" (a persistent sub-effect per particle, 0x6e4660 with SPixie 0x69f280 /
+0x69f3c0) and ParticleType 3 ribbons (0x6e5290). Flare, rain, snow, atmosphere, shock wave and
+sandstorm are still logged stubs (no instance on the Training Camp path).
+
+**Sound effects work with the existing Miles concert**: every concert slot SSoundEffect needs was
+already lifted (`src/sound/milesconcert.*`). pz3d links `sound` and defines `PZ_AUDIO_MILES` on the
+miles backend; other backends keep a logged stub. The menu's looping ambient sounds now play too, as
+in HD. **Missing for positional sounds:** HD's `SWorld::ComputeCamera` 0x5ddc30 sets the 3D listener
+after each SetCamera (concert +0x08 with &eye +0x70, &forward +0x7c, &up +0x94; three call sites);
+the recompile's ComputeCamera has a comment there instead, so 3D sounds are heard from the origin.
+
+Viewport (`pzviewport.cpp`): ScreenToRay +0x34 (0x689c20, picking; 126k calls in the HD trace),
+GetSelectionPlanes +0x38 (0x6898b0 + 0x688df0, box select), GetGroundCorners +0x44 (0x68b940, the
+minimap view frame; 77k calls), CreateSubport / DestroySubport / GetSubportCount +0x54 / +0x58 /
++0x60 (the old "SelectSubport" names came from a panic text), SetPosition +0x00 (sub viewports only)
+and the inverse screen matrix of 0x68c070. Sub viewports keep their camera and rectangle but are not
+drawn: HD's subport render path is not lifted.
+
+`SBitmap::NextMipLevel` 0x66f100 differs from SWINE's: HD also halves 8-bit and 24-bit bitmaps (the
+save-game thumbnail path through 0x68b5b0). The HD body is lifted, including HD's 8-bit row bug
+(pixel 2x averaged with 2x + 4).
+
+**Deviations / not verified:** the shake uses `sin` for the SSE2 CRT helper 0x78d480 (sin or cos;
+the phases are random, so only the phase differs). SDecalEffect and SLiteEffect skip the terrain
+when a scene has none (fxview). fxview renders nothing on this tree, also for the old menu effects
+(pre-existing, not fixed), so the new types were checked in the game only.

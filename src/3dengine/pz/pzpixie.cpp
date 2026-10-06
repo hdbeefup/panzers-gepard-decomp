@@ -455,18 +455,34 @@ void SPixie::SetEffectDirection(int effect, const float* dir)
         Effects[effect]->SetDirection(dir);
 }
 
-// HD SPixie vtbl +0x54 -> 0x69f460 (2 arg dwords): SEffectSet +0x18.
-void SPixie::Slot_54()
+// PANZERS 0x69f460
+void SPixie::SetEffectParam18(int effect, int p)
 {
-    STUB_LOG("SPixie::Slot_54 (0x69f460)");
-    PZ_TRACE("SPixie::Slot_54 (0x69f460)");
+    PZ_TRACE("SPixie::SetEffectParam18 (0x69f460)");
+    if (Effects.Valid(effect) && Effects[effect])
+        Effects[effect]->Slot_18(p);                          // set +0x18
 }
 
-// HD SPixie vtbl +0x58 -> 0x69f320 (2 arg dwords): SEffectSet::SetModel 0x6df2c0.
-void SPixie::Slot_58()
+// PANZERS 0x69f320
+void SPixie::SetEffectModel(int effect, int model)
 {
-    STUB_LOG("SPixie::Slot_58 (0x69f320)");
-    PZ_TRACE("SPixie::Slot_58 (0x69f320)");
+    PZ_TRACE("SPixie::SetEffectModel (0x69f320)");
+    if (Effects.Valid(effect) && Effects[effect])
+        Effects[effect]->SetModel(model);                     // 0x6df2c0
+}
+
+// PANZERS 0x69f280
+void SPixie::SetEffectAlphaScale(int effect, float s)
+{
+    if (Effects.Valid(effect) && Effects[effect])
+        Effects[effect]->SetAlphaScale(s);                    // 0x6df1b0
+}
+
+// PANZERS 0x69f3c0
+void SPixie::SetEffectSizeScale(int effect, float s)
+{
+    if (Effects.Valid(effect) && Effects[effect])
+        Effects[effect]->SetSizeScale(s);                     // 0x6df3e0
 }
 
 // PANZERS 0x69dc20
@@ -498,7 +514,8 @@ void SPixie::SetEffectSpeed(int effect, float p1, float p2)
 // `data` is "N.Data" {Enabled, Name, PriorityLayer, ForceUpdate,
 // EffectType}. Note that HD never reads "Enabled" (the effect editor's
 // switch): disabled entries play too. The EffectType alternative picks the
-// class; only particles (0) are ported, the other types log and are skipped.
+// class; particles (0), decals (4), sounds (5), lights (7), smoke trails (8)
+// and camera shakes (10) are ported, the other types log and are skipped.
 int SPixie::InitEffectPrototype(int proto, const char* name, SPropertyStruct* data)
 {
     PZ_TRACE("SPixie::InitEffectPrototype (0x69d6a0)");
@@ -520,13 +537,23 @@ int SPixie::InitEffectPrototype(int proto, const char* name, SPropertyStruct* da
     case 1:  STUB_LOG("SPFlare (EffectType 1, 0x6df880)"); break;
     case 2:  STUB_LOG("SPRain (EffectType 2, 0x6ea820)"); break;
     case 3:  STUB_LOG("SPSnowfall (EffectType 3, 0x6eb5e0)"); break;
-    case 4:  STUB_LOG("SPDecalEffect (EffectType 4, 0x6ea0f0)"); break;
-    case 5:  STUB_LOG("SPSoundEffect (EffectType 5, 0x6ec900)"); break;
+    case 4:
+        e = new SPDecalEffect();        // new 0x68, 0x6ea0f0
+        break;
+    case 5:
+        e = new SPSoundEffect();        // new 0x60, 0x6ec900
+        break;
     case 6:  STUB_LOG("SPAtmosphere (EffectType 6, 0x694100)"); break;
-    case 7:  STUB_LOG("SPLiteEffect (EffectType 7, 0x6ed790)"); break;
-    case 8:  STUB_LOG("SPTrailEffect (EffectType 8, 0x6edcd0)"); break;
+    case 7:
+        e = new SPLiteEffect();         // new 0x48, 0x6ed790
+        break;
+    case 8:
+        e = new SPTrailEffect();        // new 0x58, 0x6edcd0
+        break;
     case 9:  STUB_LOG("SPShockWave (EffectType 9, 0x6de5a0)"); break;
-    case 10: STUB_LOG("SPCameraShake (EffectType 10, 0x6ee390)"); break;
+    case 10:
+        e = new SPCameraShake();        // new 0x30, 0x6ee390
+        break;
     case 11: STUB_LOG("SPSandstorm (EffectType 11, 0x6ee8e0)"); break;
     default: {
         SPEffectSet* set = Prototypes[proto];

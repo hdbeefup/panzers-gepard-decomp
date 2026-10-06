@@ -230,6 +230,7 @@ struct STerrain : SITerrain {
     void  NormalAt(float out[3], int x, int z) const;       // 0x6f4f60
     void  RenderRoads(SViewport* vp, bool shadowPass);      // 0x6f7810 STerrain::RenderRoads
     void  RenderEffectDecals(bool shadowPass, int pass);    // 0x6f6640
+    void  SetEffectDecalScale(int decal, float scale);      // 0x6f89e0 (SDecalEffect render)
     void  RenderFlora(SViewport* vp);                               // 0x6f33c0 flora part
     void  UpdateDecal(int index);                           // 0x6f5cf0
     void  FreeRoadMeshes(SHdHeap<SRoadMesh>* heap);         // 0x6f1ec0

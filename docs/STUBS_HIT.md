@@ -96,12 +96,12 @@ Stubs hit on the default path (first-call names):
 |---|---|---|
 | `SSuperWindow::Initialize Gepard render options (Gepard +0x10)` | shell | Initialize. Also why the scene renders as with `Shadows = 0` (Gepard option 2 stays 0) |
 | `DrawDebugPickerOverlayFromGepard`, `SVersion::GetVersionString (0x65c070)` | shell | as before |
-| `SScene::ClearSkybox (0x6aa9a0)` | A | KSYB (empty in menu.map) |
-| `SPSoundEffect (EffectType 5, 0x6ec900)`, `SPRain (EffectType 2, 0x6ea820)`, `SPSnowfall (EffectType 3, 0x6eb5e0)` | C | effect prototypes (sound, Rain.fx, Snowfall.fx in Initialize) |
+| ~~`SScene::ClearSkybox (0x6aa9a0)`~~ | A | KSYB (empty in menu.map). M3-E: lifted with `SetSkybox 0x6a96c0` and `DrawSkybox 0x6b7920` (`pzscene_m3.cpp`) |
+| ~~`SPSoundEffect (EffectType 5, 0x6ec900)`~~ (M3-E: lifted, `effecttypes.cpp`), `SPRain (EffectType 2, 0x6ea820)`, `SPSnowfall (EffectType 3, 0x6eb5e0)` | C | effect prototypes (sound, Rain.fx, Snowfall.fx in Initialize) |
 | `SGameLogic::SGameLogic (0x55e440)`, `SetRunning (0x5802f0)`, `~SGameLogic (0x55fe00)` | M2 | LoadMenuBackground / Exit |
 | `SGameLogic::Refresh (0x576d80)` | M2 | every 20 Hz tick; only its model part runs (`SWorld::RefreshModels`) |
 | `SGameLogic::UpdateUnitVisuals (0x5638f0)` | M2 | every frame |
-| `SScene::DrawSea (0x6b04d0)`, `DrawSkybox (0x6b7920)`, ~~`DrawTerrainDecals (0x6ad0e0)`~~, `DrawLines (0x6acf20)` (was `DrawTrails`), `DrawLakes (0x6ad740)`, `DrawWires (0x6b8b10)`, `DrawDecals2 (0x6b7b30)` | A | every frame (nothing to draw in menu.map, except the wires). M2-V: 0x6ad0e0 is the ground-trail (track mark) pass, lifted as `SScene::DrawGroundTrails`; 0x6acf20 draws the +0x270 point pairs, renamed `DrawLines` |
+| `SScene::DrawSea (0x6b04d0)`, ~~`DrawSkybox (0x6b7920)`~~, ~~`DrawTerrainDecals (0x6ad0e0)`~~, `DrawLines (0x6acf20)` (was `DrawTrails`), `DrawLakes (0x6ad740)`, ~~`DrawWires (0x6b8b10)`~~, ~~`DrawDecals2 (0x6b7b30)`~~ | A | every frame (nothing to draw in menu.map, except the wires). M2-V: 0x6ad0e0 is the ground-trail (track mark) pass, lifted as `SScene::DrawGroundTrails`; 0x6acf20 draws the +0x270 point pairs, renamed `DrawLines`. M3-E: 0x6b7b30 is `SScene::RenderSmokeTrails`, lifted as `DrawSmokeTrails` with the smoke-trail slots +0x7c..+0x88 and 0x6aa9e0; `DrawWires 0x6b8b10` lifted with the wire slots (`CreateWire` +0xc8, `UpdateWire` +0xcc, `DestroyWire` +0xd0, catenary 0x6c05d0); the menu wires appear once the world's LoadWires 0x5f3d60 (agent F) calls `CreateWire`. Sea, lines and lakes are not reached by the Training Camp either |
 
 No longer hit since M1-D: `SPixie::SPixie`, `SScene::SScene`, the scene
 light setters, `SGepard::LoadModelPrototype`, `SScene::CreateTerrain`,
@@ -155,9 +155,9 @@ Stubs hit on the M2 path, besides the shell / menu3d ones listed above
 | `SSingleUnit::UpdateVisuals (0x5aaaa0) board and armour decals` | board part of 0x5aaaa0 | every frame (no health bars) |
 | `SBuildingUnit 0x546f70 building eye heights` | 0x546f70 (engine model +0x100 / +0xd8) | map load (visibility map eye heights next to the house) |
 | `SPanzersSquadUnit::Hook20 (0x59fab0) equipment slots` | 0x59fab0 | squad creation |
-| `SModel::Slot_CC (0x6dad80)`, `SPixie::Slot_14 (0x69ee50)`, `SPUnitAnimation::Slot_0C (0x5cb470)` | engine / animation slots | unit creation (shadow texture, effect, animation prototype hook) |
-| `SPTrailEffect (EffectType 8)`, `SPDecalEffect (4)`, `SPLiteEffect (7)`, `SPCameraShake (10)` | 0x6edcd0 / 0x6ea0f0 / 0x6ed790 / 0x6ee390 | effect prototypes of the units (M2-V: the die / destroy / gunner effects load now, so the camera shake shows up too) |
-| ~~`SPParticles::Init Draw=Object (Gepard +0x20 model prototype)`~~ (lifted in M2-V; drawing object particles, 0x6e5b80, is still a stub, not reached) | 0x6e5eb0 case 1 | die / destroy effect prototypes |
+| `SModel::Slot_CC (0x6dad80)`, `SPixie::Slot_14 (0x69ee50)`, `SPUnitAnimation::Slot_0C (0x5cb470)` | engine / animation slots | unit creation (shadow texture, effect, animation prototype hook). M3-E: 0x6dad80 sets the blob-shadow texture (+0xec, drops the +0xf0 terrain decal); left a stub because the decal that uses it is not lifted and lifting it alone would remove the units' shadow-buffer shadows. `SPixie::Slot_14` 0x69ee50 is the effect editor's save: `SUnit::Uninit` 0x5b7e40 calls it by mistake for pixie +0x34 StopEffect (agent C's file) |
+| ~~`SPTrailEffect (EffectType 8)`, `SPDecalEffect (4)`, `SPLiteEffect (7)`, `SPCameraShake (10)`~~ (M3-E: lifted, `effecttypes.cpp`) | 0x6edcd0 / 0x6ea0f0 / 0x6ed790 / 0x6ee390 | effect prototypes of the units (M2-V: the die / destroy / gunner effects load now, so the camera shake shows up too) |
+| ~~`SPParticles::Init Draw=Object (Gepard +0x20 model prototype)`~~ (lifted in M2-V; M3-E lifted the drawing too: 0x6e5b80, 0x6e5150, and Draw=Effect 0x6e4660, ParticleType 3 0x6e5290) | 0x6e5eb0 case 1 | die / destroy effect prototypes |
 
 No longer hit: `SGameLogic::Refresh (0x576d80)` and `UpdateUnitVisuals
 (0x5638f0)` as stubs, `SGameLogic::Tick_565e10` (visibility maps lifted),
@@ -167,3 +167,23 @@ No longer hit: `SGameLogic::Refresh (0x576d80)` and `UpdateUnitVisuals
 `SPanzersSquadUnit::RefreshSquadFormation (0x59dda0)`, and the SModel slots
 +0x38 / +0x48 / +0x4c / +0x50 / +0x54 / +0x58 / +0x64 / +0x68 / +0x78 /
 +0x80 / +0x84 / +0x88 / +0xa8 / +0xc0 / +0xdc / +0xf0 (named and lifted).
+
+## M3-E: engine gaps on the Training Camp path
+
+Branch `m3e-engine` (worktree of `menu-3d`, merged with its forks `m3e-scene` and `m3e-widgets`).
+Census `1613 lifted + 1317 SWINE-shared + 361 stubs (22 shell, 82 menu3d skeleton, 153 m2 skeleton,
+104 m3 skeleton)` (M3 start: `1511 + 1331 + 391`; 13 SWINE-shared widget bodies became `// PANZERS`
+bodies in the widget audit, docs/ENGINE_DIFF.md "M3 widget audit").
+
+Replaced stubs: the effect types decal / sound / lite / trail / camera shake, the particle draw types
+object / sub-effect / trail and the birth-model follow, SPixie +0x54 / +0x58, the scene smoke trails,
+skybox and wires (`pzscene_m3.cpp`), the viewport picking / subport slots +0x00 / +0x34 / +0x38 /
++0x44 / +0x54 / +0x58 / +0x60 / +0x7c / +0x80.
+
+Stubs still hit on `-nointro -m3` (Training Camp round trip, engine side): `SModel::Slot_CC
+(0x6dad80)` (see above), `SPixie::Slot_14 (0x69ee50)` (miscalled), `SPzGepard::SwitchModelPrototypeNodes
+(0x681010)` (node reorder of a unit prototype; models draw without it), `SScene::DrawSea / DrawLines /
+DrawLakes` (called every frame, nothing to draw on training.map), `SPRain` / `SPSnowfall` (prototypes
+only). `SScene::ReplaceModel (0x6ba810)` needs SModel 0x6d9c20 and stays a stub (2 calls in the HD
+trace).
+

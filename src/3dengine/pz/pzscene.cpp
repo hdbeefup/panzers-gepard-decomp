@@ -54,6 +54,15 @@ SScene::SScene(int param)
     FreeModels.FreeHead = -1;
     Rivers.FreeHead = -1;
     GroundTrails.FreeHead = -1;
+    SmokeTrails.FreeHead = -1;
+    Wires.FreeHead = -1;
+    SmokeTrailVB = -1;                // +0x1f4
+    WireVB = -1;                      // +0x260
+    WireTexture = -1;                 // +0x264
+    WireShadowTexture = -1;           // +0x268
+    WireDecl = -1;                    // +0x26c
+    _27c = 3;
+    SkyboxOn = false;                 // +0x280
     Param = param;
     Device = HD().Device;
     TimeMs = 0;
@@ -77,6 +86,7 @@ SScene::SScene(int param)
 SScene::~SScene()
 {
     PZ_TRACE("SScene::~SScene (0x6a0440)");
+    ClearSkybox();                    // 0x6aa9a0
     for (int i = Models.Next(-1); i >= 0; i = Models.Next(i)) {
         SModel* m = Models[i];
         m->Scene = nullptr;
@@ -87,7 +97,11 @@ SScene::~SScene()
         m->Scene = nullptr;
         m->Release();
     }
-    // HD 0x6a0500: every ground trail, closed or not (+0x98).
+    // HD: every smoke trail (0x6aa9e0), then every ground trail, closed
+    // or not (0x6a0500, +0x98).
+    for (int i = SmokeTrails.Next(-1); i >= 0; i = SmokeTrails.Next(i))
+        DestroySmokeTrail(i);
+    SmokeTrails.Free();
     for (int i = GroundTrails.Next(-1); i >= 0; i = GroundTrails.Next(i))
         RemoveGroundTrail(i);
     GroundTrails.Free();
@@ -100,6 +114,16 @@ SScene::~SScene()
     FreeModels.Free();
     Lights.Free();
     Rivers.Free();
+    // Recompile: HD frees only the heap array; the wire point arrays go too.
+    for (int i = Wires.Next(-1); i >= 0; i = Wires.Next(i))
+        free(Wires[i].Points);
+    Wires.Free();
+    free(Lines);
+    Lines = nullptr;
+    if (WireTexture >= 0)
+        PzGepard()->ReleaseTexture(WireTexture);           // Gepard +0x48
+    if (WireShadowTexture >= 0)
+        PzGepard()->ReleaseTexture(WireShadowTexture);
     ReleaseShadowBuffer();
     for (size_t i = 0; i < s_Scenes.size(); ++i)
         if (s_Scenes[i] == this) {
@@ -673,7 +697,7 @@ void SScene::RenderViewport(SViewport* vp)
     if (Terrain && !Terrain->GetCompactMode()) {
         STUB_LOG("SScene::DrawSea (0x6b04d0)");
     }
-    STUB_LOG("SScene::DrawSkybox (0x6b7920)");      // KSYB empty in menu.map
+    DrawSkybox(vp, FogColorAlpha);                    // 0x6b7920 (KSYB; none in menu.map)
     DeferredCount = 0;                                // 0x6a20f0(0) on +0x2a0
     DrawModels(vp, 0);                                // 0x6b02a0
     if (Terrain)
@@ -683,8 +707,8 @@ void SScene::RenderViewport(SViewport* vp)
         Terrain->RenderLate(vp);                      // 0x6f33c0
     STUB_LOG("SScene::DrawLakes (0x6ad740)");       // LAKS: 0 in menu.map
     DrawRivers(vp);                                   // 0x6b0920
-    STUB_LOG("SScene::DrawWires (0x6b8b10)");
-    STUB_LOG("SScene::DrawDecals2 (0x6b7b30)");
+    DrawWires(vp, false);                             // 0x6b8b10
+    DrawSmokeTrails(vp);                              // 0x6b7b30
     SPixie* pixie = static_cast<SPixie*>(static_cast<SPzGepard*>(PzGepard())->Pixie);
     if (pixie) {
         pixie->UpdateFrame(FrameCount);              // pixie +0x48
@@ -846,7 +870,7 @@ void SScene::GenerateShadowBuffer(SViewport* vp)
         if (m->ShadowDecal < 0 || GepardOption(5) != 0)
             m->RenderShadow(vp);
     }
-    // HD also draws the wires (0x6b8b10(vp, 1)); DrawWires is not lifted.
+    DrawWires(vp, true);                        // 0x6b8b10(vp, 1)
     if (FAILED(dev->EndScene()))
         Logger.g->Log(0, "%s", "SScene::GenerateShadowBuffer\\IDirect3DDevice::EndScene failed");
     GepardUnselectRenderTarget();               // 0x6814b0
@@ -968,34 +992,6 @@ void SScene::Slot_78()
 {
     STUB_LOG("SScene::Slot_78 (0x6badd0)");
     PZ_TRACE("SScene::Slot_78 (0x6badd0)");
-}
-
-// HD SScene vtbl +0x7c -> 0x6a9850 (15 arg dwords)
-void SScene::Slot_7C()
-{
-    STUB_LOG("SScene::Slot_7C (0x6a9850)");
-    PZ_TRACE("SScene::Slot_7C (0x6a9850)");
-}
-
-// HD SScene vtbl +0x80 -> 0x6bb680 (6 arg dwords)
-void SScene::Slot_80()
-{
-    STUB_LOG("SScene::Slot_80 (0x6bb680)");
-    PZ_TRACE("SScene::Slot_80 (0x6bb680)");
-}
-
-// HD SScene vtbl +0x84 -> 0x6aaad0 (0 arg dwords)
-void SScene::Slot_84()
-{
-    STUB_LOG("SScene::Slot_84 (0x6aaad0)");
-    PZ_TRACE("SScene::Slot_84 (0x6aaad0)");
-}
-
-// HD SScene vtbl +0x88 -> 0x6a2780 (1 arg dword)
-void SScene::Slot_88()
-{
-    STUB_LOG("SScene::Slot_88 (0x6a2780)");
-    PZ_TRACE("SScene::Slot_88 (0x6a2780)");
 }
 
 // PANZERS 0x6a7790
@@ -1241,28 +1237,6 @@ void SScene::Slot_C4()
     PZ_TRACE("SScene::Slot_C4 (0x6a9ee0)");
 }
 
-// HD SScene vtbl +0xc8 -> 0x6aa050 (4 arg dwords)
-void SScene::Slot_C8()
-{
-    STUB_LOG("SScene::Slot_C8 (0x6aa050)");
-    PZ_TRACE("SScene::Slot_C8 (0x6aa050)");
-}
-
-// HD SScene vtbl +0xcc -> 0x6c0b40 (2 arg dwords)
-void SScene::UpdateWire(int wire, int* p2)
-{
-    STUB_LOG("SScene::UpdateWire (0x6c0b40)");
-    PZ_TRACE("SScene::UpdateWire (0x6c0b40)");
-    (void)wire; (void)p2;
-}
-
-// HD SScene vtbl +0xd0 -> 0x6aaba0 (1 arg dword)
-void SScene::Slot_D0()
-{
-    STUB_LOG("SScene::Slot_D0 (0x6aaba0)");
-    PZ_TRACE("SScene::Slot_D0 (0x6aaba0)");
-}
-
 // HD SScene vtbl +0xd4 -> 0x6aa280 (0 arg dwords)
 void SScene::Slot_D4()
 {
@@ -1305,13 +1279,6 @@ void SScene::Slot_E8()
     PZ_TRACE("SScene::Slot_E8 (0x6a1790)");
 }
 
-// HD SScene vtbl +0xec -> 0x6a24e0 (0 arg dwords)
-void SScene::Slot_EC()
-{
-    STUB_LOG("SScene::Slot_EC (0x6a24e0)");
-    PZ_TRACE("SScene::Slot_EC (0x6a24e0)");
-}
-
 // HD SScene vtbl +0xf0 -> 0x6a24f0 (1 arg dword)
 void SScene::Slot_F0()
 {
@@ -1331,21 +1298,6 @@ void SScene::Slot_F8()
 {
     STUB_LOG("SScene::Slot_F8 (0x6abca0)");
     PZ_TRACE("SScene::Slot_F8 (0x6abca0)");
-}
-
-// HD SScene vtbl +0xfc -> 0x6a96c0 (2 arg dwords)
-void SScene::SetSkybox(const char* file, float radius)
-{
-    STUB_LOG("SScene::SetSkybox (0x6a96c0)");
-    PZ_TRACE("SScene::SetSkybox (0x6a96c0)");
-    (void)file; (void)radius;
-}
-
-// HD SScene vtbl +0x100 -> 0x6aa9a0 (0 arg dwords)
-void SScene::ClearSkybox()
-{
-    STUB_LOG("SScene::ClearSkybox (0x6aa9a0)");
-    PZ_TRACE("SScene::ClearSkybox (0x6aa9a0)");
 }
 
 // HD SScene vtbl +0x104 -> 0x6ba950 (0 arg dwords)

@@ -61,8 +61,10 @@ struct SPixie : SIPixie {
     void UpdateFrame(int frame) override;
     void SetEffectPosition(int effect, const float* pos) override;
     void SetEffectDirection(int effect, const float* dir) override;
-    void Slot_54() override;
-    void Slot_58() override;
+    void SetEffectParam18(int effect, int p) override;
+    void SetEffectModel(int effect, int model) override;
+    void SetEffectAlphaScale(int effect, float s);   // 0x69f280 (sub-effect particles)
+    void SetEffectSizeScale(int effect, float s);    // 0x69f3c0
     bool IsBulletIndicator(int proto) override;
     void SetEffectEnabled(int effect, bool on) override;
     void SetEffectSpeed(int effect, float p1, float p2) override;

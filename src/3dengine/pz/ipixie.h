@@ -47,8 +47,8 @@ struct SIPixie {
     virtual void UpdateFrame(int frame) = 0;                // +0x48 HD 0x69f7b0 (1 arg dword) called from scene render 0x6acaf0 with scene +0xa0: simulates every effect once per frame
     virtual void SetEffectPosition(int effect, const float* pos) = 0; // +0x4c HD 0x69f370 (2 arg dwords)
     virtual void SetEffectDirection(int effect, const float* dir) = 0; // +0x50 HD 0x69f2d0 (2 arg dwords)
-    virtual void Slot_54() = 0;                             // +0x54 HD 0x69f460 (2 arg dwords)
-    virtual void Slot_58() = 0;                             // +0x58 HD 0x69f320 (2 arg dwords)
+    virtual void SetEffectParam18(int effect, int p) = 0;   // +0x54 HD 0x69f460 (2 arg dwords) SEffectSet +0x18 (instance +0x14; name guessed)
+    virtual void SetEffectModel(int effect, int model) = 0; // +0x58 HD 0x69f320 (2 arg dwords) SEffectSet::SetModel 0x6df2c0 (birth-from-model particles)
     virtual bool IsBulletIndicator(int proto) = 0;          // +0x5c HD 0x69dc20 (1 arg dword) "General.Bullet Indicator"
     virtual void SetEffectEnabled(int effect, bool on) = 0; // +0x60 HD 0x69f410 (2 arg dwords) SEffectSet +0x0c
     virtual void SetEffectSpeed(int effect, float p1, float p2) = 0; // +0x64 HD 0x69f4e0 (3 arg dwords) SEffectSet +0x24 -> SEffect +0x30 (a nop for particles). SDriver::SetEffectsSpeed 0x55c900 (s, s) (name guessed)

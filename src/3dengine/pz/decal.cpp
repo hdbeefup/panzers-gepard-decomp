@@ -265,6 +265,14 @@ void STerrain::SetEffectDecalAlpha(int decal, float alpha)
         EffectDecals.Data[decal].Alpha = alpha;
 }
 
+// PANZERS 0x6f89e0
+void STerrain::SetEffectDecalScale(int decal, float scale)
+{
+    PZ_TRACE("STerrain::SetEffectDecalScale (0x6f89e0)");
+    if (HdHeapLive(&EffectDecals, decal))
+        EffectDecals.Data[decal].Scale = scale;
+}
+
 // HD 0x6f6640 (reimplemented texture-coordinate transform: HD composes
 // translate(-x,-z), rotate, scale(1/sx, -1/sz), translate(0.5, 0.5) with its
 // 2D matrix helper 0x661bb0; the composition order was not verified)

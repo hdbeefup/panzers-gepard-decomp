@@ -22,16 +22,15 @@ struct SRadioButton : SDXWidget {
     bool Active;
     bool Pressed;
     bool bChecked;
+    int HdControlsFont;   // >= 0: HD skin (CreateHD 0x53eaf0 / UpdateHD 0x53ed30)
 
     SRadioButton();
     ~SRadioButton() override;
 
-    bool OnKeyDown(int keycode, bool repeat = false) override;
     void OnMouseDown(int button, int x, int y, int shift) override;
     void OnMouseOut() override;
     void OnMouseOver() override;
     void OnMouseUp(int button, int x, int y, int shift) override;
-    void SetFocus() override;
     void SetVisible(bool visible) override;
     void Update() override;
 
@@ -41,6 +40,8 @@ struct SRadioButton : SDXWidget {
     void SetActive(bool active);
     void SetCheck(bool checked);
     void SetText(const char *text);
+    void CreateHD(int a2, int controlsFont);   // 0x53eaf0
+    void UpdateHD();                            // 0x53ed30
 };
 
 #endif // WINDOW_SRADIOBUTTON_H

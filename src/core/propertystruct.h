@@ -226,6 +226,11 @@ struct SPropertyStruct : SProperty {
     SPropertyStruct* GetStruct(int index, const char* name);                         // 0x666430
     struct SPropertyTrack* GetTrack(const char* name);                               // 0x666640
     void GetTrackFloat(const char* name, STrackFloat* out);                          // 0x667cf0
+    int GetInt(int index, const char* name);                                         // 0x665da0
+    unsigned GetColor(int index, const char* name);                                  // 0x6656d0
+    int GetEnum(int index, const char* name);                                        // 0x6658a0
+    int GetArraySize(const char* name);                                              // 0x6654a0
+    SProperty* GetArrayItem(const char* name, int index);                            // 0x665370
 
 private:
     SProperty* Find(int type, const char* name, const char* who);
