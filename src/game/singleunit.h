@@ -11,6 +11,8 @@ namespace pz {
 
 struct SSingleUnit : SUnit {
     int ActionOn(int target) override;                           // +0xa8 0x5ace90 (STrainUnit too)
+    bool Slot_54() override;                                     // +0x54 0x5aaa80 can tow: a "hook" node and nothing towed (M5-MS)
+    bool Slot_58(int p1) override;                               // +0x58 0x5aaa30 can be towed by the unit p1 (an SUnit*) (M5-MS)
     void GetClassDescriptor(void** obj, const SUnitClassDesc** desc) override;   // 0x5ace70 (M4 S, savedesc.cpp)
     SSingleUnit(SPSingleUnit* proto, int worldIndex);            // 0x5aa7b0
     ~SSingleUnit() override;                                     // 0x5aaa00

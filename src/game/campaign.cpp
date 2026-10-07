@@ -381,6 +381,9 @@ void SPanzersCampaign::InitScenarioMode(const char* map, const char* section, in
     MenuToLoad = PZ_MENU_GAMEVIEW;                                // +0xe0 = 2
 }
 
+const char* PzM5MissionSection();                // src/panzers/m5mission.cpp (test hook)
+int PzM5RaceOfSection(const char* s, int fallback);
+
 // PANZERS 0x592b20
 // New Game (0x53441): the nation's first mission, missions.ini and
 // missions_local.ini (both panic when missing), the map, the mission's
@@ -392,8 +395,10 @@ void SPanzersCampaign::InitCampaignMode()
         Logger.g->Panic("SCampaign::InitCampaignMode: GameMode can only be initialized once.");
     GameMode = PZ_GM_CAMPAIGN;
     SetStr(&MissionSection, Race == 0 ? "German 1" : Race == 1 ? "Allied 1" : "Russian 1");   // 0x52c320 on +0xd8
-    if (const char* t = getenv("PZ_M5_CS_SECTION"))               // recompile-only test hook (M5 CS): start at another mission
-        SetStr(&MissionSection, t);
+    if (const char* m5 = PzM5MissionSection()) {                  // recompile-only test hook PZ_M5_MISSION (m5mission.cpp)
+        SetStr(&MissionSection, m5);
+        Race = PzM5RaceOfSection(m5, Race);
+    }
     delete (SProperties*)MissionProps;                            // 0x660080 + delete 0x1c
     MissionProps = nullptr;
     delete (SProperties*)LocalProps;
@@ -497,6 +502,13 @@ int SPanzersCampaign::GetNextMissionSP()
     strncpy(name, next, sizeof(name) - 1);
     name[sizeof(name) - 1] = 0;
     return Props(this)->GetInt(name, "SP", 0);                    // 0x660500(next, "SP", 0)
+}
+
+// PANZERS 0x5920f0
+// The mission's "Mission number" in missions.ini (0 without one).
+int SPanzersCampaign::GetMissionNumber()
+{
+    return Props(this) ? Props(this)->GetInt(SStr(MissionSection), "Mission number", 0) : 0;   // 0x660500
 }
 
 // PANZERS 0x596600

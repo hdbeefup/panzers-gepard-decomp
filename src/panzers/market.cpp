@@ -1169,13 +1169,17 @@ bool SMarket::Available(const pz::SPUnit* p)
             return true;
         return p->MarketMulti != 3;
     }
-    // Campaign: the mission number range (0x5920f0 "Mission number").
-    STUB_LOG("SMarket 0x644fc0: campaign mission-number range not lifted");
+    // Campaign: the mission number in [MarketBuyFirst, MarketBuyLast] (-1 =
+    // open end; 0 = never), 0x5920f0 "Mission number" (M5-MS).
+    if (c) {
+        int n = c->GetMissionNumber();                            // 0x5920f0
+        ok = (p->MarketBuyFirst == -1 || p->MarketBuyFirst <= n) &&
+             (p->MarketBuyLast == -1 || n <= p->MarketBuyLast);
+    }
     if (p->MarketBuyFirst == 0)
         return false;
     if (p->MarketBuyLast == 0)
         return false;
-    ok = true;
     return ok;
 }
 

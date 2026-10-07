@@ -99,7 +99,7 @@ and plays the .ingame of that name.
   backdrop, `maps/ger-04-3.map` loaded in place, the new map's trigger plays ger-04-3.ingame at
   frame 1720 (the column over the pontoon bridge, the trucks towing the LeFH 18, `m1_02`), it ends
   at frame 2021 and the mission goes on on the new map (`m1_10`). Exit clean.
-- **German 4** directly (`PZ_M5_CS_SECTION="German 4"`, a Panzer I bought in the HQ): ger-04-1
+- **German 4** directly (`PZ_M5_MISSION="German 4"`, a Panzer I bought in the HQ): ger-04-1
   plays (1115 frames). Deleting the ger-04 world (the map cut-scene's 0x624770, and also a plain
   exit of the mission) ends in a pure virtual call in `SUnit::Uninit` (unitbase.cpp, Model
   ->SetVisible) of "ge sig33i artillery" (player 4) from `SWorld::~SWorld`: a world-teardown
@@ -108,7 +108,7 @@ and plays the .ingame of that name.
 
 ## Test hooks (recompile only, inert when unset)
 
-- `PZ_M5_CS_SECTION=<mission section>`: InitCampaignMode starts at that section ("German 4").
+- `PZ_M5_CS_SECTION` was merged into M5-MS's `PZ_M5_MISSION=<mission section>` (docs/m5/ms.md), which also sets the race.
 - `PZ_M5_CS_FORCE=<frame>:<name>`: at that logic frame of a mission, what action 0x38 `<name>`
   does (once per process).
 

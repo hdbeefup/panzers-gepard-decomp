@@ -76,8 +76,8 @@ agents or by M2, in call order:
 | `SGameLogic::~SGameLogic`, `SScene::~SScene`, `SPixie::~SPixie` | D (M2) / A / C | Exit / OnDestroy |
 | `SSuperWindow::Initialize Gepard render options`, `DrawDebugPickerOverlayFromGepard`, `SVersion::GetVersionString` | shell | as before |
 
-Not hit: `SWorld::Slot_04/08/0C/10`, `SWorld::ComputeCamera modes 1/2` (mode 2, the
-cut-scene eye camera, lifted in M5 by agent CS, docs/m5/cs.md; mode 1 is still a stub).
+Not hit: `SWorld::Slot_04/08/0C/10`, `SWorld::ComputeCamera modes 1/2` (M5: mode 2, the cut-scene eye camera
+of 13 campaign missions, lifted by agents CS and MS, docs/m5/cs.md; mode 1 is still a STUB_LOG).
 
 ## M1-I: integration, 3D menu on by default
 
@@ -158,7 +158,7 @@ Stubs hit on the M2 path, besides the shell / menu3d ones listed above
 | `SBuildingUnit 0x546f70 building eye heights` | 0x546f70 (engine model +0x100 / +0xd8) | map load (visibility map eye heights next to the house) |
 | ~~`SPanzersSquadUnit::Hook20 (0x59fab0) equipment slots`~~ (lifted in M3-C5) | 0x59fab0 | squad creation |
 | ~~`SIModel +0xac (0x6d8090) node points`~~ (M3-I: typed `GetNodePoints` and lifted) | 0x548f20 / 0x5497a0 | building creation |
-| `SModel::Slot_CC (0x6dad80)`, `SPixie::Slot_14 (0x69ee50)`, `SPUnitAnimation::Slot_0C (0x5cb470)` | engine / animation slots | unit creation (shadow texture, effect, animation prototype hook). M3-E: 0x6dad80 sets the blob-shadow texture (+0xec, drops the +0xf0 terrain decal); left a stub because the decal that uses it is not lifted and lifting it alone would remove the units' shadow-buffer shadows. `SPixie::Slot_14` 0x69ee50 is the effect editor's save: `SUnit::Uninit` 0x5b7e40 called it by mistake for pixie +0x34 StopEffect (fixed by M3-C) |
+| `SModel::Slot_CC (0x6dad80)`, `SPixie::Slot_14 (0x69ee50)`, ~~`SPUnitAnimation::Slot_0C (0x5cb470)`~~ (M5-MS: empty in HD, lifted) | engine / animation slots | unit creation (shadow texture, effect, animation prototype hook). M3-E: 0x6dad80 sets the blob-shadow texture (+0xec, drops the +0xf0 terrain decal); left a stub because the decal that uses it is not lifted and lifting it alone would remove the units' shadow-buffer shadows. `SPixie::Slot_14` 0x69ee50 is the effect editor's save: `SUnit::Uninit` 0x5b7e40 called it by mistake for pixie +0x34 StopEffect (fixed by M3-C) |
 | ~~`SPTrailEffect (EffectType 8)`, `SPDecalEffect (4)`, `SPLiteEffect (7)`, `SPCameraShake (10)`~~ (M3-E: lifted, `effecttypes.cpp`) | 0x6edcd0 / 0x6ea0f0 / 0x6ed790 / 0x6ee390 | effect prototypes of the units (M2-V: the die / destroy / gunner effects load now, so the camera shake shows up too) |
 | ~~`SPParticles::Init Draw=Object (Gepard +0x20 model prototype)`~~ (lifted in M2-V; M3-E lifted the drawing too: 0x6e5b80, 0x6e5150, and Draw=Effect 0x6e4660, ParticleType 3 0x6e5290) | 0x6e5eb0 case 1 | die / destroy effect prototypes |
 
@@ -211,8 +211,8 @@ Still hit or reachable in combat (logged): ~~the building / doodad hit tests (SI
 ProjectileHitTest 0x562c20, DamageArea 0x576490 / CrushDoodad, the eye heights 0x546f70 / 0x57f6a0);
 `SWorld 0x5d68e0` (an AI group answers an attack:
 support calls, help from other groups; 7.5 KB, not lifted); ~~`SBuildingUnit::OnMemberDied (0x549b70)`~~ (M3-I2: lifted);
-pixie +0x58 / model +0xbc effect hooks (E); repair / supply orders (0x5c01e0 / 0x5bf280 / 0x5bd610);
-the capture flag (0x5471d0).
+pixie +0x58 / model +0xbc effect hooks (E); ~~repair / supply orders (0x5c01e0 / 0x5bf280 / 0x5bd610)~~ (M5-MS: lifted, with EC_Repair 0x5c1ca0 / EC_Supply 0x5c1e60);
+~~the capture flag (0x5471d0)~~ (M5-MS: lifted with the capture 0x54cd70, radar 0x54ac00, support place 0x54acd0 / 0x54a4a0, hangar 0x54a380 and SUnit::NeedsRepair 0x5bc840; the productive building 0x54a660 is still a STUB_LOG).
 
 ## M3-I: the tc1 replay (frames 0..654 equal to the original)
 

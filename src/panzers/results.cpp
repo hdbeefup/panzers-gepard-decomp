@@ -92,6 +92,17 @@ void PzPlayMusicTrack(const char* track)
     PlayEndMusic(track);
 }
 
+// RunTriggers action 0x3f "Play music" (0x57cbde, M5-MS): Concert +0x6c,
+// +0x70(track), +0x78(0), without stopping the stream first.
+void PzPlayTriggerMusic(const char* track)
+{
+    if (SIPanzersConcert* pc = dynamic_cast<SIPanzersConcert*>(Concert)) {
+        pc->ClearPlaylist();
+        pc->AddToPlaylist(track);
+        pc->StartPlaylist(false);
+    }
+}
+
 static bool s_ForceStatistics = false;   // PZ_M3_FORCE_END 11 / 12 (test switch)
 
 // HD 0x628430 (the UI of the single-player end check, 0x62bc65..0x62c233;

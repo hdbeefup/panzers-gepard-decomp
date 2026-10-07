@@ -431,4 +431,21 @@ void PzSpeechTick()
     }
 }
 
+// RunTriggers action 0x4a "Speech and wait" (0x57d065, M5-MS): the speech
+// clock (+0x7298) is set to now, the queue (+0x7280) cleared (0x563600(0)),
+// the file queued (0x600770) and played at once (0x607f50); returns the
+// seconds until it ends (0 when it did not play).
+double PzSpeechPlayNow(const char* file)
+{
+    float now = (float)((double)Timer.GetTickValue() / 1000.0);   // 0x661800, fstp float
+    g_SpeechUntil = (double)now;
+    for (int i = 0; i < g_SpeechCount; ++i)
+        free(g_Speech[i]);
+    g_SpeechCount = 0;
+    PzSpeechQueue(file);
+    PzSpeechTick();
+    double d = g_SpeechUntil - (double)now;
+    return d > 0.0 ? d : 0.0;
+}
+
 } // namespace pz

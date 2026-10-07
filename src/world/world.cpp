@@ -771,9 +771,14 @@ void SWorld::ComputeCamera(SIViewport* vp)
             CamFollowPath = 0;
         }
         if (CamFollowUnit >= 0) {
-            if (!Units.IsLive(CamFollowUnit))
+            int f = CamFollowUnit;
+            if (!Units.IsLive(f)) {
                 CamFollowUnit = -1;
-            // else HD 0x546490 / 0x5f4f60: centre on the unit (M2).
+            } else {
+                SUnit* u = Units.Array[f].Unit;                   // 0x546490
+                SetCameraTarget(u->Pos[0], u->Pos[2]);            // 0x5f4f60 (M5-MS)
+                CamFollowUnit = f;
+            }
         }
         if (CamPitchMax == 0.0f) {
             CamTarget[1] = 0.0f;

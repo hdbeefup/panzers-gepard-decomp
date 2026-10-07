@@ -54,6 +54,13 @@ struct SBuildingUnit : SUnit {
     void InitBlockCells();                                       // 0x5497a0 +0x458 cells of the "Block" points
     void RefreshOccupants();                                     // HD inline in 0x54b910: the occupants at the windows
     bool IsCapturable();                                         // 0x549af0 (+0x1bc override; the slot is untyped, C3)
+    // --- M5-MS (capturable buildings, hangars)
+    void UpdateCaptureFlag();                                    // 0x5471d0 CreateCaptureFlag: the flag model in the owner's colour
+    void RefreshCapture();                                       // 0x54cd70 (name guessed) the owner from the units around
+    void RefreshRadar();                                         // 0x54ac00 (name guessed) "multi radar": capture + player counters
+    void RefreshSupportPlace();                                  // 0x54acd0 (name guessed) "Support place": capture, repair, supply
+    void HealNearUnits();                                        // 0x54a4a0 (name guessed) order a heal (kind 8) for a squad with wounded
+    void RefreshHangar();                                        // 0x54a380 (name guessed) +0x43c: players with a unit indoors
     // --- end M3-C5
 
     // Non-virtual (HD thiscall).
@@ -89,6 +96,11 @@ struct SBuildingUnit : SUnit {
     SUnitArray<int> BlockCells;      // +0x458 vis-map cells of the "Block" points (0x5497a0)
     unsigned char _464[0x470 - 0x464];
 };
+
+// 0x548bf0 (name guessed): byte +0x2d9 of the unit && the logic is not
+// paused; a supplier for which it holds (and that is the local player's)
+// does not pay cargo.
+bool UnitSuppliesForFree(SUnit* u);
 
 PZ_HD_SIZE(SBuildingUnit, kHdSizeSBuildingUnit);
 #if defined(_M_IX86)

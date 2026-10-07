@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "buildingunit.h"
+#include "campaign.h"
+#include "pz/iscene.h"
 #include "packets.h"
 #include "squadunit.h"
 #include "unitanim.h"
@@ -155,7 +157,7 @@ void SBuildingUnit::Init(SUnitDef* def)
     InitViewPoints();                                         // 0x548660
     if (P->BuildingType == 3) {
         FlagNode = Model->FindNode("flag");                   // +0x40
-        STUB_LOG("SBuildingUnit 0x5471d0 (the capture flag model), called by SBuildingUnit::Init 0x548f20");
+        UpdateCaptureFlag();                                  // 0x5471d0
     }
     if (g_GameLogic)
         RefreshTargeting();                                   // +0x34
@@ -193,7 +195,7 @@ void SBuildingUnit::Uninit()
     if (Model) {
         if (Model448) {
             if (FlagNode > -1)
-                STUB_LOG("SIModel +0xe0 (0x6d7310, detach the flag), untyped in imodel.h (agent E); SBuildingUnit::Uninit 0x547690");
+                Model448->Slot_E0();                          // +0xe0 0x6d7310 (detach the flag)
             if (Model448) {
                 Model448->Release();                          // +0x04
                 Model448 = nullptr;
@@ -692,11 +694,19 @@ void SBuildingUnit::RefreshTargeting()
     int bt = P->BuildingType;
     if (bt == 3) {
         FillNearUnits(P->CaptureRange, 0.0f);                 // 0x5b78a0
-        // HD then: "multi radar" 0x54ac00, unit type 0x1a 0x54a660,
-        // "Support place" / "Support place desert" 0x54acd0, else 0x54cd70.
-        STUB_LOG("SBuildingUnit::RefreshTargeting (0x54a250) capturable building");
+        if (Proto->Name.size == 0 || _stricmp(SStr(Proto->Name), "multi radar") != 0) {   // +0x64, +0x60
+            if (P->UnitType == 0x1a)                          // +0x44
+                STUB_LOG("SBuildingUnit::RefreshTargeting (0x54a250) productive building 0x54a660");
+            else if (_stricmp(SStr(Proto->Name), "Support place") == 0 ||   // 0x52c410
+                     _stricmp(SStr(Proto->Name), "Support place desert") == 0)
+                RefreshSupportPlace();                        // 0x54acd0
+            else
+                RefreshCapture();                             // 0x54cd70
+        } else {
+            RefreshRadar();                                   // 0x54ac00
+        }
     } else if (bt == 6) {
-        STUB_LOG("SBuildingUnit::RefreshTargeting (0x54a250) hangar 0x54a380");
+        RefreshHangar();                                      // 0x54a380
     } else {
         float range = GetMaxRange(0) + RangeBonus;                // +0x17c, fadd +0x3f4
         FillNearUnits(range, 0.0f);                 // 0x5b78a0
@@ -1041,6 +1051,260 @@ int SBuildingUnit::ActionOn(int target)
     if (p[0xe0] && t->NeedsSupply(1.0f) && 0.0f < Cargo)
         return 8;
     return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Capturable buildings and hangars (M5-MS)
+
+void UnitSetPlayer(SUnit* u, int player);                         // 0x5c1630 (triggers.cpp)
+
+static float FBitsF(unsigned b)
+{
+    float f;
+    memcpy(&f, &b, 4);
+    return f;
+}
+
+// PANZERS 0x5471d0
+// SBuildingUnit::CreateCaptureFlag: an owned building (not +0x110) gets the
+// flag model (prototype +0x14c, multiplayer +0x150), attached to the "flag"
+// node or 2 above the building, the flag's "Block" node hidden; the flag
+// texture is scrolled to the owner's race (multiplayer: the player colour).
+// A neutral building drops the model.
+void SBuildingUnit::UpdateCaptureFlag()
+{
+    if (_110) {
+        if (Model448) {
+            if (FlagNode >= 0)
+                Model448->Slot_E0();                          // +0xe0 (detach)
+            if (Model448) {
+                Model448->Release();                          // +0x04
+                Model448 = nullptr;
+            }
+        }
+        return;
+    }
+    bool multi = g_Campaign && g_Campaign->IsMultiMode();     // 0x594d20 (&& !0x594cd0 coop: no SMulti here)
+    int proto = multi ? P->FlagMultiProto : P->FlagProto;     // +0x150 / +0x14c
+    if (proto < 0)
+        return;
+    if (!Model448) {
+        Model448 = g_Scene->CreateModelFromPrototype(proto, 1);   // scene +0x58
+        Model448->SetFlags(5);                                // +0x94
+        if (FlagNode < 0)
+            Model448->SetPosition(Pos[0], Pos[1] + 2.0f, Pos[2]);   // +0x18, 0x7f4558
+        else
+            Model448->AttachTo(Model, FlagNode);              // +0xdc
+        Model448->SetVisible(true, false);                    // +0x30(1, 0)
+        Model448->SetNodeVisible(Model->FindNode("Block"), false);   // flag +0x60(building model +0x40("Block"), 0)
+        Model448->StoreInterpolationState();                  // +0x3c
+    }
+    const unsigned char* rec = g_World->Players[Player];
+    if (multi) {
+        static const unsigned kU[5] = { 0, 0x3e3e76c9, 0x3ebe76c9, 0x3f0e978d, 0x3f3e353f };
+        static const unsigned kV[3] = { 0, 0x3eab020c, 0x3f2ac083 };
+        int c = *(const int*)(rec + 0x00);                    // World+0x170: the player colour
+        if (c < 0 || c > 14)
+            Logger.g->Panic("SBuildingUnit::CreateCaptureFlag() - invalid Player Color");
+        Model448->SetNodeTexScroll(0, FBitsF(kU[c % 5]), FBitsF(kV[c / 5]));   // +0x68
+        return;
+    }
+    switch (*(const int*)(rec + 0x04)) {                      // World+0x174: the race
+    case 0: Model448->SetNodeTexScroll(0, 0.0f, 0.0f); return;
+    case 1: Model448->SetNodeTexScroll(0, 0.25f, 0.0f); return;
+    case 2: Model448->SetNodeTexScroll(0, 0.5f, 0.0f); return;
+    case 3: Model448->SetNodeTexScroll(0, 0.25f, 0.5f); return;
+    case 4: Model448->SetNodeTexScroll(0, 0.75f, 0.0f); return;
+    case 5: Model448->SetNodeTexScroll(0, 0.0f, 0.5f); return;
+    default:
+        Logger.g->Panic("SBuildingUnit::CreateCaptureFlag() - invalid Player Race");
+    }
+}
+
+// PANZERS 0x54cd70
+// The units in capture range (+0x1b4; not aircraft / projectiles; buildings
+// only of building type 0 or 2; not +0x110; of a player still in the game)
+// decide the owner: while one of the owner's own units is there it stays
+// (a neutral building becomes owned); else the building goes to the last
+// allied player seen, else to the last enemy player seen. A change clears
+// +0x110 and +0x2cc..+0x2d7 and renews the flag.
+void SBuildingUnit::RefreshCapture()
+{
+    int own = -1, allied = -1, enemy = -1;
+    if (SightUnits.Size <= 0)
+        return;
+    for (int i = 0; i < SightUnits.Size; ++i) {
+        if (!IsTargetable(SightUnits.Array[i].Unit, false))   // 0x5bb6b0(unit, 0)
+            continue;
+        SUnit* u = BuildingUnitAt(SightUnits.Array[i].Unit);
+        int ct = u->Proto->ClassType;                         // SPUnit +0x40
+        if (ct == 7 || ct == 8)
+            continue;
+        if (ct == 9) {
+            int bt = static_cast<SBuildingUnit*>(u)->P->BuildingType;   // +0x340 +0x13c
+            if (bt != 0 && bt != 2)
+                continue;
+        }
+        if (u->_110)
+            continue;
+        int pl = u->Player;                                   // +0xfc
+        int st = *(int*)(g_World->Players[pl] + 0x08);        // World+0x178
+        if (st == 2 || st == 3)
+            continue;
+        if (!SameSide(Player, pl)) {                          // 0x549ab0
+            enemy = pl;
+            continue;
+        }
+        if (Player == pl)
+            own = pl;
+        else
+            allied = pl;
+    }
+    if (own == -1) {
+        int to = allied >= 0 ? allied : enemy;
+        if (to < 0)
+            return;
+        UnitSetPlayer(this, to);                              // 0x5c1630
+    } else if (!_110) {
+        return;
+    }
+    _110 = false;
+    memset(_2cc, 0, sizeof(_2cc));                            // +0x2cc 8 bytes, +0x2d4 4 bytes
+    UpdateCaptureFlag();                                      // 0x5471d0
+}
+
+// PANZERS 0x54ac00
+// The radar of the multiplayer maps: captured as any building; a change of
+// side adds one to four counters of the new owner (player record
+// +0x30..+0x3c). (SMulti 0x8f1a74 is null here, so its +0x4c55 test passes.)
+void SBuildingUnit::RefreshRadar()
+{
+    int old = Player;
+    RefreshCapture();                                         // 0x54cd70
+    if (_110 || Player == old)
+        return;
+    int t = PlayerTeam(Player);
+    bool same = t == 0 ? Player == old : t == PlayerTeam(old);
+    if (same)
+        return;
+    for (int k = 0; k < 4; ++k)
+        *(int*)(g_World->Players[Player] + 0x30 + k * 4) += 1;   // World+0x1a0..+0x1ac
+}
+
+// PANZERS 0x548bf0
+bool UnitSuppliesForFree(SUnit* u)
+{
+    return ((unsigned char*)u)[0x2d9] != 0 && !(g_GameLogic && g_GameLogic->IsPaused());   // 0x56e150
+}
+
+// PANZERS 0x54a4a0
+// As the supply part of 0x5bd610: an idle support place with cargo orders a
+// heal (target kind 8, 0x5c1030) for the first allied unit in range whose
+// +0x80 says it has wounded members.
+void SBuildingUnit::HealNearUnits()
+{
+    if (!_2eb || !(0.0f < Cargo))
+        return;
+    STarget* ct = CurrentTarget;                              // +0x1f4
+    if (ct && (ct->Kind == 6 || ct->Kind == 7 || ct->Kind == 8 || ct->Kind == 1))
+        return;
+    STarget* pt = PrimaryTarget;                              // +0x1f8
+    bool primFollow = pt && pt->Kind == 0 && pt->Type == 0;
+    bool curFollow = ct && ct->Kind == 0 && ct->Type == 0;
+    bool primKind4 = pt && pt->Kind == 4;
+    bool none = !pt && !ct;
+    if (!none && !primKind4 && !(primFollow && curFollow))
+        return;
+    for (int i = 0; i < SightUnits.Size; ++i) {
+        if (!IsTargetable(SightUnits.Array[i].Unit, false))   // 0x5bb6b0
+            continue;
+        SUnit* u = BuildingUnitAt(SightUnits.Array[i].Unit);  // 0x5463d0 / 0x546490
+        int uc = u->Proto->ClassType;
+        if (uc == 7 || uc == 8 || uc == 9)
+            continue;
+        if (!SameSide(Player, u->Player) || !u->HasWoundedMember())   // 0x549ab0, +0x80
+            continue;
+        STarget* t = STarget::Create(8);                      // 0x5c1030 (new 0x38, kind 8)
+        t->Type = kTargetUnit;
+        t->Unit = SightUnits.Array[i].Unit;
+        SetCurrentTarget(t, 0);                               // +0xa0
+        return;
+    }
+}
+
+// PANZERS 0x54acd0
+// The support place: a unit target that left the capture range is dropped;
+// without a target the place is captured as any building; an owned place
+// repairs and supplies (0x5bd610(1.0)), heals (0x54a4a0) and, while idle,
+// refills the cargo (+0x2ec) of each allied repairer / supporter in range
+// by 1 / its prototype cargo (+0xe4) per tick, paid from the place's own
+// cargo (1 / its +0xe4) unless 0x548bf0 holds for the local player's place.
+void SBuildingUnit::RefreshSupportPlace()
+{
+    STarget* t = CurrentTarget;                               // +0x1f4
+    if (t && t->Type == 0) {
+        SUnit* u = BuildingUnitAt(t->Unit);
+        float dx = Pos[0] - u->Pos[0];
+        float dz = Pos[2] - u->Pos[2];
+        float r = P->CaptureRange;                            // +0x148
+        if (r * r <= dx * dx + dz * dz)
+            ClearTargets();                                   // +0xc4
+    }
+    if (!CurrentTarget)
+        RefreshCapture();                                     // 0x54cd70
+    if (_110)
+        return;
+    AutoRepairSupply(1.0f);                                   // 0x5bd610
+    HealNearUnits();                                          // 0x54a4a0
+    if (CurrentTarget || !_2eb)
+        return;
+    for (int i = 0; i < SightUnits.Size; ++i) {
+        if (!IsTargetable(SightUnits.Array[i].Unit, false))   // 0x5bb6b0
+            continue;
+        SUnit* u = BuildingUnitAt(SightUnits.Array[i].Unit);
+        int uc = u->Proto->ClassType;
+        if (uc == 7 || uc == 8 || uc == 9)
+            continue;
+        if (!u->Proto->Supporter && !u->Proto->Repairer)      // +0xe0, +0xdf
+            continue;
+        if (!SameSide(Player, u->Player))                     // 0x549ab0
+            continue;
+        if (!(u->Cargo < 1.0f) || !(0.0f < Cargo))            // +0x2ec, 0x7f1b58, 0x7f1038
+            continue;
+        if (!UnitSuppliesForFree(this) || *(int*)((unsigned char*)g_World + 0x16c) != Player)   // 0x548bf0, World+0x16c
+            Cargo = Cargo - 1.0f / (float)P->Cargo;           // +0x340 +0xe4
+        if (Cargo < 0.0f)
+            Cargo = 0.0f;
+        u->Cargo = 1.0f / (float)u->Proto->Cargo + u->Cargo;  // +0x4 +0xe4
+        if (1.0f < u->Cargo)
+            u->Cargo = 1.0f;
+    }
+}
+
+// PANZERS 0x54a380
+// A hangar marks (+0x43c) every player with a unit of class 0, 5, 10, 11 or
+// 12 that is placed on its indoor block bit 0x8000.
+void SBuildingUnit::RefreshHangar()
+{
+    memset(_43c, 0, sizeof(_43c));
+    for (int i = 0; i < g_World->Units.Size; ++i) {
+        if (!g_World->Units.IsLive(i))
+            continue;
+        SUnit* u = g_World->Units.Array[i].Unit;
+        if (i == WorldIndex)                                  // +0x74
+            continue;
+        int ct = u->Proto->ClassType;
+        if (ct != 0 && ct != 0xb && ct != 5 && ct != 0xc && ct != 10)
+            continue;
+        if (u->Unplaced)                                      // +0x168
+            continue;
+        int x, z, d;
+        memcpy(&x, &u->Pos[0], 4);
+        memcpy(&z, &u->Pos[2], 4);
+        memcpy(&d, &u->Dir, 4);
+        if (u->TestBlockMap(x, z, d, u->UnitSizeBlocks, (short)0x8000))   // +0x1a8(+0x8c, +0x94, +0xb0, +0x58, 0x8000)
+            _43c[u->Player] = true;
+    }
 }
 
 } // namespace pz

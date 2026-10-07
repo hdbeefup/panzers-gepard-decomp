@@ -278,10 +278,10 @@ void SPUnitAnimation::LoadResourcesProps(SIPUnit* punit, const SAnimProps& props
     (void)props;
 }
 
+// PANZERS 0x5cb470
+// Empty in HD (a bare ret; every prototype animation shares it).
 void SPUnitAnimation::Slot_0C()
 {
-    STUB_LOG("SPUnitAnimation::Slot_0C (0x5cb470)");
-    PZ_M2_TRACE("SPUnitAnimation::Slot_0C (0x5cb470)");
 }
 
 SIUnitAnimation* SPUnitAnimation::CreateAnimation(SIUnit* unit)
@@ -552,12 +552,7 @@ void SPFlyingAnimation::LoadProps(SIPUnit* punit, const SAnimProps& p)
 
 // SPTrainAnimation::CreateAnimation 0x5c7990: trainanim.cpp (TR).
 
-SIUnitAnimation* SPBoatAnimation::CreateAnimation(SIUnit* unit)
-{
-    STUB_LOG("SPBoatAnimation::CreateAnimation (0x5c76d0)");
-    (void)unit;
-    return nullptr;
-}
+// SPBoatAnimation::CreateAnimation 0x5c76d0: boatanim.cpp (MS).
 
 // ---------------------------------------------------------------------------
 // SPUnit "Animation" (0x5a6ce0)

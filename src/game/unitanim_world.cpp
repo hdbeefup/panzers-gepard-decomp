@@ -3,6 +3,7 @@
 // test tool links its own binding instead. OWNER: agent A.
 
 #include "unitanim.h"
+#include "blockmap.h"
 #include "buildingunit.h"
 #include "gamelogic.h"
 #include "worldapi.h"
@@ -80,10 +81,18 @@ static SIScene* WorldScene()
     return g_Scene;
 }
 
+static float WorldWaterHeight(float x, float z)
+{
+    return g_World->GetWaterHeight(x, z);                         // 0x5ec490
+}
+static bool WorldStaticBlocked(float x, float z, int size, unsigned mask)
+{
+    return BlockMap_CheckStatic(g_World, x, z, size, mask);       // 0x5d9e00
+}
 SUnitAnimEnv g_UnitAnimEnv = {
     WorldSeed, WorldTerrainHeight, WorldLocalPlayer, WorldNoFogOfWar, WorldPlayerTeam,
     WorldHasGameLogic, WorldCanSeeGroundUnit, WorldFrame, WorldGetUnit, WorldGameLogicInt,
-    WorldPixie, WorldBuildingOccupiedByTeam, WorldScene,
+    WorldPixie, WorldBuildingOccupiedByTeam, WorldScene, WorldWaterHeight, WorldStaticBlocked,
 };
 
 } // namespace pz

@@ -581,4 +581,26 @@ int SSingleUnit::ActionOn(int target)
     return 2;
 }
 
+// PANZERS 0x5aaa80
+// Can this unit tow: it has a "hook" node (animation +0x24) and tows
+// nothing yet (+0x2d8 < 0). Used by the action cursor (0x5ace90).
+bool SSingleUnit::Slot_54()
+{
+    return Anim->GetHookNode() > -1 && Towed < 0;                 // +0x24, +0x2d8
+}
+
+// PANZERS 0x5aaa30
+// Can this unit be towed by `p1` (the tower's SUnit*, as HD passes it):
+// not when +0x7c is set or it is owned (not +0x110) by another player, and
+// only with a tow hole (animation +0x28 "hole_f" or +0x2c "hole_r").
+bool SSingleUnit::Slot_58(int p1)
+{
+    SUnit* tower = reinterpret_cast<SUnit*>(static_cast<intptr_t>(p1));
+    if (_7c || (!_110 && Player != tower->Player))
+        return false;
+    if (Anim->GetHoleFNode() < 0 && Anim->GetHoleRNode() < 0)  // +0x28, +0x2c
+        return false;
+    return true;
+}
+
 } // namespace pz

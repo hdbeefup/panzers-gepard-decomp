@@ -1340,7 +1340,15 @@ void SModel::DetachChild(int node, SIAttachable* child)
     }
     Logger.g->Panic("SModel::DetachChild: Child was not attached");
 }
-void SModel::Slot_E0() { STUB_LOG("SModel::Slot_E0 (0x6d7310)"); }
+// PANZERS 0x6d7310
+// Detach from the parent model's node (DetachChild 0x6d7340 on the parent;
+// HD does not test for a parent). M5-MS: the capture flags (SBuildingUnit
+// 0x5471d0 / Uninit 0x547690) call it.
+void SModel::Slot_E0()
+{
+    SAttachable* a = this;
+    static_cast<SModel*>(a->AttachParent)->DetachChild(a->AttachNode, static_cast<SIAttachable*>(a));
+}
 void SModel::Slot_E4() { STUB_LOG("SModel::Slot_E4 (0x6d62e0)"); }
 
 // PANZERS 0x6dade0

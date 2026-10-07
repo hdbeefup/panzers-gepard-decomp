@@ -603,10 +603,20 @@ void SUnit::EnterVehicle(int unit)
 }
 
 // PANZERS 0x5bc840
+// An armoured unit (ArmourType 1 or 2) needs repair while it is damaged, a
+// side with armour is damaged, or its driver is locked (+0x34). The tests are
+// HD's (x <= 1 && x != 1), i.e. x < 1.
 bool SUnit::NeedsRepair()
 {
-    STUB_LOG("SUnit::NeedsRepair (0x5bc840)");
-    return false;
+    int at = Proto->ArmourType;                                   // SPUnit +0x94
+    if (at != 2 && at != 1)
+        return false;
+    return HP < 1.0f                                              // +0x114, 0x7f1b58
+        || (Armor[0] < 1.0f && 0.0f < Proto->FrontArmor)          // +0x11c / +0xa0
+        || (Armor[1] < 1.0f && 0.0f < Proto->LeftSideArmor)       // +0x120 / +0xa4
+        || (Armor[2] < 1.0f && 0.0f < Proto->RightSideArmor)      // +0x124 / +0xa8
+        || (Armor[3] < 1.0f && 0.0f < Proto->BackArmor)           // +0x128 / +0xac
+        || DriverLocked;                                          // +0x34
 }
 
 // PANZERS 0x5bc700
@@ -660,7 +670,7 @@ void SUnit::AutoRepairSupply(float supplyLevel)
         if (!SameSide(Player, u->Player) || u->_110 || !Proto->Repairer)
             continue;
         if (u->NeedsRepair()) {                               // 0x5bc840
-            STUB_LOG("SUnit::AutoRepairSupply (0x5bd610) EC_Repair 0x5c1ca0");
+            EC_Repair(SightUnits.Array[i].Unit);              // 0x5c1ca0
             return;
         }
     }
@@ -674,7 +684,7 @@ void SUnit::AutoRepairSupply(float supplyLevel)
         if (!SameSide(Player, u->Player) || u->_110 || !Proto->Supporter)
             continue;
         if (u->NeedsSupply(supplyLevel)) {                    // 0x5bc700
-            STUB_LOG("SUnit::AutoRepairSupply (0x5bd610) EC_Supply 0x5c1e60");
+            EC_Supply(SightUnits.Array[i].Unit);              // 0x5c1e60
             return;
         }
     }
@@ -1497,6 +1507,174 @@ void SUnit::ServerRefreshMedic(float range)
     }
     SetCurrentTarget(pt, 0);                                  // +0xa0
     AI_Heartbeat();                                           // +0x190
+}
+
+// ---------------------------------------------------------------------------
+// Repair and supply (M5-MS)
+
+bool UnitSuppliesForFree(SUnit* u);                               // 0x548bf0 (buildingunit.cpp)
+
+// PANZERS 0x5c1ca0
+void SUnit::EC_Repair(int unit)
+{
+    STarget* t = STarget::Create(6);                              // new 0x38, ctor inline
+    tgt::I(t, tgt::kType) = 0;
+    tgt::I(t, tgt::kUnit) = unit;
+    SetCurrentTarget(t, 0);                                       // +0xa0
+}
+
+// PANZERS 0x5c1e60
+void SUnit::EC_Supply(int unit)
+{
+    STarget* t = STarget::Create(7);
+    tgt::I(t, tgt::kType) = 0;
+    tgt::I(t, tgt::kUnit) = unit;
+    SetCurrentTarget(t, 0);                                       // +0xa0
+}
+
+// A "Projectile service" / "armor" / "ammo" from above this unit to the
+// target unit (ballistic at pi/4, no damage, homing on it), as the medic's.
+static void ThrowServiceProjectile(SUnit* self, int target, const char* cls, const char* what)
+{
+    float from[3] = { self->Pos[0], self->Pos[1] + 1.0f, self->Pos[2] };   // 0x7f1b58
+    SUnit* tu = WorldUnit(target);
+    float to[3] = { tu->Pos[0], tu->Pos[1], tu->Pos[2] };
+    float dir = DAtan2f((double)(to[0] - from[0]), (double)(to[2] - from[2]));   // 0x78d07a, fstp float
+    int proj = g_World->CreateUnit(self->Player, cls, from, dir, 0, 1.0f, -1, true, "");   // 0x5e3170
+    float vel[3];
+    GunnerBallisticVelocity(to[0] - from[0], to[1] - from[1], to[2] - from[2], 0.7853981852531433f, vel);   // 0x7f7f50
+    if (!_finite((double)vel[0]) || !_finite((double)vel[1]) || !_finite((double)vel[2]))   // 0x793d6c
+        Logger.g->Panic("%s: Projectile speed is not finite!", what);
+    SProjectileUnit* p = (SProjectileUnit*)WorldUnit(proj);
+    p->SetVelocity(vel[0], vel[1], vel[2]);                       // 0x5a4450
+    p->SetDamage(0.0f, 0.0f, 0);                                  // 0x5a4410
+    p->Shooter = self->WorldIndex;                                // +0x354
+    p->SetHomingTarget(target);                                   // 0x5a4440
+}
+
+// PANZERS 0x5c01e0
+// SUnit::ServerRefreshRepair (current target of kind 6): within `range` (2D)
+// a target that needs repair (0x5bc840) and is not +0x110 is repaired while
+// this unit has cargo (0.4 / its prototype cargo per tick, unless 0x548bf0):
+// its locked driver is unlocked (active driver 0), then the HP gets 0.4 /
+// the prototype's HP, or else the first damaged armour side 0.4 / its
+// armour; every 9th frame (with the unit's index) a "Projectile service"
+// (HP) or "Projectile armor" flies to it. Out of range: wait while the
+// driver is active; done or out of cargo: back to the primary order.
+void SUnit::RefreshRepairTarget(float range)
+{
+    STarget* t = CurrentTarget;                                   // +0x1f4
+    if (!t || tgt::I(t, tgt::kKind) != 6)
+        return;
+    int tu = tgt::I(t, tgt::kUnit);
+    SUnit* u = WorldUnit(tu);
+    float dz = Pos[2] - u->Pos[2];
+    float dx = Pos[0] - u->Pos[0];
+    if (dz * dz + dx * dx <= range * range) {
+        if (u->NeedsRepair() && 0.0f < Cargo && !u->_110) {     // 0x5bc840, +0x2ec, +0x110
+            if (!UnitSuppliesForFree(this))                       // 0x548bf0
+                Cargo = Cargo - 0.4f / (float)Proto->Cargo;       // 0x7f5e20, +0xe4
+            if (Cargo < 0.0f)
+                Cargo = 0.0f;
+            if (0 < u->Drivers.Size) {                            // +0x3c
+                u->DriverLocked = false;                          // +0x34
+                // SetActiveDriver(0), inline.
+                if (u->Drivers.Size < 1)
+                    Logger.g->Panic("SUnit::SetActiveDriver: Invalid value.");
+                u->RefreshDriver = -1;                            // +0x30
+                u->PrevDriver = u->ActiveDriver;                  // +0x2c
+                u->ActiveDriver = 0;                              // +0x28
+            }
+            bool service;
+            if (u->HP < 1.0f) {                                   // +0x114
+                u->HP = 0.4f / u->Proto->HP + u->HP;              // +0x98
+                if (1.0f < u->HP)
+                    u->HP = 1.0f;
+                service = true;
+            } else {
+                static const unsigned kArmor[4] = { 0xa0, 0xa4, 0xa8, 0xac };
+                for (int s = 0; s < 4; ++s) {
+                    if (u->Armor[s] < 1.0f) {                     // +0x11c..+0x128
+                        float a = *(float*)((unsigned char*)u->Proto + kArmor[s]);
+                        u->Armor[s] = 0.4f / a + u->Armor[s];
+                        if (1.0f < u->Armor[s])
+                            u->Armor[s] = 1.0f;
+                        break;
+                    }
+                }
+                service = false;
+            }
+            if ((g_GameLogic->GetFrame() + WorldIndex) % 9 != 0)  // 0x56d1a0, +0x74
+                return;
+            ThrowServiceProjectile(this, tu, service ? "Projectile service" : "Projectile armor",
+                                   "SUnit::ServerRefreshRepair");
+            return;
+        }
+    } else if (ActiveDriver != -1) {                              // +0x28
+        return;
+    }
+    STarget* pt = PrimaryTarget;                                  // +0x1f8
+    if (!pt || pt == CurrentTarget) {
+        ClearTargets();                                           // +0xc4
+        return;
+    }
+    SetCurrentTarget(pt, 0);                                      // +0xa0
+    AI_Heartbeat();                                               // +0x190
+}
+
+// PANZERS 0x5bf280
+// SUnit::ServerRefreshAmmo (current target of kind 7): within `range` (2D)
+// a target with gunners whose first gunner is short of ammunition (AmmoLeft
+// plus the loaded round below 1) gets, every 10th frame, 1 / its Ammo while
+// this unit has cargo (paying the weapon's Damage / 10 / its cargo, unless
+// 0x548bf0), its +0x44 cleared; every 9th frame a "Projectile ammo" flies to
+// it. Out of range (or no gunners): wait while the driver is active and the
+// target has gunners; else back to the primary order.
+void SUnit::RefreshSupplyTarget(float range)
+{
+    STarget* t = CurrentTarget;                                   // +0x1f4
+    if (!t || tgt::I(t, tgt::kKind) != 7)
+        return;
+    int tu = tgt::I(t, tgt::kUnit);
+    SUnit* u = WorldUnit(tu);
+    float dz = Pos[2] - u->Pos[2];
+    float dx = Pos[0] - u->Pos[0];
+    if (range * range < dz * dz + dx * dx || u->Gunners.Size == 0) {   // +0x4c
+        if (ActiveDriver != -1 && WorldUnit(tgt::I(CurrentTarget, tgt::kUnit))->Gunners.Size != 0)
+            return;
+    } else {
+        float extra = 0.0f;
+        if (u->Gunners.Size < 1)
+            ArrayPanic("class SGunner *", 0);
+        SGunner* g0 = u->Gunners.Array[0];
+        if (g0->Loaded)                                           // +0x5c
+            extra = 1.0f / (float)g0->GetPGunner()->Ammo;         // +0x2c, +0x48
+        if (g0->AmmoLeft + extra < 1.0f && 0.0f < Cargo) {        // +0x20, 0x7f1038
+            if (g_GameLogic->GetFrame() % 10 == 0) {              // 0x56d1a0
+                if (!UnitSuppliesForFree(this))                   // 0x548bf0
+                    Cargo = Cargo - (u->GetGunner(0)->GetPGunner()->Damage / 10.0f) / (float)Proto->Cargo;   // 0x55cc40, +0x58, 0x7f5a7c, +0xe4
+                if (Cargo < 0.0f)
+                    Cargo = 0.0f;
+                SGunner* g = u->GetGunner(0);
+                g->AmmoLeft = 1.0f / (float)u->GetGunner(0)->GetPGunner()->Ammo + g->AmmoLeft;
+                u->MainGunner = 0;                                // +0x44
+                float lim = 1.0f - extra;
+                if (lim < u->GetGunner(0)->AmmoLeft)
+                    u->GetGunner(0)->AmmoLeft = lim;
+            }
+            if (g_GameLogic->GetFrame() % 9 != 0)
+                return;
+            ThrowServiceProjectile(this, tu, "Projectile ammo", "SUnit::ServerRefreshAmmo");
+            return;
+        }
+    }
+    STarget* pt = PrimaryTarget;                                  // +0x1f8
+    if (!pt || pt == CurrentTarget) {
+        ClearTargets();                                           // +0xc4
+        return;
+    }
+    SetCurrentTarget(pt, 0);                                      // +0xa0
+    AI_Heartbeat();                                               // +0x190
 }
 
 // ---------------------------------------------------------------------------

@@ -70,6 +70,8 @@ bool SuperWindowM3Action(SSuperWindow* sw, int action, int param);
 void M3RestoreMovedWorld();
 void M3OnMainMenu(SSuperWindow* sw);
 void M4OnMainMenu(SSuperWindow* sw);
+void M5OnMainMenu(SSuperWindow* sw);
+void M5OnIdle(SSuperWindow* sw);
 bool PzLoadGameAction(SSuperWindow* sw, const char* file);
 
 static pz::SUnitRegistry* s_UnitRegistry = nullptr;   // HD 0x929a4c (new 0x124)
@@ -547,6 +549,7 @@ void SSuperWindow::LoadMainMenu()
     MainMenu->SetPosition(0, 0, 0x400, 0x300);                     // vtbl +0x08
     MainMenu->Create();                                            // 0x6352f0
     Logger.g->Log(0, "SSuperWindow::LoadMainMenu: releasing scene");
+    M5OnMainMenu(this);                                            // recompile-only PZ_M5_MISSION / PZ_M5_AUTO / PZ_M5_NOGHOST (m5mission.cpp)
     if (pz::g_M3.Enabled)
         M3OnMainMenu(this);                                        // recompile-only -m3 -packetplay replay start
     M4OnMainMenu(this);                                            // recompile-only PZ_M4_LOADGAME (loadgame.cpp)
@@ -817,6 +820,7 @@ bool SSuperWindow::OnIdle()
         BinkFrame();                               // 0x65ba00
         return true;
     }
+    M5OnIdle(this);                                // recompile-only PZ_M5_AUTO / PZ_M5_FRAMES (m5mission.cpp)
     if (Menu_f0)
         Menu_f0->Update();                         // vtbl +0x78
     // HD 0x65ae50: +0x110 (the market), +0x104, +0x108, else +0xe4.

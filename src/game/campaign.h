@@ -142,6 +142,7 @@ struct SPanzersCampaign {
     void RestartMission();                                 // 0x594f60 (name guessed) results "Restart" (0x524d2)
     const char* GetBriefingText();                         // 0x591e30 [<section>] "Briefing text"
     int  GetNextMissionSP();                               // 0x5928b0 [Next Mission] "SP", 500 without one
+    int  GetMissionNumber();                               // 0x5920f0 [section] "Mission number" (M5-MS, for the market 0x644fc0)
 
     // Flow.
     int  GetMenuToLoad();                                  // 0x596600

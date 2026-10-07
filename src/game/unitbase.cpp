@@ -724,8 +724,11 @@ void SUnit::ServerRefresh(int frame)
         }
     }
     if (PrimaryTarget && !CurrentTarget) {
-        Logger.g->Warning("SUnit::ServerRefresh: There's a PrimaryTarget but no CurrentTarget. Unitname: %s, idx:%d, Frame:%d",
-                          SStr(Proto->Name), WorldIndex, gf);
+        // HD passes the text to 0x568ae0, an empty function (a compiled-out
+        // debug message), not to the Warning box 0x65cac0: no box (M5-MS; the
+        // box blocked Russian 3 every tick during its opening cut-scene).
+        Logger.g->Log(1, "SUnit::ServerRefresh: There's a PrimaryTarget but no CurrentTarget. Unitname: %s, idx:%d, Frame:%d",
+                      SStr(Proto->Name), WorldIndex, gf);
         AI_Heartbeat();                                       // +0x190
     }
     if (PrimaryTarget && !PzTargetRefresh(PrimaryTarget, WorldIndex)) {   // 0x5bd210
@@ -780,25 +783,8 @@ void SUnit::UpdateSeenByPlayers()
             _26c[p] = g_GameLogic->Frame;                     // DAT_008f2078 +0x08
 }
 
-// PANZERS 0x5c01e0 (entry test)
-// Repairing: only for a current target of kind 6 (never in the menu).
-void SUnit::RefreshRepairTarget(float range)
-{
-    (void)range;
-    if (!CurrentTarget || tgt::I(CurrentTarget, tgt::kKind) != 6)
-        return;
-    STUB_LOG("SUnit::RefreshRepairTarget (0x5c01e0) repair target");
-}
-
-// PANZERS 0x5bf280 (entry test)
-// Resupplying: only for a current target of kind 7 (never in the menu).
-void SUnit::RefreshSupplyTarget(float range)
-{
-    (void)range;
-    if (!CurrentTarget || tgt::I(CurrentTarget, tgt::kKind) != 7)
-        return;
-    STUB_LOG("SUnit::RefreshSupplyTarget (0x5bf280) supply target");
-}
+// SUnit::RefreshRepairTarget 0x5c01e0 and RefreshSupplyTarget 0x5bf280:
+// unitai.cpp (next to the medic, M5-MS).
 
 // PANZERS 0x5bd600
 void SUnit::RefreshTargeting()

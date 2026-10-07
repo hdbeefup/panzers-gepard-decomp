@@ -520,6 +520,11 @@ SGepardHDState& HD()
         IDirect3DDevice9* dev = SwineGepard()->lpD3DDev;
         if (dev) {
             s_HD.Device = dev;
+            // (M5-MS) The facade is made before the SWINE Gepard exists (and
+            // its ctor clears the hooks), so PzGepard() never registered the
+            // reset hooks: an in-mission Reset (WM_SIZE) then failed with
+            // D3DERR_INVALIDCALL on the offscreen viewports / shadow buffers.
+            SwineGepard()->RegisterResetCallbacks(&PreDeviceReset, &PostDeviceReset, nullptr);
             D3DCAPS9 caps;
             memset(&caps, 0, sizeof(caps));
             dev->GetDeviceCaps(&caps);

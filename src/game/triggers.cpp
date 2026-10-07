@@ -31,8 +31,10 @@
 #include "gettext.h"
 #include "core_common.h"
 #include "stream.h"
+#include "aigroup.h"
 
 void PzPlayMusicTrack(const char* track);   // src/panzers/results.cpp: Concert +0x80(0), +0x6c, +0x70, +0x78(0)
+void PzPlayTriggerMusic(const char* track); // src/panzers/results.cpp: Concert +0x6c, +0x70, +0x78(0) (action 0x3f)
 
 namespace pz {
 
@@ -1102,8 +1104,10 @@ static void ActionSetHealth(SRunningTrigger* rt, int percent)
     }
 }
 
-// RunTriggers case 0x2c: move to the location centre facing Num degrees.
-static void ActionMoveFacing(SGameLogic* gl, const STriggerAction* a, SRunningTrigger* rt)
+// RunTriggers case 0x2c: move to the location centre facing Num degrees;
+// case 0x32 (M5-MS) the same backwards (commands 4 far / 3 near).
+static void ActionMoveFacing(SGameLogic* gl, const STriggerAction* a, SRunningTrigger* rt, int farCmd = 1,
+                             int nearCmd = 1)
 {
     if (rt->Found.Count == 0)
         return;
@@ -1119,9 +1123,9 @@ static void ActionMoveFacing(SGameLogic* gl, const STriggerAction* a, SRunningTr
     float dz = target[1] - rt->Found.Z;
     float d = dx * dx + dz * dz;
     if (d > rt->Found.RadiusSq)
-        gl->MoveFoundUnitsToLocationDir(&rt->Found, 1, target, dir, false, false, false);   // 0x57f200
+        gl->MoveFoundUnitsToLocationDir(&rt->Found, farCmd, target, dir, false, false, false);   // 0x57f200
     else
-        gl->MoveFoundUnitsNear(&rt->Found, 1, target, false, false, false);   // 0x57e8b0 (shared tail of case 0xe)
+        gl->MoveFoundUnitsNear(&rt->Found, nearCmd, target, false, false, false);   // 0x57e8b0 (shared tail of case 0xe)
 }
 
 // RunTriggers case 0x2d: a one-shot effect at the location centre (guide
@@ -1239,6 +1243,154 @@ static void ActionSpeech(const STriggerAction* a)
     PzSpeechQueue(SStr(a->Str1000));                              // World 0x600770
 }
 
+// ---------------------------------------------------------------------------
+// Campaign actions (M5-MS): objectives shown / failed, victory / defeat for a
+// player, support calls, AI groups, music, speech and wait, counters, orders.
+
+double PzSpeechPlayNow(const char* file);                         // tutorial_msg.cpp (0x57d065)
+
+// RunTriggers case 0x21 "Show objective": the "New mission objective:"
+// message with the text, the objective shown (+0x04 cleared) and a minimap
+// marker for each of its targets (0x560eb0(target, objective, target index)).
+static void ActionShowObjective(SGameLogic* gl, const STriggerAction* a)
+{
+    if (a->Num <= 0 || !g_Campaign || a->Num - 1 >= g_Campaign->ObjectiveCount)
+        return;
+    SCampaignObjective& o = g_Campaign->Objectives[a->Num - 1];   // 0x560580 (campaign +0x134)
+    PzMessageFading(gl, GetText("world/GameLogic.cpp", "New mission objective: "), 2);   // 0x660c50, 0x56a480
+    PzMessageFading(gl, SStr(o.Text), 0);
+    PzMessageFading(gl, "", 0);
+    o.Hidden = false;                                             // +0x04
+    for (int t = 0; t < o.TargetCount; ++t)                       // +0x14
+        gl->AddMinimapObjective(o.Targets[t * 2], o.Targets[t * 2 + 1], a->Num - 1, t);   // 0x550010, 0x560eb0
+}
+
+// RunTriggers case 0x22 "Objective failed": the message with the text, state
+// 1; a failed main objective is the defeat of every player of team 1 (+0x18c
+// = 2, +0x190 = the objective, the mission result 2, out of the game).
+static void ActionObjectiveFailed(SGameLogic* gl, const STriggerAction* a)
+{
+    if (a->Num <= 0 || !g_Campaign || a->Num - 1 >= g_Campaign->ObjectiveCount)
+        return;
+    SCampaignObjective& o = g_Campaign->Objectives[a->Num - 1];
+    PzMessageFading(gl, GetText("world/GameLogic.cpp", "Objective failed: "), 2);
+    PzMessageFading(gl, SStr(o.Text), 0);
+    PzMessageFading(gl, "", 0);
+    o.State = 1;
+    if (!o.Main)                                                  // +0x05
+        return;
+    for (int pl = 0; pl < 12; ++pl) {
+        int* rec = (int*)g_World->Players[pl];                    // World +0x170 + pl * 0x48
+        if (rec[3] == 1) {                                        // +0x17c
+            rec[7] = 2;                                           // +0x18c
+            rec[8] = a->Num;                                      // +0x190
+            g_Campaign->SetMissionResult(2);                      // 0x597470(2)
+            rec[2] = 2;                                           // +0x178
+        }
+    }
+}
+
+// RunTriggers cases 0x0b / 0x0c "Victory" / "Defeat" for a player (+0x18c =
+// 1 / 2; the local player's sets the mission result; the player is out).
+// The multiplayer messages of 0x0c (0x594d20) are left out: no SMulti here.
+static void ActionEndForPlayer(SGameLogic* gl, const STriggerAction* a, SRunningTrigger* rt, int result)
+{
+    int p = ResolvePlayer(a->Player, rt);                         // 0x56abe0
+    if (p < 0)
+        return;
+    int* rec = (int*)g_World->Players[p];
+    rec[7] = result;                                              // +0x18c
+    if (p == g_World->LocalPlayer)                                // World +0x16c
+        g_Campaign->SetMissionResult(result);                     // 0x597470
+    rec[2] = 2;                                                   // +0x178
+    (void)gl;
+}
+
+// RunTriggers cases 0x10..0x14: a free support call of the action's player
+// to the location centre (artillery 0x5674c0, recon 0x568300, tactical
+// bomber 0x568740, heavy bomber 0x567760, paratroopers 0x567d40).
+static void ActionSupportCall(SGameLogic* gl, const STriggerAction* a, SRunningTrigger* rt)
+{
+    if (!g_World->Locations.IsLive(a->P20))                       // 0x573730
+        return;
+    int player = ResolvePlayer(a->Player, rt);                    // 0x56abe0
+    if (player < 0)
+        return;
+    const SLocation* l = LocationAt(a->P20);                      // 0x5608c0
+    float x = (float)((double)(l->X2 + l->X1) * 0.5);             // 0x7ea760
+    if (!(0.0f <= x))
+        return;
+    float z = (float)((double)(l->Z2 + l->Z1) * 0.5);
+    switch (a->Type) {
+    case 0x10: gl->SupportArtillery(true, x, z, player); break;
+    case 0x11: gl->SupportRecon(true, x, z, player, -1.0f, true); break;
+    case 0x12: gl->SupportTacBomber(true, x, z, player); break;
+    case 0x13: gl->SupportHeavyBomber(true, x, z, player, -1.0f, true, false, 0.0f); break;
+    case 0x14: gl->SupportParatroopers(true, x, z, player, -1.0f, true, false, 0.0f); break;
+    }
+}
+
+// RunTriggers cases 0x1c / 0x33..0x36: the AI group P2000 (+0x38) when it is
+// live (0x573700): attack-move along the path P800 (0x5d9750), its tactic =
+// P80000 (+0x08), its base = the location centre (+0x1c), move (0x5f5000) /
+// attack-move (0x5d95b0) to the location centre (float sums * 0.5f).
+static void ActionAIGroup(const STriggerAction* a)
+{
+    if (!AIGroupHeap(g_World).IsLive(a->P2000))                   // 0x573700
+        return;
+    if (a->Type == 0x1c) {
+        AIGroupAt(a->P2000)->MoveAlongPath(a->P800);              // 0x55ccc0, 0x5d9750
+        return;
+    }
+    if (a->Type == 0x33) {
+        AIGroupAt(a->P2000)->Tactic = a->P80000;                  // +0x08 = +0x3c
+        return;
+    }
+    const SLocation* l = LocationAt(a->P20);                      // 0x5608c0
+    float x = (float)(l->X2 + l->X1) * 0.5f;                      // cvtdq2ps, mulss 0x7f453c
+    float z = (float)(l->Z2 + l->Z1) * 0.5f;
+    SAIGroup* g = AIGroupAt(a->P2000);
+    if (a->Type == 0x34) {
+        g->StartPos[0] = x;                                       // +0x1c
+        g->StartPos[1] = z;                                       // +0x20
+    } else if (a->Type == 0x35) {
+        g->MoveTo(x, z);                                          // 0x5f5000
+    } else {
+        g->AttackMoveTo(x, z);                                    // 0x5d95b0
+    }
+}
+
+// RunTriggers case 0x19 "Tow": as 0x15, the first live unit in the location
+// (heap order, 0x56b3b0) that is placed, not carried and not dying and that
+// the first found unit can tow (its +0x58(tower), 0x5aaa30) is towed (order
+// 0x2c, 0x564720).
+static void ActionTow(SGameLogic* gl, const STriggerAction* a, SRunningTrigger* rt)
+{
+    if (rt->Found.Count == 0 || !g_World->Locations.IsLive(a->P20))   // 0x573730
+        return;
+    PZ_FOR_EACH_UNIT(u) {
+        if (UV::B150(u) || UV::Container(u) >= 0 || UV::Unplaced(u))   // +0x150, +0x78, +0x168
+            continue;
+        SUnit* tower = WorldUnit(FoundUnit(&rt->Found, 0));       // 0x560790, 0x546490
+        if (WorldUnit(u)->Slot_58((int)(intptr_t)tower) && StrictlyInLocation(u, a->P20)) {   // +0x58, 0x581930
+            gl->OrderAtUnit(&rt->Found, 0x2c, u, false, false);  // 0x564720(g, 0x2c, u, 0, 0)
+            break;
+        }
+    }
+}
+
+// RunTriggers case 0x4b "Remove buildings": the found buildings (class 9)
+// leave the world (0x5f8060).
+static void ActionRemoveBuildings(const STriggerAction* a, SRunningTrigger* rt)
+{
+    (void)a;
+    for (int k = 0; k < rt->Found.Count; ++k) {
+        int u = FoundUnit(&rt->Found, k);                         // 0x560790
+        if (WorldUnit(u)->Proto->ClassType == 9)                  // 0x546490, +0x40
+            g_World->RemoveUnit(u);                               // 0x5f8060
+    }
+}
+
 // PANZERS 0x579ab0
 // Walks the running triggers. For each: drops found units that died or were
 // unplaced (then 0x582770), waits (+0x08), and otherwise executes actions
@@ -1308,9 +1460,7 @@ void SGameLogic::RunTriggers()
             if (d > rt->Found.RadiusSq) {
                 MoveFoundUnitsToLocation(&rt->Found, 1, target, false, false, false);   // 0x57efd0
             } else {
-                // HD 0x57e8b0 (spread the group around the target; never
-                // executed in the menu).
-                STUB_LOG("SGameLogic::RunTriggers move to location, near branch (0x57e8b0)");
+                MoveFoundUnitsNear(&rt->Found, 1, target, false, false, false);   // 0x57e8b0 (M5-MS)
             }
             break;
         }
@@ -1336,8 +1486,7 @@ void SGameLogic::RunTriggers()
             if (rt->Found.RadiusSq <= d && d != rt->Found.RadiusSq) {
                 MoveFoundUnitsToLocation(&rt->Found, 9, target, false, false, false);   // 0x57efd0(found, 9, &target, 0)
             } else {
-                // HD 0x57e8b0(found, 9, &target, 0): agent O.
-                STUB_LOG("SGameLogic::RunTriggers attack-move to location, near branch (0x57e8b0)");
+                MoveFoundUnitsNear(&rt->Found, 9, target, false, false, false);   // 0x57e8b0(found, 9, &target, 0) (M5-MS)
             }
             break;
         }
@@ -1497,6 +1646,82 @@ void SGameLogic::RunTriggers()
                     u->_140 = false;
                     u->_14c = false;
                 }
+            break;
+        case 0xb:                                                 // victory for a player
+            ActionEndForPlayer(this, a, rt, 1);
+            break;
+        case 0xc:                                                 // defeat for a player
+            ActionEndForPlayer(this, a, rt, 2);
+            break;
+        case 0xf:                                                 // attack-move along a path (order 10)
+            if (rt->Found.Count != 0)
+                OrderAlongPath(this, &rt->Found, 10, a->P800);    // 0x564510(g, 10, path, 0, 0)
+            break;
+        case 0x10:                                                // support calls
+        case 0x11:
+        case 0x12:
+        case 0x13:
+        case 0x14:
+            ActionSupportCall(this, a, rt);
+            break;
+        case 0x19:                                                // tow the first towable unit in the location
+            ActionTow(this, a, rt);
+            break;
+        case 0x1a:                                                // untow (order 0x2d)
+            if (rt->Found.Count != 0)
+                OrderPlain(&rt->Found, 0x2d, false, false);       // 0x564440(g, 0x2d, 0, 0)
+            break;
+        case 0x1c:                                                // AI groups
+        case 0x33:
+        case 0x34:
+        case 0x35:
+        case 0x36:
+            ActionAIGroup(a);
+            break;
+        case 0x20:                                                // kill (order 0x26)
+            if (rt->Found.Count != 0)
+                OrderPlain(&rt->Found, 0x26, false, false);       // 0x564440(g, 0x26, 0, 0)
+            break;
+        case 0x21:                                                // show objective
+            ActionShowObjective(this, a);
+            break;
+        case 0x22:                                                // objective failed
+            ActionObjectiveFailed(this, a);
+            break;
+        case 0x32:                                                // move backwards facing a direction
+            ActionMoveFacing(this, a, rt, 4, 3);                  // 0x57f200(g, 4, ..) / 0x57e8b0(g, 3, ..)
+            break;
+        case 0x39:                                                // lay tank mines along a path (order 0x1e)
+            if (rt->Found.Count != 0)
+                OrderAlongPath(this, &rt->Found, 0x1e, a->P800);  // 0x564510(g, 0x1e, path, 0, 0)
+            break;
+        case 0x3e:                                                // hide an objective's target marker
+            if (a->Num > 0 && a->P400000 > 0)                     // +0x28, +0x2c
+                RemoveObjectiveMarkers(this, a->Num - 1, a->P400000 - 1);   // 0x579420
+            break;
+        case 0x3f:                                                // play music
+            ::PzPlayTriggerMusic(SStr(a->Str1000));               // Concert +0x6c, +0x70, +0x78(0)
+            break;
+        case 0x43:                                                // time counter on / off (+0x14c)
+        case 0x44:
+            ((unsigned char*)this)[0x14c] = a->Type == 0x43;
+            break;
+        case 0x45:                                                // unit counter on / off (+0x14d)
+        case 0x46:
+            ((unsigned char*)this)[0x14d] = a->Type == 0x45;
+            break;
+        case 0x47:                                                // use boat: stop (8), then order 0x1a
+            if (rt->Found.Count != 0) {
+                OrderPlain(&rt->Found, 8, false, false);          // 0x564440(g, 8, 0, 0)
+                OrderPlain(&rt->Found, 0x1a, false, false);       // 0x564440(g, 0x1a, 0, 0)
+            }
+            break;
+        case 0x4a:                                                // speech and wait until it ends
+            rt->Wait = (int)(PzSpeechPlayNow(SStr(a->Str1000)) * 20.0);   // 0x7f5a58, ftol 0x7669f1
+            break;
+        case 0x4b:                                                // remove the found buildings
+            if (rt->Found.Count != 0)
+                ActionRemoveBuildings(a, rt);
             break;
         default: {
             // The other 66 actions (combat, AI, objectives, cameras, sounds,

@@ -166,13 +166,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nS
     // HD: new STimer (0xf8) 0x661520 -> 0x92e354. The SWINE engine uses the
     // global STimer object (constructed statically, src/panzers/gamemain.cpp).
 
-    // Recompile-only test hook (M5-VX, inert when unset): a test machine
-    // running several game windows can take over 5 s to load a map; Windows
-    // then ghosts the window and resizes it when it answers again, and the
-    // device Reset of that OnSize fails. PZ_M5_NOGHOST=1 turns ghosting off.
-    if (getenv("PZ_M5_NOGHOST"))
-        DisableProcessWindowsGhosting();
-
     CoInitializeEx(nullptr, 0);
     RunGame();                        // 0x64c800 -> GameMain 0x64c870
 

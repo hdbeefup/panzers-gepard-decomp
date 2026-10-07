@@ -232,6 +232,8 @@ struct SUnit : SIUnit {
     bool IsAIDefault();                                          // 0x5bb470 AI player, no AI group, behaviour 1
     bool HasSlotWeapon(int weapon);                              // 0x5ba820 (+0x138 / +0x144)
     int  FindTarget(int mode, SGunner* gunner, float minRange, float maxRange, bool canMove);   // 0x5b4720 (-1 = none)
+    void EC_Repair(int unit);                                    // 0x5c1ca0 (name guessed) current target kind 6 on the unit
+    void EC_Supply(int unit);                                    // 0x5c1e60 (name guessed) current target kind 7 on the unit
     void AutoRepairSupply(float supplyLevel);                    // 0x5bd610 (repairers / supporters)
     int  GetBuildingAction(int unit);                            // 0x5ba2b0 (-1 = not a building)
     bool NeedsSupply(float level);                               // 0x5bc700

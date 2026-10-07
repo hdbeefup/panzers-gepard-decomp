@@ -99,10 +99,14 @@ void SUnit::EC_Default(int p1, int p2)
     PZ_M2_TRACE("SUnit::EC_Default (0x5b8ab0)");
 }
 
+// PANZERS 0x5b9170
+// Drop the current target (released, +0x1f4 = 0), stop the gunners (+0xec),
+// then Stop (+0xc0, tail jump). (M5-MS: hit by a squad in Russian 8.)
 void SUnit::Slot_C8()
 {
-    STUB_LOG("SUnit::Slot_C8 (0x5b9170)");
-    PZ_M2_TRACE("SUnit::Slot_C8 (0x5b9170)");
+    SetTarget(&CurrentTarget, nullptr);                           // refcount--, delete 0x38 at 0
+    StopGunners();                                                // +0xec
+    Stop();                                                       // +0xc0
 }
 
 void SUnit::EC_AssaultBuilding(int p1, int p2)

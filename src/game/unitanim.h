@@ -161,6 +161,8 @@ struct SUnitAnimEnv {
     SIPixie*  (*Pixie)();                                // DAT_00929f14
     bool      (*BuildingOccupiedByTeam)(SIUnit* b, int player); // SBuildingUnit 0x5468e0
     SIScene*  (*Scene)();                                // DAT_00929a54 (the running gear's ground trails); may be null
+    float     (*WaterHeight)(float x, float z);          // SWorld 0x5ec490 (boats); may be null (animview)
+    bool      (*StaticBlocked)(float x, float z, int size, unsigned mask); // SWorld 0x5d9e00 (boats); may be null
 };
 extern SUnitAnimEnv g_UnitAnimEnv;
 
@@ -308,7 +310,7 @@ struct SPTrainAnimation : SPVehicleAnimation {         // 0x3c, vftable 0x7fa9ac
 };
 
 struct SPBoatAnimation : SPVehicleAnimation {          // 0x3c, vftable 0x7fa9c4
-    SIUnitAnimation* CreateAnimation(SIUnit* unit) override; // 0x5c76d0 (not lifted)
+    SIUnitAnimation* CreateAnimation(SIUnit* unit) override; // 0x5c76d0 (boatanim.cpp)
 };
 
 // SPUnit 0x5a6ce0: the "Animation" multi of the unit (1 vehicle, 2 walker,

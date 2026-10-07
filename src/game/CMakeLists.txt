@@ -106,6 +106,8 @@ add_library(pzgame STATIC
     trainunit.cpp
     traindriver.h
     traindriver.cpp
+    boatanim.h
+    boatanim.cpp
     trainanim.h
     trainanim.cpp
     parachute.cpp
