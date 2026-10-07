@@ -246,6 +246,20 @@ static void LoadReplay(SSuperWindow* sw, const char* name)
     } catch (const char* e) {
         Logger.g->Panic("SPanzersCampaign::StartReplay: %s", e);   // (recompile) HD has no handler here
     }
+    // (recompile) A campaign mission's replay (GameMode 3): HD's StartReplay
+    // loads no mission properties, so GetMapName 0x592040 (missions.ini
+    // [<section>] "Map") gives "missing.scene"; the cut replay screen could
+    // not have started one. Load them as PrepareMission 0x592d80 does
+    // (LoadMissionProps 0x593740, LoadObjectives 0x593ba0), keeping the
+    // header's army, prestige and difficulty (docs/m6/or.md).
+    pz::SPanzersCampaign* c = pz::g_Campaign;
+    if (c->GameMode == pz::PZ_GM_CAMPAIGN) {
+        c->LoadMissionProps();
+        c->LoadObjectives();
+        Logger.g->Log(0, "PZM6: campaign replay [%s] map %s, prestige %d, army %d, difficulty %d",
+                      c->MissionSection.buf ? c->MissionSection.buf : "", c->GetMapName(), c->Prestige,
+                      c->MissionArmy.Size, c->Difficulty);
+    }
     // HD Concert +0x80(1): not mapped yet.
     Settings.PacketRec = false;                                    // word 0x929d34 = 0x100
     Settings.PacketPlay = true;
