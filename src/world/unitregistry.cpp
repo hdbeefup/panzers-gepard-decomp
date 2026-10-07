@@ -14,6 +14,8 @@
 #include "logger.h"
 #include "unitprops.h"
 #include "unitanim.h"
+#include "gettext.h"
+#include <stdio.h>
 
 namespace pz {
 
@@ -426,8 +428,36 @@ SUnitRegistry::SUnitRegistry()
     TankMaxNumber = v->GetInt(g, "Tank_MaxNumber", 0xe);
     ArtilleryMaxNumber = v->GetInt(g, "Artillery_MaxNumber", 8);
     SupportMaxNumber = v->GetInt(g, "Support_MaxNumber", 8);
-    // HD then reads units.ini "short name" / GetText "Building" into each
-    // prototype's +0x68 / +0x70 (display names; not used by the menu).
+    // HD then reads the display names into each prototype (as the market's
+    // LoadUnitDisplayNames, src/panzers/market.cpp, describes): units.ini
+    // [<unit>] "short name" -> +0x68, short name + " - " + "Type name" ->
+    // +0x70 (the HUD panel's unit name, SGameView::Update 0x628430), "Unit
+    // desc" -> +0x78 (">>kitoltendo<<" = none); class 9 GetText "Building".
+    {
+        SProperties ini("units.ini", true);                        // 0x65fe80("units.ini", 1)
+        for (int i = 0; i < Count; ++i) {
+            SPUnit* p = Entries[i].Type;
+            if (!p)
+                continue;
+            if (p->ClassType == 9) {
+                const char* b = GetText("world/UnitRegistry.cpp", "Building");
+                p->IniName68 = b ? b : "";
+                p->IniName70 = b ? b : "";
+                continue;
+            }
+            const char* unit = Entries[i].Name.buf ? Entries[i].Name.buf : "";
+            const char* shortName = ini.GetString(unit, "short name", "???");
+            p->IniName68 = shortName ? shortName : "";
+            char full[256];
+            _snprintf(full, sizeof full, "%s - %s", shortName ? shortName : "", ini.GetString(unit, "Type name", "???"));
+            full[sizeof full - 1] = 0;
+            p->IniName70 = full;
+            const char* desc = ini.GetString(unit, "Unit desc", "");
+            if (desc && _stricmp(desc, ">>kitoltendo<<") == 0)
+                desc = "";
+            *(SString*)((unsigned char*)p + 0x78) = desc ? desc : "";
+        }
+    }
     if (Logger.g)
         Logger.g->Log(0, "PZ3D world: unit registry %d unit types", Count);
 }

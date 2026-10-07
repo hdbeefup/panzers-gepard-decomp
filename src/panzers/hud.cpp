@@ -29,6 +29,12 @@
 #include "world.h"
 #include "gamelogic.h"
 #include "unit.h"
+#include "gunner.h"
+#include "target.h"
+#include "pzunitregistry.h"
+#include "selection.h"
+
+static bool HudShift(SGameView* v) { return v->KeyDownTime[VK_SHIFT] != 0; }   // +0x9c (as gameview_input.cpp)
 
 static const char* Gv(const char* id) { return GetText("panzers/GameView.cpp", id); }
 
@@ -593,7 +599,9 @@ struct SGameHud {
     int SupportCount[5] = { -1, -1, -1, -1, -1 }; // +0x1578 [0x55e] artillery, recon, fighter, bomber, paratroops
     SUnitButton Selection[16];            // +0x158c [0x563]
     SHeroUnitButton Heroes[5];            // +0x218c [0x863]
-    int UnitHeader = -1;                  // +0x2478 [0x91e]
+    int HeroClickIndex = 0;               // +0x2470 [0x91c] the last hero photo clicked
+    float HeroClickTime = 0.0f;           // +0x2474 [0x91d] and when (timer seconds)
+    int UnitHeader = -1;                // +0x2478 [0x91e]
     int UnitName = -1;                    // +0x247c [0x91f]
     int Stars[4] = { -1, -1, -1, -1 };    // +0x2480 [0x920]
     int _2490 = -1;                       // +0x2490 [0x924]
@@ -604,6 +612,8 @@ struct SGameHud {
     SUnitButton UnitButton;               // +0x2818 [0xa06]
     SUnitButton Units2[2];                // +0x28d8 [0xa36]
     int Vehicle[4] = { -1, -1, -1, -1 };  // +0x2a60 [0xa98] sprites, [0xa9a] texts
+    int Equip1Kind = 0;                   // +0x2a58 [0xa96] command kind of Equip1 (equipment kind + 4)
+    int Equip2Kind = 0;                   // +0x2a5c [0xa97]
     int PanelFrame = -1;                  // +0x2a70 [0xa9c] glyph 0xa1 (shown by SetPanelMode)
     SCommandButton Stop;                  // +0x2a74 [0xa9d]
     SCommandButton Move;                  // +0x2b04 [0xac1]
@@ -939,22 +949,709 @@ static void WorldGroupState(pz::SWorld* w, int has[10])
         has[0] = found;
 }
 
-// HD 0x56b3e0 (the selection summary of Update) starts with the heroes: the
-// first five live units (heap order) of the local player whose prototype
-// has a hero picture (+0x34 >= 0). The rest of 0x56b3e0 (the selection's
-// command flags) is not lifted.
-static void HudHeroList(pz::SWorld* w, int heroes[5])
+// HD 0x56b3e0 fills a 0x13c-byte summary of the selection on Update's stack
+// (0x628430, at EBP-0x174). Dword indices as HD uses them; the byte flags
+// at byte offsets (B()).
+//   [0..4]   the heroes of the local player (the hero photos)
+//   bytes    0x14 Stop, 0x15 Move, 0x16, 0x17 Reverse, 0x18 Attack, 0x23 Heal,
+//            0x24 Suppress, 0x27..0x29 behaviour states, 0x2c Leave,
+//            0x2e..0x30 stances, 0x31 Attach, 0x32 Detach, 0x33 Resupply,
+//            0x34 Resupply all, 0x35 Repair; 0x58..0x5b their automatic
+//            flags (unit +0x2eb / +0x35c)
+//   [0x10] [0x11] the equipment kinds of the two slots (+0x138 / +0x144),
+//            [0x17] [0x18] their automatic flags; [0x12..0x15] the local
+//            panel unit's +0x138 / +0x144 / +0x13c / +0x148 (squads, class 9)
+//   [0x19]   the order kind shared by the selection (-1 none, -2 mixed)
+//   [0x1a]   the behaviour (+0x250), [0x1b] the stance (+0xec, squads)
+//   [0x1c]   1 with a panel unit, [0x1d] the panel unit
+//   [0x1e..0x2d] the first 16 selected units
+//   [0x30]   stars (rank + 1), [0x31] XP, [0x32] [0x33] HP max / now,
+//   [0x34] [0x35] cargo max / now, [0x36] the driver (-1, 0, 1)
+//   [0x37 + 4i] three weapon slots: byte active, float damage, float bonus,
+//            int glyph; [0x43] [0x44] ammo max / now
+//   [0x45..0x48] armour now, [0x49..0x4c] armour max, [0x4d] [0x4e]
+//            thermostat max / now
+struct SSelSummary {
+    int d[0x4f + 4];                      // + 4: HD writes a fourth gunner's slot over [0x43..0x46]
+    const char* Name;                     // [0x2e] HD: a heap copy of prototype +0x70 ([0x2f] length)
+
+    unsigned char& B(int off) { return ((unsigned char*)d)[off]; }
+    float& F(int i) { return *(float*)&d[i]; }
+};
+
+static int WeaponGlyph(int type)
 {
+    switch (type) {                                                // 0x584240
+    case 0: return 1;
+    case 1: return 0;
+    case 2: return 2;
+    case 3: return 3;
+    }
+    return -1;
+}
+
+// PANZERS 0x56b3e0
+// SGameLogic: the selection summary of the HUD (reads only; the panel unit
+// is the one live unit of the local player (all players with World +0x4d0)
+// with +0x104 bit 1, else the one with bit 0).
+static void SelectionSummary(pz::SWorld* w, SSelSummary* s)
+{
+    memset(s->d, 0, sizeof(s->d));
+    s->Name = nullptr;
+    int kind = -1;
+    s->d[0x19] = s->d[0x1a] = s->d[0x1b] = -1;
+    for (int i = 0x1e; i < 0x2e; ++i)
+        s->d[i] = -1;                                              // 0x7ed5b0 (-1 x4)
     for (int i = 0; i < 5; ++i)
-        heroes[i] = -1;
-    int n = 0;
+        s->d[i] = -1;
+    int heroes = 0, selCount = 0, sel = -1, hiCount = 0, hi = -1;
+    unsigned char allPlayers = *((unsigned char*)w + 0x4d0);
     for (int i = 0; i < w->Units.Size; ++i) {
         if (!w->Units.IsLive(i))
             continue;
         pz::SUnit* u = w->Units.Array[i].Unit;
-        if (u->Proto->HeroPicture >= 0 && w->LocalPlayer == u->Player && n < 5)
-            heroes[n++] = u->WorldIndex;                           // +0x74
+        pz::SPUnit* p = u->Proto;
+        if (p->HeroPicture >= 0 && w->LocalPlayer == u->Player && heroes < 5)
+            s->d[heroes++] = u->WorldIndex;                        // +0x74
+        if (allPlayers || u->Player == w->LocalPlayer) {
+            if (u->_104 & 1) { sel = u->WorldIndex; ++selCount; }
+            if (u->_104 & 2) { hi = u->WorldIndex; ++hiCount; }
+        }
+        if (!(u->_104 & 1) || p->UnitType == 0x1a)
+            continue;
+        unsigned char* ub = (unsigned char*)u;
+        pz::SPUnit* p2 = *(pz::SPUnit**)(ub + 0x340);              // the subclass's prototype
+        if (u->ActiveDriver >= 0) {                                // +0x28
+            s->B(0x14) = s->B(0x15) = 1;
+            kind = 0;
+            s->B(0x16) = 1;
+            if (p->ClassType == 0 || p->ClassType == 0xb)
+                s->B(0x17) = 1;
+        }
+        if (p->ClassType == 9 && p->Supporter)
+            s->B(0x14) = 1;
+        if (u->MainGunner >= 0) {                                  // +0x44
+            s->B(0x14) = 1;
+            kind = 0;
+            s->B(0x18) = 1;
+            s->B(0x27) = s->B(0x28) = s->B(0x29) = 1;
+            if (p->AttackGround)                                   // +0xb4
+                s->B(0x24) = 1;
+            if (s->d[0x1a] == -1)
+                s->d[0x1a] = u->Behavior;
+            else if (s->d[0x1a] >= 0 && s->d[0x1a] != u->Behavior)
+                s->d[0x1a] = -2;
+            int stance = *(int*)(ub + 0xec);
+            if (s->d[0x1b] == -1 && p->ClassType == 5)
+                s->d[0x1b] = stance;
+            else if (s->d[0x1b] >= 0 && s->d[0x1b] != stance)
+                s->d[0x1b] = -2;
+        }
+        if (s->d[0x10] == 0) {
+            int k = u->_138;
+            if (k == 1 || k == 2 || k == 3 || k == 4 || k == 5 || k == 7) {
+                s->d[0x10] = k;
+                s->d[0x17] = (k == 1 || k == 2 || k == 3) ? ub[0x140] : -1;
+            }
+            k = u->_144;
+            if (k == 1 || k == 2 || k == 3 || k == 4 || k == 5 || k == 7) {
+                s->d[0x11] = k;
+                s->d[0x18] = (k == 1 || k == 2 || k == 3) ? ub[0x14c] : -1;
+            }
+            if (s->d[0x10] == 7 && !ub[0x2e8])
+                s->d[0x10] = 0;
+            if (s->d[0x11] == 7 && !ub[0x2e8])
+                s->d[0x11] = 0;
+        }
+        if (p->ClassType == 5) {
+            s->B(0x2e) = s->B(0x2f) = 1;
+            s->B(0x30) = 1;
+        }
+        if (p->SupportPlace && p->UnitType == 0x10) {
+            s->B(0x59) = ub[0x35c];
+            s->B(0x23) = 1;
+        }
+        if (p->ClassType == 0 || p->ClassType == 0xb) {
+            if (p2->Supporter) {                                   // +0xe0
+                s->B(0x33) = 1;
+                s->B(0x5a) = u->_2eb != 0;
+            }
+            if (p2->Repairer) {                                    // +0xdf
+                s->B(0x35) = 1;
+                s->B(0x5b) = u->_2eb != 0;
+            }
+            if (u->Slot_54())                                      // +0x54
+                s->B(0x31) = 1;
+            if (u->Towed >= 0)
+                s->B(0x32) = 1;
+        } else if (p->ClassType == 9 && p2->Repairer) {
+            s->B(0x34) = 1;
+            s->B(0x58) = u->_2eb != 0;
+        }
+        pz::STarget* t = u->CurrentTarget;                         // +0x1f4
+        if (t) {
+            int k = t->Kind;                                       // +0x24
+            if (k == 7) kind = 0x1f;
+            else if (k == 6) kind = 0x21;
+            else if (k == 8) kind = 0xf;
+            else if (k == 0xf) kind = 0xe;
+            else if (k == 0x10) kind = 8;
+            else if (k == 2 || k == 3) kind = t->Type == 2 ? 0x10 : 4;
+            else if (k == 4 || k == 5) kind = 4;
+            else kind = t->Reverse ? 3 : 1;                        // +0x2c
+            if (p->ClassType == 5) {
+                for (int m = 0; m < u->Members.Size; ++m) {
+                    int g = pz::WorldUnit(u->Members.Array[m].Unit)->MainGunner;   // member +0x44
+                    if (g == 1) { kind = 5; break; }
+                    if (g == 2) { kind = 6; break; }
+                    if (g == 3) { kind = 7; break; }
+                }
+            }
+        }
+        if (u->Stored.Size != 0 && u->_2e9 && (p->ClassType != 9 || u->Player == w->LocalPlayer))
+            s->B(0x2c) = 1;
+        if (s->d[0x19] == -1)
+            s->d[0x19] = kind;
+        else if (s->d[0x19] >= 0 && s->d[0x19] != kind)
+            s->d[0x19] = -2;
+        for (int k = 0; k < 0x10; ++k) {
+            if (s->d[0x1e + k] == -1) {
+                s->d[0x1e + k] = u->WorldIndex;
+                break;
+            }
+        }
     }
+    if (hiCount == 1)
+        s->d[0x1d] = hi;
+    else if (selCount == 1)
+        s->d[0x1d] = sel;
+    else
+        s->d[0x1d] = -1;
+    if (s->d[0x1d] == -1)
+        return;
+    s->d[0x1c] = 1;
+    pz::SUnit* u = pz::WorldUnit(s->d[0x1d]);
+    pz::SPUnit* p = u->Proto;
+    s->Name = p->IniName70.buf;                                    // +0x70
+    s->d[0x2f] = p->IniName70.buf ? (int)strlen(p->IniName70.buf) : 0;
+    s->d[0x30] = u->GetRank() + 1;                                 // +0x88
+    // XP: a vehicle (class 0, 0xb, 0xc, 9) with stored units shows its best
+    // crew member's; class 9 without any none; else the unit's own.
+    int ct = p->ClassType;
+    if (ct == 9 && u->Stored.Size == 0) {
+        s->d[0x31] = -1;
+    } else if ((ct == 0 || ct == 0xb || ct == 0xc || ct == 9) && u->Stored.Size > 0) {
+        s->d[0x31] = (int)pz::WorldUnit(u->Stored.Array[0].Unit)->XP;
+        for (int i = 1; i < u->Stored.Size; ++i) {
+            float xp = pz::WorldUnit(u->Stored.Array[i].Unit)->XP;
+            if ((float)s->d[0x31] < xp)
+                s->d[0x31] = (int)xp;
+        }
+    } else {
+        s->d[0x31] = (int)u->XP;
+    }
+    s->d[0x36] = -1;
+    s->F(0x38) = -1.0f;
+    s->B(0x37 * 4) = 1;
+    s->F(0x3c) = -1.0f;
+    s->B(0x3b * 4) = 1;
+    s->F(0x40) = -1.0f;
+    s->B(0x3f * 4) = 1;
+    s->d[0x44] = -1;
+    s->d[0x35] = -1;
+    s->d[0x4e] = -1;
+    if (ct != 5 && ct != 9) {
+        if (u->Drivers.Size > 0)                                   // +0x3c
+            s->d[0x36] = u->ActiveDriver != -1;
+        for (int i = 0; i < u->Gunners.Size && i < 4; ++i) {
+            pz::SGunner* g = u->Gunners.Array[i];
+            int wg = WeaponGlyph(g->GetWeaponType());              // 0x584240
+            if (wg >= 0)
+                s->d[i * 4 + 0x3a] = wg;
+            s->F((i + 0xe) * 4) = g->GetPGunner()->Damage;          // +0x2c, +0x58
+            if (g->Active != 0) {                                  // +0x1c
+                s->F(i * 4 + 0x39) = g->GetDamage() - s->F((i + 0xe) * 4);   // 0x583ed0
+                pz::SGunner* g0 = u->Gunners.Array[0];
+                if (g0->GetWeaponType() == 0 || i != 0)
+                    continue;
+                int ammo = (int)((float)g0->GetPGunner()->Ammo * g0->AmmoLeft);   // +0x48, +0x20
+                s->d[0x44] = ammo;
+                if (g0->Loaded)                                    // +0x5c
+                    s->d[0x44] = ammo + 1;
+                s->d[0x43] = g0->GetPGunner()->Ammo;
+            } else {
+                s->B((i * 4 + 0x37) * 4) = 0;
+            }
+        }
+        s->d[0x32] = (int)u->GetHitPoints();                       // +0x174
+        s->d[0x33] = (int)(u->GetHitPoints() * u->HP);
+        s->d[0x45] = (int)(p->FrontArmor * u->Armor[0]);
+        s->d[0x49] = (int)p->FrontArmor;
+        s->d[0x46] = (int)(p->LeftSideArmor * u->Armor[1]);
+        s->d[0x4a] = (int)p->LeftSideArmor;
+        s->d[0x47] = (int)(p->RightSideArmor * u->Armor[2]);
+        s->d[0x4b] = (int)p->RightSideArmor;
+        s->d[0x48] = (int)(p->BackArmor * u->Armor[3]);
+        s->d[0x4c] = (int)p->BackArmor;
+        s->d[0x4e] = (int)u->_118;
+        s->d[0x4d] = (int)p->Thermostat;
+    } else {
+        s->d[0x32] = -1;
+        s->d[0x33] = -1;
+        if (u->Gunners.Size < 1) {
+            if (ct == 9) {
+                s->d[0x32] = (int)u->GetHitPoints();
+                s->d[0x33] = (int)(u->GetHitPoints() * u->HP);
+            }
+        } else if (ct == 5) {
+            if (u->Members.Size < 1) {
+                s->F(0x38) = 0.0f;
+            } else {
+                pz::SUnit* m0 = pz::WorldUnit(u->Members.Array[0].Unit);
+                if (m0->Gunners.Size < 1)
+                    Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "class SGunner *", 0);
+                pz::SGunner* g = m0->Gunners.Array[0];
+                s->F(0x38) = g->GetPGunner()->Damage;
+                if (p->UnitType != 0xe)
+                    s->F(0x39) = g->GetDamage() - s->F(0x38);
+                int wg = WeaponGlyph(g->GetWeaponType());
+                if (wg >= 0)
+                    s->d[0x3a] = wg;
+            }
+            s->d[0x32] = 0;
+            s->d[0x33] = 0;
+            if (u->Members.Size > 0) {
+                unsigned char maxMembers = *(*(unsigned char**)((unsigned char*)u + 0x340) + 0x13c);
+                s->d[0x32] = (int)(pz::WorldUnit(u->Members.Array[0].Unit)->GetHitPoints() * (float)maxMembers);
+                for (int i = 0; i < u->Members.Size; ++i) {
+                    pz::SUnit* m = pz::WorldUnit(u->Members.Array[i].Unit);
+                    s->d[0x33] = (int)(m->GetHitPoints() * m->HP + (float)s->d[0x33]);
+                }
+            }
+        }
+        if (w->LocalPlayer == u->Player) {
+            s->d[0x12] = u->_138;
+            s->d[0x13] = u->_144;
+            s->d[0x14] = u->_13c;
+            s->d[0x15] = u->_148;
+        }
+        s->d[0x45] = s->d[0x46] = s->d[0x47] = s->d[0x48] = -1;
+        s->d[0x4e] = -1;
+    }
+    if (s->d[0x44] == -1 && p->Cargo > 0) {                        // +0xe4
+        s->d[0x35] = (int)((float)p->Cargo * u->Cargo);            // +0x2ec
+        s->d[0x34] = p->Cargo;
+    }
+}
+
+// Recompile-only test hook (inert unless set): PZ_M6_SELECT="f1:mode,f2:mode,..."
+// selects, from logic frame f on, own units (mode tank: the first class 0
+// vehicle, squad: the first squad, all: every own top-level selectable
+// unit, gun: the first class 0xb / 0xc / 9 unit) for the HUD panel screenshots.
+static void PzM6SelectHook()
+{
+    static int state = -1;                                         // -1 unread, 0 off, 1 on
+    static char spec[256];
+    static int next = 0;
+    if (state == 0)
+        return;
+    if (state < 0) {
+        DWORD n = GetEnvironmentVariableA("PZ_M6_SELECT", spec, sizeof(spec));
+        state = n > 0 && n < sizeof(spec) ? 1 : 0;
+        if (!state)
+            return;
+    }
+    pz::SWorld* w = pz::g_World;
+    pz::SGameLogic* gl = pz::g_GameLogic;
+    if (!w || !gl)
+        return;
+    const char* p = spec;
+    for (int k = 0; k < next && p; ++k) {
+        p = strchr(p, ',');
+        if (p) ++p;
+    }
+    if (!p || !*p)
+        return;
+    int frame = atoi(p);
+    const char* mode = strchr(p, ':');
+    if (!mode || gl->Frame < frame)
+        return;
+    ++mode;
+    ++next;
+    bool first = true;
+    int count = 0, own = 0;
+    const char* nth = mode;
+    while (*nth && !(*nth >= '0' && *nth <= '9') && *nth != ',')
+        ++nth;
+    int skip = (*nth >= '1' && *nth <= '9') ? *nth - '1' : 0;     // tank2: the second match
+    for (int i = 0; i < w->Units.Size; ++i) {
+        if (!w->Units.IsLive(i))
+            continue;
+        pz::SUnit* u = w->Units.Array[i].Unit;
+        if (u->Player == w->LocalPlayer)
+            ++own;
+        if (u->Player != w->LocalPlayer || u->Parent != -1 || !u->_112 || u->Wrecked)
+            continue;
+        int ct = u->Proto->ClassType;
+        bool take = !strncmp(mode, "all", 3) ||
+                    (!strncmp(mode, "tank", 4) && ct == 0) ||
+                    (!strncmp(mode, "squad", 5) && ct == 5) ||
+                    (!strncmp(mode, "gun", 3) && (ct == 0xb || ct == 0xc || ct == 9));
+        if (!take)
+            continue;
+        if (skip > 0) {
+            --skip;
+            continue;
+        }
+        w->SelectUnit(i, first ? pz::PZ_SEL_ONLY : pz::PZ_SEL_ADD);
+        first = false;
+        ++count;
+        if (strncmp(mode, "all", 3))
+            break;
+    }
+    Logger.g->Log(0, "PZM6 SELECT frame %d mode %.8s: %d units (%d own)", gl->Frame, mode, count, own);
+}
+
+// HD board +0x34(frame, font 0, align, text, 0 / 1) then +0x18(frame, 1).
+static void PanelText(int frame, int align, const char* text)
+{
+    Board->SetText(frame, g_PzFont[PZF_SANS14], align, text ? text : "");
+    Board->ShowFrame(frame, true);
+}
+
+// The unit-picture font of a prototype race (+0x80; jump table 0x62c3f0).
+static int RaceUnitFont(SGameHud* h, int race)
+{
+    switch (race) {
+    case 0: case 1: case 3: case 6: return h->UnitFonts[1];        // +0x4c8 allied
+    case 2: case 4:                 return h->UnitFonts[0];        // +0x4c4 german
+    case 5: case 7:                 return h->UnitFonts[2];        // +0x4cc russian
+    }
+    return h->UnitFonts[3];                                        // +0x4d0 misc
+}
+
+// The automatic-mode marker of a command button (+0x8c, glyph 0x155 on /
+// 0x154 off in the button's font).
+static void CommandAutoGlyph(SCommandButton* b, bool on)
+{
+    PzSetSpriteGlyph(b->ExtraFrame, b->Font, on ? 0x155 : 0x154);  // board +0x24
+}
+
+// An equipment slot (Equip1 / Equip2, 0x62b03f / 0x62b2b4): the icon of the
+// kind (kind * 3 + 0x38), the command kind (+0x2a58 / +0x2a5c = kind + 4)
+// and the automatic marker for kinds 1..3.
+static void EquipSlot(SCommandButton* b, int kind, int autoFlag, int* commandKind)
+{
+    if (kind == 0) {
+        b->SetVisible(false);
+        return;
+    }
+    b->SetVisible(true);
+    b->SetIcon(kind * 3 + 0x38);                                   // inline: +0x80 compare, +0x74 / +0x78 / +0x7c
+    *commandKind = kind + 4;
+    b->ExtraGlyph = autoFlag;                                      // +0x88
+    Board->ShowFrame(b->ExtraFrame, autoFlag != -1);
+    // HD: hint "Uses equipment" (+ "Right click: Switch automatic mode
+    // on/off"), 0x543a60: the HUD has no tooltips in the recompile.
+    CommandAutoGlyph(b, autoFlag == 1);
+}
+
+// PANZERS 0x628430 (piece: the unit panel, 0x6294dd..0x62b842)
+// Every frame: hide the panel's unit display, then with a panel unit and a
+// single selection its name, stars, picture, state icon, stored units,
+// driver and weapon icons, HP / ammo / cargo / XP / thermostat and armour;
+// with more than one selected unit the 16 state icons; then the command
+// buttons the selection allows, the highlight of its current order and the
+// behaviour / stance states. Board and widget calls only.
+static void HudSelectionPanel(SGameView* v, SGameHud* h, SSelSummary* s)
+{
+    pz::SWorld* w = pz::g_World;
+    char buf[64];
+    Board->ShowFrame(h->UnitHeader, false);
+    Board->ShowFrame(h->UnitName, false);
+    h->Info[0].SetVisible(false);
+    Board->ShowFrame(h->InfoText[1], false);
+    h->Info[1].SetVisible(false);
+    Board->ShowFrame(h->InfoText[0], false);
+    h->Info[2].SetVisible(false);
+    Board->ShowFrame(h->InfoText[2], false);
+    h->Info[3].SetVisible(false);
+    Board->ShowFrame(h->InfoText[3], false);
+    h->Info[4].SetVisible(false);
+    Board->ShowFrame(h->InfoText[4], false);
+    for (int i = 0; i < 4; ++i)
+        Board->ShowFrame(h->ArmorText[i], false);
+    for (int i = 0; i < 4; ++i)
+        Board->ShowFrame(h->Vehicle[i], false);
+    for (int i = 0; i < 4; ++i) {
+        Board->ShowFrame(h->Stars[i], false);
+        h->Crew[i].SetVisible(false);
+    }
+    Board->ShowFrame(h->_2490, false);
+    h->UnitButton.SetVisible(false);
+    for (int i = 0; i < 2; ++i)
+        h->Units2[i].SetVisible(false);
+    for (int i = 0; i < 6; ++i)
+        h->Empty[i].SetVisible(false);
+    for (int i = 0; i < 6; ++i) {
+        h->MpUnits[i].SetVisible(false);
+        Board->ShowFrame(h->MpUnitText[i], false);
+    }
+    // (0x629773: the range overlay 0x5fee00 of the panel unit is in
+    // SGameView::Update, RangeOverlayUnit.)
+    if (s->d[0x1c] == 1 && s->d[0x1f] == -1) {
+        pz::SUnit* u = pz::WorldUnit(s->d[0x1d]);
+        pz::SPUnit* p = u->Proto;
+        Board->ShowFrame(h->UnitHeader, true);
+        if (p->UnitType == 0x1a) {
+            // A production building (skirmish): its name, the six product
+            // buttons (0x548390 / 0x548500 -> 0x625990) and the queue
+            // (+0x464, prices from +0x450): not lifted.
+            PanelText(h->UnitName, 0, p->IniName70.buf);
+        } else {
+            PanelText(h->UnitName, 0, s->Name);
+            for (int i = 0; i < 4; ++i) {
+                PzSetSpriteGlyph(h->Stars[i], h->InterfaceFont, 0xf3);
+                Board->ShowFrame(h->Stars[i], true);
+            }
+            for (int i = 0; i < s->d[0x30] - 1; ++i)
+                PzSetSpriteGlyph(h->Stars[i], h->InterfaceFont, 0xf2);
+            Board->ShowFrame(h->_2490, true);
+            // The picture; class 9 (bunkers, emplacements) shows the misc
+            // picture and the state of its first stored unit.
+            pz::SUnit* bu = u;
+            if (p->ClassType == 9) {
+                PzSetSpriteGlyph(h->_2490, h->UnitFonts[3], p->MarketPicture);
+                if (u->Stored.Size > 0)
+                    bu = pz::WorldUnit(u->Stored.Array[0].Unit);
+            } else {
+                PzSetSpriteGlyph(h->_2490, RaceUnitFont(h, p->Race), p->MarketPicture);   // +0x30
+            }
+            h->UnitButton.SetVisible(true);
+            h->UnitButton.SetUnit(bu->WorldIndex, false);          // 0x626c40
+            // The stored units (two boxes on the right).
+            int n = 0;
+            if (p->ClassType != 9) {
+                for (; n < (u->Stored.Size < 2 ? u->Stored.Size : 2); ++n) {
+                    h->Units2[n].SetVisible(true);
+                    h->Units2[n].SetUnit(u->Stored.Array[n].Unit, false);
+                }
+            } else if (*(int*)(*(unsigned char**)((unsigned char*)u + 0x340) + 0x13c) != 5) {
+                for (; n < (u->Stored.Size < 2 ? u->Stored.Size : 2); ++n) {
+                    if (pz::WorldUnit(u->Stored.Array[n].Unit)->Player == w->LocalPlayer) {
+                        h->Units2[n].SetVisible(true);
+                        h->Units2[n].SetUnit(u->Stored.Array[n].Unit, false);
+                    }
+                }
+            }
+            if (p->OnlyCrew) {                                     // +0xdc: empty crew / hero seats
+                bool hero = false, crew = false;
+                for (int j = 0; j < (u->Stored.Size < 2 ? u->Stored.Size : 2); ++j) {
+                    if (u->Stored.Array[j].Mode == 2)
+                        hero = true;
+                    else
+                        crew = true;
+                }
+                for (; n < 2; ++n) {
+                    if (!crew) {
+                        h->Units2[n].SetVisible(true);
+                        h->Units2[n].SetUnit(-2, false);
+                        crew = true;
+                    } else if (!hero) {
+                        h->Units2[n].SetVisible(true);
+                        h->Units2[n].SetUnit(-3, false);
+                        hero = true;
+                    }
+                }
+            } else if (p->StorageCapacity > 0) {                   // +0xd4: empty seats
+                for (; n < (p->StorageCapacity < 2 ? p->StorageCapacity : 2); ++n) {
+                    h->Units2[n].SetVisible(true);
+                    h->Units2[n].SetUnit(-1, false);
+                }
+            }
+            // The driver and the weapons (crew icons; HD hints "Driver:
+            // Active / Inactive", "Damage: %g [+ %.02f]", "Gunner: Active").
+            if (s->d[0x36] != -1) {
+                h->Crew[0].SetVisible(true);
+                h->Crew[0].SetGlyph(s->d[0x36] == 1 ? 0x14a : 0x14f);
+            }
+            if (s->F(0x38) != -1.0f) {
+                int k = s->d[0x36] != -1 ? 1 : 0;
+                for (int i = 0; i < 3; ++i) {
+                    if (s->F(0x38 + i * 4) == -1.0f)
+                        continue;
+                    h->Crew[k].SetVisible(true);
+                    int g = s->d[0x3a + i * 4] + (s->B((0x37 + i * 4) * 4) ? 0x14b : 0x150);
+                    h->Crew[k].SetGlyph(g);
+                    ++k;
+                }
+            }
+            // Ammo, else cargo.
+            h->Info[1].SetVisible(true);
+            if (s->d[0x44] < 0) {
+                h->Info[1].SetGlyph(0x101);
+            } else {
+                h->Info[1].SetGlyph(0xfb);
+                sprintf(buf, "%d/%d", s->d[0x44], s->d[0x43]);
+                PanelText(h->InfoText[1], 0, buf);
+            }
+            if (s->d[0x44] < 0 && s->d[0x35] != -1) {
+                h->Info[1].SetVisible(false);
+                h->Info[2].SetVisible(true);
+                h->Info[2].SetGlyph(s->d[0x35] < 1 ? 0x102 : 0xfc);
+                sprintf(buf, "%d/%d", s->d[0x35], s->d[0x34]);
+                PanelText(h->InfoText[2], 0, buf);
+            }
+            // HP.
+            if (s->d[0x33] == -1) {
+                h->Info[0].SetGlyph(0x100);
+            } else {
+                h->Info[0].SetGlyph(0xfa);
+                h->Info[0].SetVisible(true);
+                sprintf(buf, "%d/%d", s->d[0x33], s->d[0x32]);
+                PanelText(h->InfoText[0], 0, buf);
+            }
+            // XP against the next rank threshold (unit registry +0x44..).
+            if (s->d[0x31] == -1) {
+                h->Info[3].SetGlyph(0x103);
+            } else {
+                h->Info[3].SetGlyph(0xfd);
+                h->Info[3].SetVisible(true);
+                const int* lv = pz::g_UnitRegistry->XpLevel;
+                int xp = s->d[0x31];
+                if (xp < lv[0]) sprintf(buf, "%d/%d", xp, lv[0]);
+                else if (xp < lv[1]) sprintf(buf, "%d/%d", xp, lv[1]);
+                else if (xp < lv[2]) sprintf(buf, "%d/%d", xp, lv[2]);
+                else if (xp < lv[3]) sprintf(buf, "%d/%d", xp, lv[3]);
+                else sprintf(buf, "%d", xp);
+                PanelText(h->InfoText[3], 0, buf);
+            }
+            // Thermostat.
+            h->Info[4].SetVisible(true);
+            if (s->d[0x4e] == -1) {
+                h->Info[4].SetGlyph(0x104);
+            } else {
+                h->Info[4].SetGlyph(0xfe);
+                sprintf(buf, "%d/%d", s->d[0x4e], s->d[0x4d]);
+                PanelText(h->InfoText[4], 0, buf);
+            }
+            // Armour: front, left, right, back.
+            for (int i = 0; i < 4; ++i) {
+                if (s->d[0x45 + i] > 0) {
+                    sprintf(buf, "%d / %d", s->d[0x45 + i], s->d[0x49 + i]);
+                    PanelText(h->ArmorText[i], 2, buf);
+                }
+            }
+        }
+    }
+    // More than one selected unit: their state icons.
+    for (int i = 0; i < 16; ++i)
+        h->Selection[i].SetVisible(false);
+    if (s->d[0x1f] != -1) {
+        for (int i = 0; i < 16; ++i) {
+            if (s->d[0x1e + i] != -1) {
+                h->Selection[i].SetVisible(true);
+                h->Selection[i].SetUnit(s->d[0x1e + i], true);     // 0x626c40(unit, 1)
+            }
+        }
+    }
+    // The command buttons.
+    h->Stop.SetVisible(s->B(0x14) != 0);
+    h->Move.SetVisible(s->B(0x15) != 0);
+    h->Reverse.SetVisible(s->B(0x17) != 0);
+    h->Attack.SetVisible(s->B(0x18) != 0);
+    h->StateFree.SetVisible(s->B(0x27) != 0);
+    h->StateStand.SetVisible(s->B(0x28) != 0);
+    h->StatePassive.SetVisible(s->B(0x29) != 0);
+    h->StanceRun.SetVisible(s->B(0x2e) != 0);
+    h->StanceCrouch.SetVisible(s->B(0x2f) != 0);
+    h->StanceCrawl.SetVisible(s->B(0x30) != 0);
+    h->Suppress.SetVisible(s->B(0x24) != 0);
+    h->Heal.SetVisible(s->B(0x23) != 0);
+    h->Resupply.SetVisible(s->B(0x33) != 0);
+    h->ResupplyAll.SetVisible(s->B(0x34) != 0);
+    h->Repair.SetVisible(s->B(0x35) != 0);
+    h->Attach.SetVisible(s->B(0x31) != 0);
+    h->Detach.SetVisible(s->B(0x32) != 0);
+    h->Leave.SetVisible(s->B(0x2c) != 0);
+    // The automatic marker of the shared bottom-right slot (0x62adf2).
+    if (!s->B(0x24)) {
+        if (s->B(0x23) || s->B(0x36))
+            CommandAutoGlyph(&h->Heal, s->B(0x59) == 1);
+        else if (s->B(0x33) || (!s->B(0x34) && s->B(0x37)))
+            CommandAutoGlyph(&h->Resupply, s->B(0x5a) == 1);
+        else if (s->B(0x34))
+            CommandAutoGlyph(&h->ResupplyAll, s->B(0x58) == 1);
+        else if (s->B(0x35) || s->B(0x38))
+            CommandAutoGlyph(&h->Repair, s->B(0x5b) == 1);
+    }
+    if (!s->B(0x32) && s->B(0x2b))
+        h->Leave.SetVisible(s->B(0x2c) != 0);
+    // The panel unit's carried equipment (squads / class 9 of the local
+    // player): the kind icons and counts.
+    for (int e = 0; e < 2; ++e) {
+        int kind = s->d[0x12 + e];
+        if (kind == 0 || s->d[0x1f] != -1)
+            continue;
+        PzSetSpriteGlyph(h->Vehicle[e], h->InterfaceFont, kind * 3 + 0x38);
+        if (s->d[0x1d] > -1 && pz::WorldUnit(s->d[0x1d])->Stored.Size == 0) {
+            Board->ShowFrame(h->Vehicle[e], true);
+            if (s->d[0x14 + e] > 0) {
+                sprintf(buf, "%d", s->d[0x14 + e]);
+                PanelText(h->Vehicle[2 + e], 0, buf);
+            }
+        }
+    }
+    EquipSlot(&h->Equip1, s->d[0x10], s->d[0x17], &h->Equip1Kind);
+    EquipSlot(&h->Equip2, s->d[0x11], s->d[0x18], &h->Equip2Kind);
+    // The command states: unchecked unless a map command is being placed
+    // (+0x478 == 4); the selection's current order checked and framed.
+    if (v->MouseMode != 4) {
+        SCommandButton* cmds[] = { &h->Stop, &h->Move, &h->Reverse, &h->Attack, &h->Attach, &h->Detach,
+                                   &h->Repair, &h->Heal, &h->Resupply, &h->Suppress, &h->Leave,
+                                   &h->Equip1, &h->Equip2 };
+        for (SCommandButton* c : cmds)
+            c->SetChecked(false);                                  // 0x537df0(0)
+    }
+    int kind = s->d[0x19];
+    if (kind < 0) {
+        Board->ShowFrame(h->PanelFrame, false);
+    } else {
+        if (v->ViewState == 0)
+            Board->ShowFrame(h->PanelFrame, true);
+        SCommandButton* on = nullptr;
+        int x = 0, y = 0;
+        switch (kind) {                                            // byte table 0x62c440
+        case 0:    on = &h->Stop;       x = 0x353; y = 0x262; break;
+        case 1:    on = &h->Move;       x = 0x3b7; y = 0x262; break;
+        case 3:    on = &h->Reverse;    x = 0x353; y = 0x294; break;
+        case 4:    on = &h->Attack;     x = 0x385; y = 0x262; break;
+        case 5: case 6: case 7: case 8:
+            if (s->d[0x10] + 4 == kind) { on = &h->Equip1; x = 0x353; y = 0x294; }
+            else if (s->d[0x11] + 4 == kind) { on = &h->Equip2; x = 0x385; y = 0x294; }
+            break;
+        case 0xf:  on = &h->Heal;       x = 0x3b7; y = 0x294; break;
+        case 0x10: on = &h->Suppress;   x = 0x3b7; y = 0x294; break;
+        case 0x18: on = &h->Leave;      x = 0x3b7; y = 0x294; break;
+        case 0x1e: on = &h->Detach;     x = 0x3b7; y = 0x294; break;
+        case 0x1f: on = &h->Resupply;   x = 0x3b7; y = 0x294; break;
+        case 0x21: on = &h->Repair;     x = 0x3b7; y = 0x294; break;
+        }
+        if (on) {
+            Board->MoveFrame(h->PanelFrame, x, y);                 // board +0x10
+            on->SetChecked(true);
+        }
+    }
+    pz::SButton* states[3] = { &h->StateFree, &h->StateStand, &h->StatePassive };
+    pz::SButton* stances[3] = { &h->StanceRun, &h->StanceCrouch, &h->StanceCrawl };
+    for (int i = 0; i < 3; ++i)
+        states[i]->SetChecked(false);
+    if (s->d[0x1a] >= 0 && s->d[0x1a] <= 2)
+        states[s->d[0x1a]]->SetChecked(true);
+    for (int i = 0; i < 3; ++i)
+        stances[i]->SetChecked(false);
+    if (s->d[0x1b] >= 0 && s->d[0x1b] <= 2)
+        stances[s->d[0x1b]]->SetChecked(true);
 }
 
 // The HUD part of SGameView::Update 0x628430 that the recompile has so far.
@@ -1002,16 +1699,19 @@ void PzHudUpdate(SGameView* v)
             }
         }
     }
-    // The hero photos (0x629497): up to five heroes of the local player.
-    int heroes[5];
-    HudHeroList(pz::g_World, heroes);                              // 0x56b3e0, the hero part
+    PzM6SelectHook();
+    // The selection summary (0x56b3e0) and the hero photos (0x629497): up
+    // to five heroes of the local player.
+    SSelSummary sum;
+    SelectionSummary(pz::g_World, &sum);                           // 0x56b3e0(World +0x3e44 logic)
     if (v->ViewState == 0) {
         for (int i = 0; i < 5; ++i) {
-            if (heroes[i] != -1)
-                h->Heroes[i].SetHero(heroes[i]);                   // 0x626690
-            h->Heroes[i].SetVisible(heroes[i] != -1);              // vtbl +0x6c
+            if (sum.d[i] != -1)
+                h->Heroes[i].SetHero(sum.d[i]);                    // 0x626690
+            h->Heroes[i].SetVisible(sum.d[i] != -1);               // vtbl +0x6c
         }
     }
+    HudSelectionPanel(v, h, &sum);                                 // 0x6294dd..0x62b842
     // Clock.
     pz::SGameLogic* gl = pz::g_GameLogic;
     if (gl) {
@@ -1038,42 +1738,6 @@ void PzHudUpdate(SGameView* v)
             t = Gv("PAUSE");
         Board->SetText(v->PauseText, g_PzFont[PZF_SANS14], 1, t);
     }
-    // The command highlight [0xa9c] is hidden while no command is active
-    // (0x628430: local_114 < 0); no selection here, so always.
-    Board->ShowFrame(h->PanelFrame, false);
-    // The empty panel (no unit selected; the selection display is part of
-    // V's 0x628430 lift).
-    static bool cleared = false;
-    if (!cleared || h->Stop.Visible) {
-        cleared = true;
-        for (int i = 0; i < 4; ++i) {
-            Board->ShowFrame(h->Vehicle[i], false);
-            Board->ShowFrame(h->Stars[i], false);
-            h->Crew[i].SetVisible(false);
-        }
-        Board->ShowFrame(h->_2490, false);
-        Board->ShowFrame(h->UnitHeader, false);
-        Board->ShowFrame(h->UnitName, false);
-        h->UnitButton.SetVisible(false);
-        for (int i = 0; i < 2; ++i)
-            h->Units2[i].SetVisible(false);
-        for (int i = 0; i < 6; ++i) {
-            h->Empty[i].SetVisible(false);
-            h->MpUnits[i].SetVisible(false);
-            Board->ShowFrame(h->MpUnitText[i], false);
-        }
-        SCommandButton* cmds[] = { &h->Stop, &h->Move, &h->Reverse, &h->Attack, &h->Suppress, &h->Heal,
-                                   &h->Attach, &h->Detach, &h->Repair, &h->Resupply, &h->ResupplyAll,
-                                   &h->Leave, &h->Equip1, &h->Equip2 };
-        for (SCommandButton* c : cmds)
-            c->SetVisible(false);
-        for (int i = 0; i < 5; ++i) {
-            h->Info[i].SetVisible(false);
-            Board->ShowFrame(h->InfoText[i], false);
-        }
-        for (int i = 0; i < 4; ++i)
-            Board->ShowFrame(h->ArmorText[i], false);
-    }
 }
 
 // The HUD-button cases of SGameView::OnAction 0x6216b0 (button down
@@ -1087,6 +1751,39 @@ bool PzHudAction(SGameView* v, SWidget* s, int action, int param)
     pz::SGameLogic* gl = pz::g_GameLogic;
     bool shift = false;                                            // [0x27] (+0x9c) key state: agent O's input code
     if (action == 0x42541) {
+        // The unit icons (0x6216b0, button down, unless +0x389c): select
+        // the unit (Shift: toggle); the panel's own icon and a double click
+        // on a hero photo also centre the camera on it (World +0xa4).
+        if (v->Modal == 0 && pz::g_World) {
+            pz::SWorld* w = pz::g_World;
+            for (int i = 0; i < 16; ++i) {
+                if (s == &h->Selection[i]) {
+                    w->SelectUnit(h->Selection[i].Unit, HudShift(v) ? pz::PZ_SEL_TOGGLE : pz::PZ_SEL_ONLY);   // 0x5fcb10((+0x9c != 0) + 0x10)
+                    return true;
+                }
+            }
+            for (int i = 0; i < 5; ++i) {
+                if (s != &h->Heroes[i])
+                    continue;
+                float t = (float)((double)Timer.GetTickValue() / 1000.0);   // 0x661800
+                int hero = h->Heroes[i].Hero;
+                if (t - h->HeroClickTime <= 0.75f && h->HeroClickIndex == i) {   // 0x7f2fcc
+                    int sel = pz::WorldUnit(hero)->Parent < 0 ? hero : pz::WorldUnit(hero)->Parent;
+                    w->SelectUnit(sel, pz::PZ_SEL_ONLY);
+                    *(int*)((unsigned char*)w + 0xa4) = sel;       // the camera follows it
+                }
+                h->HeroClickIndex = i;
+                h->HeroClickTime = (float)((double)Timer.GetTickValue() / 1000.0);
+                int sel = pz::WorldUnit(hero)->Parent < 0 ? hero : pz::WorldUnit(hero)->Parent;
+                w->SelectUnit(sel, pz::PZ_SEL_ONLY);
+                return true;
+            }
+            if (s == &h->UnitButton) {
+                w->SelectUnit(h->UnitButton.Unit, pz::PZ_SEL_ONLY);
+                *(int*)((unsigned char*)w + 0xa4) = h->UnitButton.Unit;
+                return true;
+            }
+        }
         if (s == &h->StateFree || s == &h->StateStand || s == &h->StatePassive) {
             int st = s == &h->StateFree ? 0 : s == &h->StateStand ? 1 : 2;
             if (gl)
@@ -1178,6 +1875,15 @@ bool PzHudAction(SGameView* v, SWidget* s, int action, int param)
         h->Leave.SetChecked(true);
         STUB_LOG("SGameView 0x6216b0: Leave 0x5763f0(-1) (packets.h Pkt_TwoFlags 0x31 takes bools)");
         return true;
+    }
+    // A stored unit's icon: it gets out (0x5763f0(slot, shift)) when the
+    // carrier lets it (+0x2e9).
+    for (int i = 0; i < 2; ++i) {
+        if (s == &h->Units2[i] && h->Units2[i].Unit != -1) {
+            pz::SUnit* carrier = pz::WorldUnit(pz::WorldUnit(h->Units2[i].Unit)->Parent);
+            if (carrier->_2e9 && gl)
+                pz::Pkt_TwoFlags(gl, pz::PZ_PKT_31, (unsigned char)i, HudShift(v));
+        }
     }
     for (int i = 0; i < 6; ++i) {
         if (s == &h->Empty[i]) {
