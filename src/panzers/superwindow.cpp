@@ -57,7 +57,7 @@ bool SSuperWindow::SkipIntro = false;
 void PzStub_CreateHostFromCommandLine();           // 0x6576f0
 void PzStub_ConnectToHostFromCommandLine(const char* host); // 0x657460
 void PzStub_StartCampaignFromCommandLine();        // -market path in Play
-void PzStub_LoadMapFromCommandLine(const char* map); // 0x5944d0 path in Play
+void PzStartMapFromCommandLine(SSuperWindow* sw, const char* map); // Play's map branch (scenariomenu.cpp)
 bool PzStub_CheckCDKey(const char* key);           // SSettings::CHECKCDKEY 0x64d390
 void PzStub_LoadMultiPreMenu();                    // 0x658a30
 void PzStub_LoadChatRoomView();                    // 0x658050
@@ -315,9 +315,13 @@ void SSuperWindow::Play()
                 PzStub_LoadChatRoomView();                         // 0x658050
         }
     } else {
+        // HD 0x65b778: "-map <path>" or a bare map path (settings.cpp).
+        // Without SMulti (DAT_008f1a74, never made on this path) a new
+        // campaign in scenario mode (map, "", race 0, prestige 0), the game
+        // view (0x6585e0), then the campaign's race = the map's local player
+        // (World +0x174 + LocalPlayer * 0x48). With SMulti: 0x658050.
         Initialize();
-        PzStub_LoadMapFromCommandLine(Settings.MapFile.buf);       // 0x5944d0 + 0x6585e0
-        LoadMainMenu();
+        PzStartMapFromCommandLine(this, Settings.MapFile.buf ? Settings.MapFile.buf : "");
     }
     Run();                                                         // SWindow::Run 0x544db0
 }

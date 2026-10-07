@@ -30,6 +30,14 @@
 //     - The same with the Training Camp dialog open (TrainingCampMenu
 //       +0x118, also skipped by 0x65ab50; decided from the code, M3-I).
 //       The fix deletes it too.
+//     - The command-line map start ("-map <file>" / a bare map path, Play
+//       0x65b470): Initialize loads the menu world but no menu frames, so
+//       UnloadMenuBackground (0x65b940) keeps it, the mission's SWorld /
+//       SGameLogic ctors delete it as the previous g_World / g_GameLogic,
+//       and OnIdle (0x65ae50) refreshes the freed menu logic (HD panics,
+//       docs/M3_REPLAY.md; our build: access violation). The fix unloads
+//       the menu world first (src/panzers/scenariomenu.cpp; also the
+//       recompile-only test hook PZ_M5_MAPFIX=1, docs/m5/sc.md).
 
 #ifndef PANZERS_MODS_H
 #define PANZERS_MODS_H

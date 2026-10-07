@@ -273,12 +273,15 @@ void M3OnMainMenu(SSuperWindow* sw)
 // Returns true when the action was handled by the M3 path.
 bool PzTutorialAction(SSuperWindow* sw, int action);   // tutorial.cpp (M4)
 bool PzSkirmishAction(SSuperWindow* sw, int action, int param);   // superwindow_sk.cpp (M5-SK)
+bool PzScenarioAction(SSuperWindow* sw, int action, int param);   // scenariomenu.cpp (M5) 0x53431
 
 bool SuperWindowM3Action(SSuperWindow* sw, int action, int param)
 {
     if (PzSkirmishAction(sw, action, param))                       // 0x534d1, 0x534b1..0x534b4 Skirmish (M5-SK)
         return true;
     if (PzTutorialAction(sw, action))                              // 0x4d4d3 Tutorial
+        return true;
+    if (PzScenarioAction(sw, action, param))                       // 0x53431 Scenario Load
         return true;
     switch (action) {
     case PZA_LOAD_REPLAY:                                          // 0x494c2

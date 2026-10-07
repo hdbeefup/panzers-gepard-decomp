@@ -58,6 +58,9 @@ add_library(panzersgame STATIC
     skirmish.h
     skirmish.cpp
     superwindow_sk.cpp
+    # M5 scenario mode
+    scenariomenu.h
+    scenariomenu.cpp
 )
 target_include_directories(panzersgame PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(panzersgame PRIVATE ${PANZERS_SRC_DIR}/sound ${PANZERS_SRC_DIR}/stubs)

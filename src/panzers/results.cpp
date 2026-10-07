@@ -24,6 +24,7 @@
 #include "worldapi.h"
 #include "world.h"
 #include "gamelogic.h"
+#include "settings.h"
 #include "doodad.h"
 
 static const char* Gv(const char* id) { return GetText("panzers/GameView.cpp", id); }
@@ -599,6 +600,14 @@ void SResultsMenu::Create()
         officer = "WILLSON"; fullName = "Jeffrey S. Wilson"; first = "Allied 1";
     }
     const char* name = Mm(officer);
+    // (M5-SC) Outside campaign mode (0x636769: GameMode != 3) the title
+    // names the player (SSettings 0x64e070, +0x174) and there is no "Name:"
+    // line; scenario mode (and mode 2) stores the player name in the
+    // player record (0x636c15 / 0x594cf0). The buttons and medals:
+    // 0x637bd9 / 0x637dc9 below.
+    bool campaign = c->GameMode == pz::PZ_GM_CAMPAIGN;
+    if (!campaign)
+        name = Settings.PlayerName.buf ? Settings.PlayerName.buf : "";
     int portrait = Board->CreateFrame(FT_SPRITE, P, 0x53, 3, 0, 1);
     PzSetSpriteGlyph(portrait, sheet, 0);
 
@@ -609,13 +618,15 @@ void SResultsMenu::Create()
         _snprintf(line, sizeof(line) - 1, "%s", Mm("DEFEAT!"));
     line[sizeof(line) - 1] = 0;
     TextFrame(P, 0x244, 0x32, 2, line);
-    _snprintf(line, sizeof(line) - 1, "%s%s", Mm("Name: "), Mm(fullName));   // campaign mode only
-    line[sizeof(line) - 1] = 0;
-    TextFrame(P, 0x10e, 0x55, 0, line);
-    {                                                              // the name goes into the player record (+0x140 SString)
+    if (campaign) {                                                // campaign mode only
+        _snprintf(line, sizeof(line) - 1, "%s%s", Mm("Name: "), Mm(fullName));
+        line[sizeof(line) - 1] = 0;
+        TextFrame(P, 0x10e, 0x55, 0, line);
+    }
+    if (campaign || c->IsScenarioMode() || c->GameMode == pz::PZ_GM_2) {   // the name goes into the player record (+0x140 SString)
         SString* rec = (SString*)c->PlayerStats[0];
         pz::FreeSString(rec);
-        const char* n = Mm(fullName);
+        const char* n = campaign ? Mm(fullName) : name;
         rec->size = (int)strlen(n);
         rec->buf = new char[rec->size + 1];
         memcpy(rec->buf, n, rec->size + 1);
@@ -688,7 +699,19 @@ void SResultsMenu::Create()
             Grid[r][k] = TextFrame(P, kGx[k], 0x111 + 0x19 * r, 2, "");
     ShowPage(0);                                                   // 0x63e690(0)
 
-    // The buttons (y 0x2d2).
+    // The buttons (y 0x2d2). (M5-SC) Multiplayer, scenario and mode 2
+    // (0x637bd9..0x637c19) get only Continue at the Cancel slot and no
+    // medals (0x637dc9..0x637e05 jump to the end, 0x638fa7).
+    if (c->IsMultiMode() || c->IsScenarioMode() || c->GameMode == pz::PZ_GM_2) {
+        InsertChild(&Continue);                                    // +0x71c
+        Continue.SetPosition(0x300, 0x2d2, 0, 0);
+        Continue.Create(2, Mm("Continue"));
+        PzReleaseCustomFont(sheet);                                // (recompile) HD keeps the sheet on this path
+        Cursor = 0;                                                // 0x543970(0, -1)
+        SetFocus();
+        Logger.g->Log(0, "PZM5: results (mode %d) %s, score %d", c->GameMode, victory ? "victory" : "defeat", score);
+        return;
+    }
     InsertChild(&Save);
     Save.SetPosition(0, 0x2d2, 0, 0);
     Save.Create(2, Mm("Upload Result"));

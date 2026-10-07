@@ -258,3 +258,8 @@ SSkirmishChatRoomMenu 0x653250 / 0x656210 / 0x654df0 lifted). New logged stubs o
 0x534b3 / 0x534b4: army making in the market (0x658b10 case 1, SMarket multi mode, SaveArmy 0x64a180)
 not lifted` (New / Edit army), and `SSuperWindow::LoadNextCampaignView 4 after a skirmish: SMultiPreMenu
 (0x658a30) not lifted, main menu` (HD goes to the multiplayer menu after a skirmish's results).
+
+M5 SC (scenario mode, docs/m5/sc.md) replaced `SCampaign::InitScenarioMode (0x5944d0)`, `SSuperWindow::Play
+load map from command line (0x5944d0)` (PzStub_LoadMapFromCommandLine) and the `SSingleMenu::LoadScenarioMenu
+(0x63b2d0)` line of SSingleMenu::OnAction (SScenarioMenu lifted). Census `2440 lifted + 1316 SWINE-shared +
+171 stubs`.

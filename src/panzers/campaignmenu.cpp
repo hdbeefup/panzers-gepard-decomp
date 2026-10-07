@@ -103,7 +103,7 @@ bool SSingleDiffMenu::OnAction(SWidget* source, int action, int param)
 // PANZERS 0x633770
 SSingleMenu::SSingleMenu()
 {
-    _58 = 0;                                                      // param_1[0x16]
+    ScenarioMenu = nullptr;                                       // param_1[0x16]
     DiffMenu = nullptr;                                           // param_1[0x6e]
     PictureFont = -1;                                             // param_1[0x6f]
     Race = 0;
@@ -112,7 +112,10 @@ SSingleMenu::SSingleMenu()
 // PANZERS 0x6343e0
 SSingleMenu::~SSingleMenu()
 {
-    // HD +0x58 is the scenario submenu (LoadScenarioMenu 0x63b2d0, not lifted).
+    if (ScenarioMenu) {                                           // +0x58 vtbl +0 (1)
+        delete ScenarioMenu;
+        ScenarioMenu = nullptr;
+    }
     if (DiffMenu) {
         delete DiffMenu;
         DiffMenu = nullptr;
@@ -167,7 +170,7 @@ bool SSingleMenu::OnAction(SWidget* source, int action, int param)
             w->SetModalWidget(DiffMenu);                          // 0x544fe0
     }
     if (source == &Scenario) {                                    // +0x144
-        STUB_LOG("SSingleMenu::LoadScenarioMenu (0x63b2d0)");
+        LoadScenarioMenu();                                       // 0x63b2d0
         return true;
     }
     if (source == &Skirmish) {                                    // +0xd0

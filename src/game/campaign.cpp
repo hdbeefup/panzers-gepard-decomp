@@ -358,11 +358,27 @@ void SPanzersCampaign::InitTutorialMode(const char* map, int race, int prestige)
     MissionResult = 0;
 }
 
+// PANZERS 0x5944d0
+// Scenario mode: the scenario menu's Start (0x53431) and Play's -map / bare
+// map path both pass (map, "", 0, 0); the real race is the map's local
+// player, which the caller copies into +0x18 after the map is loaded. With
+// the empty section PrepareMission finds no <dir>/_mission.ini and reads
+// missions.ini (no [""] keys: no mission units, no objectives), and
+// LoadMap starts the mission at once. MenuToLoad 2 (game view) overrides
+// PrepareMission's 0 (Diary defaults to 1).
 void SPanzersCampaign::InitScenarioMode(const char* map, const char* section, int race, int prestige)
 {
-    STUB_LOG("SCampaign::InitScenarioMode (0x5944d0)");
     PZ_M3_TRACE("SCampaign::InitScenarioMode (0x5944d0)");
-    (void)map; (void)section; (void)race; (void)prestige;
+    if (GameMode != PZ_GM_NONE)
+        Logger.g->Panic("SCampaign::InitScenarioMode: GameMode can only be initialized once.");
+    GameMode = PZ_GM_SCENARIO;                                    // +0x10 = 1
+    Race = race;                                                  // +0x18
+    SetStr(&MapName, map);                                        // 0x52c320 on +0x20
+    StartPrestige = prestige;                                     // +0x28
+    MissionResult = 0;                                            // +0xe4
+    SetStr(&MissionSection, section);                             // 0x52c320 on +0xd8
+    PrepareMission();                                             // 0x592d80
+    MenuToLoad = PZ_MENU_GAMEVIEW;                                // +0xe0 = 2
 }
 
 // PANZERS 0x592b20

@@ -50,13 +50,6 @@ void PzStub_StartCampaignFromCommandLine()
     STUB_LOG("SSuperWindow::Play -market campaign start (0x590ec0/0x51dcf0/0x63f2f0)");
 }
 
-// HD Play 0x65b470 map branch: SPanzersCampaign::LoadMap 0x5944d0 + 0x6585e0.
-void PzStub_LoadMapFromCommandLine(const char* map)
-{
-    STUB_LOG("SSuperWindow::Play load map from command line (0x5944d0)");
-    StubDetail("  map: %s", map);
-}
-
 // HD 0x658a30 SSuperWindow::LoadMultiPreMenu.
 void PzStub_LoadMultiPreMenu()
 {

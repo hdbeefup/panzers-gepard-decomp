@@ -54,7 +54,7 @@ struct SSingleDiffMenu : SDXWidget {
 };
 
 struct SSingleMenu : SCenterMenu {
-    int              _58;           // HD +0x58 (ctor 0)
+    SCenterMenu*     ScenarioMenu;  // HD +0x58 SScenarioMenu (LoadScenarioMenu 0x63b2d0; ctor 0)
     SComplexButton   Unused5c;      // HD +0x5c
     SComplexButton   Skirmish;      // HD +0xd0
     SComplexButton   Scenario;      // HD +0x144
@@ -67,6 +67,7 @@ struct SSingleMenu : SCenterMenu {
     ~SSingleMenu() override;                                         // 0x6343e0
     bool OnAction(SWidget* source, int action, int param) override;  // +0x44 0x63c7e0
     void Create();                                                   // 0x639790
+    void LoadScenarioMenu();                                         // 0x63b2d0 (scenariomenu.cpp)
 };
 
 #endif // PANZERS_CAMPAIGNMENU_H
