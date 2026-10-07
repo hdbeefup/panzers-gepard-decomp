@@ -1813,8 +1813,8 @@ void SSingleUnit::EC_Move(int xBits, int zBits, int p3, bool p4, int p5)
         }
     }
     if (back) {
-        STUB_LOG("SSingleUnit::EC_Move (0x5ac4b0) +0xb0 move backwards");
         PZ_M2_TRACE("SSingleUnit::EC_Move (0x5ac4b0) +0xb0");
+        EC_MoveReverse(xBits, zBits, p3, p4, p5);                 // +0xb0 (0x5b8d20)
         return;
     }
     SUnit::EC_Move(xBits, zBits, p3, p4, p5);                 // 0x5b8ea0

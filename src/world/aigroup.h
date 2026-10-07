@@ -53,6 +53,8 @@ struct SAIGroup {
     bool IsAlliedWith(int group);                       // 0x5ef440 (1)
     bool CanReach(float x, float z);                    // 0x5e63e0 (2) the biggest unit's 0x5b6e70
     void RefreshSupport();                              // the Tactic 3 / Status 0 part of 0x5f5c70
+    int  Strength();                                    // 0x5e74e0 (0) armed units' hit points (squads 100 per member) + bonuses
+    int  AntiTankStrength();                            // 0x5e7110 (0) the same for AT weapons (squads: AT or type 3)
 };
 
 #if defined(_M_IX86)

@@ -281,7 +281,7 @@ struct SWorld {
     // --- C5 (squads / buildings)
     void UnfixBridges();                                       // 0x600f90 (0) +0xf0 = 0 (panics when not set) (buildingunit.cpp)
     void RemoveDoodadIfLive(int index);                        // 0x5f7c00 (1) RemoveDoodad 0x5f73f0 when the slot is live (squadrefresh.cpp)
-    void AIGroupUnitAttacked(int unit, int attacker);          // 0x5d68e0 (2) (name guessed) the AI group of `unit` reacts (C4 owns the body; stub in squadunit.cpp)
+    void AIGroupUnitAttacked(int unit, int attacker);          // 0x5d68e0 (2) (name guessed) the AI group of `unit` reacts (src/world/aigroup.cpp)
     // --- end C5
     // --- end M3 C
 

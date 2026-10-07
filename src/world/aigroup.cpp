@@ -556,6 +556,375 @@ void SAIGroup::RefreshSupport()
     }
 }
 
+// x87 tail of 0x5e74e0 / 0x5e7110 / 0x5d68e0: GetHitPoints (+0x174) * HP
+// (fmul), + the sum as a float (cvtdq2ps, fadd), fstp dword, cvttss2si.
+static int AddHitPoints(SUnit* u, int sum)
+{
+    float hp = u->GetHitPoints();                                 // +0x174
+    float t = (float)((double)hp * (double)u->HP + (double)(float)sum);
+    return (int)t;
+}
+
+// PANZERS 0x5e74e0
+// The group's strength: every armed unit's hit points (a squad: 100 per
+// member), +600 for class 0xb, +500 for armour type 2.
+int SAIGroup::Strength()
+{
+    int s = 0;
+    for (int i = 0; i < Units.Size; ++i) {
+        SUnit* u = U(UnitAt(Units, i));
+        if (u->Gunners.Size > 0) {
+            if (u->Proto->ClassType == 5)
+                s += u->Members.Size * 100;
+            else
+                s = AddHitPoints(u, s);
+        }
+        u = U(UnitAt(Units, i));
+        if (u->Proto->ClassType == 0xb)
+            s += 600;
+        if (u->Proto->ArmourType == 2)
+            s += 500;
+    }
+    return s;
+}
+
+// PANZERS 0x5e7110
+// The group's anti-tank strength: the hit points of units whose first gunner
+// fires AT (type 1); a squad whose first member's gunner fires type 1 or 3
+// counts 100 per member.
+int SAIGroup::AntiTankStrength()
+{
+    int s = 0;
+    for (int i = 0; i < Units.Size; ++i) {
+        SUnit* u = U(UnitAt(Units, i));
+        if (u->Gunners.Size > 0 && u->Gunners.Array[0]->GetWeaponType() == 1)   // 0x584240
+            s = AddHitPoints(u, s);
+        u = U(UnitAt(Units, i));
+        if (u->Proto->ClassType != 5 || u->Members.Size <= 0)
+            continue;
+        SUnit* m = U(u->Members.Array[0].Unit);
+        if (m->Gunners.Size < 1)
+            continue;
+        if (m->Gunners.Array[0]->GetWeaponType() != 1 &&
+            m->Gunners.Array[0]->GetWeaponType() != 3)
+            continue;
+        s += u->Members.Size * 100;
+    }
+    return s;
+}
+
+// PANZERS 0x5642d0 (SGameLogic): the live units within `r` of (x, z), in heap
+// order (HD keeps {unit, distance^2} pairs; only the units are read here).
+static void UnitsInRadius(float x, float z, float r, SHdArray<int>& out)
+{
+    SUnitHeap& h = g_World->Units;
+    for (int k = 0; k < h.Size; ++k) {
+        if (h.Array[k].Next != kHeapLive)
+            continue;
+        SUnit* u = h.Array[k].Unit;
+        float dx = x - u->Pos[0];
+        float dz = z - u->Pos[2];
+        float d = dx * dx + dz * dz;
+        if (d < r * r) {
+            int i = AddInt(out);
+            out.Array[i] = k;
+        }
+    }
+}
+
+// 0x5335c0("AI [ ", group) + 0x52c580(text) handed to SGameLogic 0x568ae0,
+// an empty function in HD. Recompile only: PZ_M6_AILOG=1 logs the text.
+static bool AiLogOn()
+{
+    static int on = -1;
+    if (on < 0) {
+        const char* e = getenv("PZ_M6_AILOG");
+        on = (e && *e && *e != '0' && Logger.g) ? 1 : 0;
+    }
+    return on == 1;
+}
+
+static void AiDebugText(SAIGroup* g, const char* text)
+{
+    if (AiLogOn())
+        Logger.g->Log(0, "PZM6 AI [ %s%s", SStr(g->ID), text);
+}
+
+static int& PlayerInt(SWorld* w, int player, unsigned off)        // World+0x170 + player * 0x48 + off
+{
+    return *(int*)(w->Players[player] + off);
+}
+
+// The squared distance of `v` to group k's first unit, truncated (0x5d6370,
+// 0x546490; HD computes dz * dz first).
+static int HelperScore(SUnit* v, int k)
+{
+    SUnit* f = U(UnitAt(AIGroupAt(k)->Units, 0));
+    float dz = v->Pos[2] - f->Pos[2];
+    float a = (v->Pos[2] - f->Pos[2]) * dz;
+    float dx = v->Pos[0] - f->Pos[0];
+    return (int)((v->Pos[0] - f->Pos[0]) * dx + a);               // cvttss2si
+}
+
+// Group k is in help range of group `mine` (each one's MaxHelpRange / 2).
+static bool InHelpRange(int mine, int k)
+{
+    SAIGroup* c = AIGroupAt(k);
+    SAIGroup* v = AIGroupAt(mine);
+    float dx = v->StartPos[0] - c->StartPos[0];
+    float dz = v->StartPos[1] - c->StartPos[1];
+    float d = dx * dx + dz * dz;
+    float h = AIGroupAt(mine)->MaxHelpRange * 0.5f;               // DAT_007f453c
+    if (d > AIGroupAt(mine)->MaxHelpRange * 0.5f * h)
+        return false;
+    c = AIGroupAt(k);
+    v = AIGroupAt(mine);
+    dx = v->StartPos[0] - c->StartPos[0];
+    dz = v->StartPos[1] - c->StartPos[1];
+    d = dx * dx + dz * dz;
+    h = AIGroupAt(k)->MaxHelpRange * 0.5f;
+    if (d > AIGroupAt(k)->MaxHelpRange * 0.5f * h)
+        return false;
+    return true;
+}
+
+// PANZERS 0x5d68e0
+// An AI unit (`unit`, of an AI group) was attacked by `attacker` (callers:
+// SSingleUnit::OnAttackedBy 0x5b0420, SPanzersSquadUnit::OnAttackedBy
+// 0x59ef00). Attack groups (tactic 2 / 4) attack-move to the attacker every
+// 15 refreshes; tactic 4 calls the player's support (1 in 20, one world
+// draw); then, once per group (HasCalledForHelp), the enemy strength within
+// 40 m of the attacker is weighed against the group's: tactic 1 groups pull
+// back to the nearest allied group (a tactic 2 one attacks) or attack;
+// others retreat to an allied group (enemy 3x stronger), call an allied
+// tactic-2 group (stronger), or hold.
+void SWorld::AIGroupUnitAttacked(int unit, int attacker)
+{
+    PZ_M3_TRACE("SWorld 0x5d68e0");
+    SUnit* victim = WorldUnit(unit);
+    SUnit* att = WorldUnit(attacker);
+    SHeap<SAIGroup>& gh = AIGroupHeap(this);
+    int gi = victim->AIGroup;
+    if (!gh.IsLive(gi))
+        Logger.g->Panic("SHeap<%s>::operator[]: invalid index (%d)", "SAIGroup", gi);
+    if (AiLogOn())
+        Logger.g->Log(0, "PZM6 AI 0x5d68e0 frame %d unit %d attacker %d group %d '%s' tactic %d status %d called %d timer %d",
+                      g_GameLogic ? g_GameLogic->GetFrame() : -1, unit, attacker, gi, SStr(gh.Array[gi].Data.ID),
+                      gh.Array[gi].Data.Tactic, gh.Array[gi].Data.Status, (int)gh.Array[gi].Data.HasCalledForHelp,
+                      gh.Array[gi].Data.AttackMoveTimer);
+    if (gh.Array[gi].Data.Tactic == 5)
+        return;
+    if ((gh.Array[gi].Data.Tactic == 2 || AIGroupAt(gi)->Tactic == 4) &&
+        AIGroupAt(victim->AIGroup)->AttackMoveTimer == 0) {
+        AIGroupAt(victim->AIGroup)->AttackMoveTimer = 15;
+        float x = att->Pos[0], z = att->Pos[2];
+        AIGroupAt(victim->AIGroup)->AttackMoveTo(x, z);           // 0x5d95b0
+        AiDebugText(AIGroupAt(victim->AIGroup), "]: Attack move!");
+    }
+
+    if (AIGroupAt(victim->AIGroup)->Tactic == 4) {
+        int r = WorldRand();
+        if ((int)((double)r * 3.0517578125e-05 * 20.0) == 0) {     // DAT_007f4540, DAT_007f5a58
+            int p = victim->Player;
+            if (PlayerInt(this, p, 0x34) > 0 && att->Proto->ArmourType == 2 && att->Speed == 0.0f) {
+                g_GameLogic->SupportTacBomber(false, att->Pos[0], att->Pos[2], p);   // 0x568740
+                AiDebugText(AIGroupAt(victim->AIGroup), "]: Call AI (TacBomber) support!");
+            } else if (PlayerInt(this, p, 0x34) == 0 && PlayerInt(this, p, 0x3c) > 0 && att->Speed == 0.0f) {
+                do {
+                    g_GameLogic->SupportParatroopers(false, att->Pos[0], att->Pos[2], p, -1.0f, true, false, 0.0f);   // 0x567d40
+                    AiDebugText(AIGroupAt(victim->AIGroup), "]: Call AI (Parachute) support!");
+                    p = victim->Player;
+                } while (PlayerInt(this, p, 0x3c) != 0);
+            }
+            p = victim->Player;
+            if (PlayerInt(this, p, 0x2c) > 0 && att->Proto->ArmourType == 0 && att->Speed == 0.0f) {
+                g_GameLogic->SupportArtillery(false, att->Pos[0], att->Pos[2], p);   // 0x5674c0
+                AiDebugText(AIGroupAt(victim->AIGroup), "]: Call AI (Cannonade) support!");
+            } else if (PlayerInt(this, p, 0x38) > 0 && att->Proto->ArmourType == 0 && att->Speed == 0.0f) {
+                g_GameLogic->SupportHeavyBomber(false, att->Pos[0], att->Pos[2], p, -1.0f, true, false, 0.0f);   // 0x567760
+                AiDebugText(AIGroupAt(victim->AIGroup), "]: Call AI (HeavyBomber) support!");
+            }
+        }
+    }
+
+    if (AIGroupAt(victim->AIGroup)->HasCalledForHelp)
+        return;
+    if (AIGroupAt(victim->AIGroup)->Tactic == 2 && AIGroupAt(victim->AIGroup)->Status == 2)
+        return;
+    if (AIGroupAt(victim->AIGroup)->Tactic == 4 && PlayerInt(this, victim->Player, 0x30) > 0) {
+        g_GameLogic->SupportRecon(false, att->Pos[0], att->Pos[2], victim->Player, -1.0f, true);   // 0x568300
+        AiDebugText(AIGroupAt(victim->AIGroup), "]: Call AI (Recon) support!");
+    }
+    AIGroupAt(victim->AIGroup)->HasCalledForHelp = true;
+
+    // The enemy strength within 40 m of the attacker.
+    int enemy = 0;
+    bool armoured = false;
+    SHdArray<int> found;
+    memset(&found, 0, sizeof(found));
+    UnitsInRadius(att->Pos[0], att->Pos[2], 40.0f, found);        // 0x5642d0
+    for (int i = 0; i < found.Size; ++i) {
+        SUnit* c = U(found.Array[i]);
+        if (c->Wrecked || c->Unplaced || c->_110)
+            continue;
+        int ct = c->Proto->ClassType;
+        if (ct != 0 && ct != 0xb && ct != 0xc && ct != 5)
+            continue;
+        if (PlayersAllied(WorldUnit(unit)->Player, c->Player))    // 0x546490, 0x549ab0
+            continue;
+        int kind = PlayerInt(this, c->Player, 0x08);
+        if (kind == 3 || kind == 2 || kind == 4)
+            continue;
+        if (c->Gunners.Size <= 0)
+            continue;
+        if (c->Proto->ClassType == 5)
+            enemy += c->Members.Size * 100;
+        else
+            enemy = AddHitPoints(c, enemy);
+        if (c->Proto->UnitType == 0x17)
+            enemy += 500;
+        if (c->Proto->ClassType == 0xb)
+            enemy += 600;
+        if (c->Proto->ArmourType == 2) {
+            enemy += 500;
+            armoured = true;
+        }
+    }
+    int own = AIGroupAt(victim->AIGroup)->Strength();             // 0x5e74e0
+    if (AiLogOn())
+        Logger.g->Log(0, "PZM6 AI   enemy %d own %d armoured %d", enemy, own, (int)armoured);
+
+    if (AIGroupAt(victim->AIGroup)->Tactic == 1) {
+        if (enemy <= own) {
+            AIGroupAt(victim->AIGroup)->AttackMoveTo(att->Pos[0], att->Pos[2]);
+            AiDebugText(AIGroupAt(victim->AIGroup), "]: Last man standing!");
+            free(found.Array);
+            return;
+        }
+        // The nearest reachable allied group in range; a tactic 2 group
+        // (then tactic 4) wins over the others.
+        int best = -1;
+        int bestScore = 10000;
+        for (int k = 0; k < gh.Size; ++k) {
+            if (gh.Array[k].Next != kHeapLive)
+                continue;
+            if (!AIGroupAt(victim->AIGroup)->IsAlliedWith(k) || k == victim->AIGroup)   // 0x5ef440
+                continue;
+            if (!InHelpRange(victim->AIGroup, k))
+                continue;
+            if (!AIGroupAt(k)->CanReach(victim->Pos[0], victim->Pos[2]))   // 0x5e63e0
+                continue;
+            if (armoured && AIGroupAt(k)->AntiTankStrength() == 0)     // 0x5e7110
+                continue;
+            if (best > -1) {
+                if (AIGroupAt(best)->Tactic == 2 && AIGroupAt(k)->Tactic != 2)
+                    continue;
+                if (AIGroupAt(best)->Tactic != 2 &&
+                    (AIGroupAt(k)->Tactic == 2 || AIGroupAt(k)->Tactic == 4)) {
+                    best = k;
+                    bestScore = HelperScore(victim, k);
+                    continue;
+                }
+            }
+            int s = HelperScore(victim, k);
+            if (s < bestScore) {
+                bestScore = s;
+                best = k;
+            }
+        }
+        if (best <= -1) {
+            free(found.Array);
+            return;
+        }
+        // The attacked group falls back to the helper's first unit.
+        SUnit* f = U(UnitAt(AIGroupAt(best)->Units, 0));
+        for (int i = 0;; ++i) {
+            SAIGroup* g = AIGroupAt(victim->AIGroup);
+            if (i >= g->Units.Size)
+                break;
+            U(UnitAt(g->Units, i))->EC_Move(BitsOf(f->Pos[0]), BitsOf(f->Pos[2]), 1, false, 0);   // +0xac
+        }
+        if (AIGroupAt(best)->Tactic != 2) {
+            free(found.Array);
+            return;
+        }
+        AIGroupAt(best)->AttackMoveTo(att->Pos[0], att->Pos[2]);
+        AIGroupAt(victim->AIGroup)->Status = 2;
+        AIGroupAt(victim->AIGroup)->Timer = 50;
+        AiDebugText(AIGroupAt(victim->AIGroup), "]: Call support!");
+        free(found.Array);
+        return;
+    }
+
+    if (enemy > own * 3 && AIGroupAt(victim->AIGroup)->Tactic != 0) {
+        // Retreat to the nearest reachable allied group in range.
+        int best = -1;
+        int bestScore = 1000000;
+        for (int k = 0; k < gh.Size; ++k) {
+            if (gh.Array[k].Next != kHeapLive)
+                continue;
+            if (!AIGroupAt(victim->AIGroup)->IsAlliedWith(k) || k == victim->AIGroup)
+                continue;
+            if (AIGroupAt(k)->Units.Size == 0)
+                continue;
+            if (!InHelpRange(victim->AIGroup, k))
+                continue;
+            if (!AIGroupAt(k)->CanReach(victim->Pos[0], victim->Pos[2]))
+                continue;
+            int s = HelperScore(victim, k);
+            if (s < bestScore) {
+                bestScore = s;
+                best = k;
+            }
+        }
+        if (best > -1) {
+            SUnit* f = U(UnitAt(AIGroupAt(best)->Units, 0));
+            for (int i = 0;; ++i) {
+                SAIGroup* g = AIGroupAt(victim->AIGroup);
+                if (i >= g->Units.Size)
+                    break;
+                U(UnitAt(g->Units, i))->EC_Move(BitsOf(f->Pos[0]), BitsOf(f->Pos[2]), 0, false, 0);   // +0xac
+            }
+            AiDebugText(AIGroupAt(victim->AIGroup), "]: Retreat!!");
+        } else {
+            AiDebugText(AIGroupAt(victim->AIGroup), "]: OMG! WTF?!");
+        }
+    } else if (enemy > own) {
+        // Call the nearest reachable allied tactic-2 group in range.
+        int best = -1;
+        int bestScore = 1000000;
+        for (int k = 0; k < gh.Size; ++k) {
+            if (gh.Array[k].Next != kHeapLive)
+                continue;
+            if (!AIGroupAt(victim->AIGroup)->IsAlliedWith(k) || k == victim->AIGroup)
+                continue;
+            if (AIGroupAt(k)->Units.Size == 0 || AIGroupAt(k)->Tactic != 2)
+                continue;
+            if (!InHelpRange(victim->AIGroup, k))
+                continue;
+            if (!AIGroupAt(k)->CanReach(victim->Pos[0], victim->Pos[2]))
+                continue;
+            if (armoured && AIGroupAt(k)->AntiTankStrength() == 0)
+                continue;
+            int s = HelperScore(victim, k);
+            if (s < bestScore) {
+                bestScore = s;
+                best = k;
+            }
+        }
+        if (best <= -1) {
+            AiDebugText(AIGroupAt(victim->AIGroup), "]: Defending");
+        } else {
+            GroupOrderUnits(AIGroupAt(best)->Units, true, att->Pos[0], att->Pos[2]);   // 0x570720
+            AIGroupAt(best)->AttackMoveTo(att->Pos[0], att->Pos[2]);
+            AiDebugText(AIGroupAt(victim->AIGroup), "]: Call support!");
+        }
+    } else {
+        AiDebugText(AIGroupAt(victim->AIGroup), "]: Enemy is too weak");
+    }
+    free(found.Array);
+}
+
 // SGameLogic::Refresh 0x576d80 (0x577958..0x5779b4): every live group.
 void RefreshAIGroups()
 {

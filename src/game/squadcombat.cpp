@@ -86,15 +86,8 @@ bool GunnerCanAttackUnit(SGunner* g, SUnit* target, bool p3)
 
 // SWasterUnit 0x5870f0 WasterSetOwner: waster.cpp (M3-C C3).
 
-// SWorld 0x5d68e0 (agent C4: the AI group of `unit` answers an attack; one
-// world RNG draw on some paths). M3-C: owned by C4, stub until merged.
-void SWorld::AIGroupUnitAttacked(int unit, int attacker)
-{
-    (void)unit;
-    (void)attacker;
-    STUB_LOG("SWorld 0x5d68e0 (AI group attacked), called by SPanzersSquadUnit::OnAttackedBy 0x59ef00");
-    PZ_M3_TRACE("SWorld 0x5d68e0");
-}
+// SWorld 0x5d68e0 (the AI group of `unit` answers an attack): lifted in
+// src/world/aigroup.cpp (M6-AI).
 
 // ---------------------------------------------------------------------------
 // SUnit helpers the squads need (unit.h block C5)
