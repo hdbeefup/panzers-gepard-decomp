@@ -27,6 +27,9 @@
 #include "doodad.h"
 #include "world_save.h"
 #include "loadgame.h"
+#include "ingamemenu.h"
+
+void M3LoadNextCampaignView(SSuperWindow* sw);   // superwindow_m3.cpp 0x658b10
 
 static void LgFocusWidget(SWidget* widget)
 {
@@ -58,17 +61,7 @@ static void SavePath(char* out, size_t cap, const char* file)
 
 int PzSaveGameType(const char* file, SString* map)
 {
-    char path[400];
-    SavePath(path, sizeof(path), file);
-    SString m;
-    if (!pz::ReadSaveGameMapName(path, &m)) {
-        pz::FreeSString(&m);
-        return 0;
-    }
-    if (map)
-        *map = m;
-    pz::FreeSString(&m);
-    return 1;
+    return pz::ReadSaveGameType(file, map);                       // campaign_save.cpp
 }
 
 // PANZERS 0x61f840
@@ -80,6 +73,7 @@ int PzSaveGameType(const char* file, SString* map)
 void SGameView::LoadGame(const char* file)
 {
     PZ_M3_TRACE("SGameView::LoadGame (0x61f840)");
+    PzGameViewCloseDialogs(this);                                 // +0x3e48..+0x3e6c (ingamemenu.cpp)
     // HD: the open dialogs +0x3e48..+0x3e6c are deleted, the panel widgets
     // (+0xc68, 9 x +0x830, +0x5dc, +0x75c) hidden, board frame +0x5d8 hidden.
     if (Board && _5d8 >= 0)
@@ -171,8 +165,25 @@ bool PzLoadGameAction(SSuperWindow* sw, const char* file)
         }
         sw->UnloadMenuBackground();                               // 0x65b940
     }
+    if (type == 2) {
+        // A "Before" save (SaveGameBefore 0x596b30): the campaign starts the
+        // mission from its beginning with the carried army. HD: +0xd8 = 0.
+        if (sw->GameView) {
+            delete sw->GameView;                                  // +0xe4
+            sw->GameView = nullptr;
+        }
+        if (pz::g_WindowScene) {                                  // SDXWindow +0xe0 vtbl +4
+            pz::g_WindowScene->Release();
+            pz::g_WindowScene = nullptr;
+        }
+        delete pz::g_Campaign;                                    // 0x591350 + delete 0xb8c
+        pz::g_Campaign = new pz::SPanzersCampaign();              // new 0xb8c, 0x590ec0
+        pz::CampaignLoadGameBefore(pz::g_Campaign, file);         // 0x595330
+        M3LoadNextCampaignView(sw);                               // 0x658b10 (focuses the new view)
+        return true;
+    }
     if (type != 1) {
-        // Type 2 (between missions, LoadGameBefore 0x595110) is not lifted.
+        // HD panics here; the recompile warns and stays in the menu.
         Logger.g->Warning("SSuperWindow::OnAction - unknow CAMPAIGN_SAVEGAMETYPE (%s)", file);
         return false;
     }
@@ -210,7 +221,7 @@ bool PzQuickSave(SGameView* v)
     if (!pz::g_Campaign || !v->Logic)
         return false;
     char title[600];
-    _snprintf(title, sizeof(title) - 1, "Quick - %s", pz::g_Campaign->GetMapName());   // 0x660c50("Quick - "), 0x5925d0
+    _snprintf(title, sizeof(title) - 1, "Quick - %s", pz::CampaignGetName(pz::g_Campaign));   // 0x660c50("Quick - "), 0x5925d0
     title[sizeof(title) - 1] = 0;
     Logger.g->Log(0, "Quicksaving...");                           // 0x56a480 (message line not mapped)
     bool ok = pz::g_Campaign->SaveGame("SaveGames/quick.save", title);   // 0x5966a0
@@ -237,12 +248,6 @@ bool PzQuickLoad(SGameView* v)
     return true;
 }
 
-// The in-game menu's Save Game entry. HD opens SSaveMenu 0x6205f0 (a list
-// of the saves and a name field; not lifted); the recompile saves as F6 does.
-bool PzInGameSave(SGameView* v)
-{
-    return PzQuickSave(v);
-}
 
 // ---------------------------------------------------------------------------
 // Recompile-only test hooks (docs/M4_STATUS.md).

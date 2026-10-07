@@ -270,35 +270,7 @@ bool SInGameBriefingMenu::OnAction(SWidget* source, int action, int param)
     return false;
 }
 
-// ---------------------------------------------------------------------------
-// SSaveMenu (not lifted)
-// ---------------------------------------------------------------------------
-
-SSaveMenu::SSaveMenu() {}
-SSaveMenu::~SSaveMenu() {}
-
-bool SSaveMenu::OnKeyDown(int key, bool repeat)
-{
-    STUB_LOG("SSaveMenu::OnKeyDown (0x632530)");
-    PZ_M3_TRACE("SSaveMenu::OnKeyDown (0x632530)");
-    (void)key; (void)repeat;
-    return false;
-}
-
-void SSaveMenu::OnMouseDown(int button, int x, int y, int shift)
-{
-    STUB_LOG("SSaveMenu::OnMouseDown (0x632590)");
-    PZ_M3_TRACE("SSaveMenu::OnMouseDown (0x632590)");
-    SRightMenu::OnMouseDown(button, x, y, shift);
-}
-
-bool SSaveMenu::OnAction(SWidget* source, int action, int param)
-{
-    STUB_LOG("SSaveMenu::OnAction (0x632040)");
-    PZ_M3_TRACE("SSaveMenu::OnAction (0x632040)");
-    (void)source; (void)action; (void)param;
-    return false;
-}
+// SSaveMenu: savemenu.cpp.
 
 // ---------------------------------------------------------------------------
 // SGameView: the in-game menus
@@ -312,6 +284,8 @@ static T& ViewField(SGameView* v, int hdOffset)
 }
 static SHelpMenu*&            HelpMenu(SGameView* v)       { return ViewField<SHelpMenu*>(v, 0x3e54); }
 static SInGameBriefingMenu*&  ObjectivesMenu(SGameView* v) { return ViewField<SInGameBriefingMenu*>(v, 0x3e58); }
+static SSaveMenu*&            SaveMenu(SGameView* v)       { return ViewField<SSaveMenu*>(v, 0x3e4c); }
+static SLoadMenu*&            LoadMenu(SGameView* v)       { return ViewField<SLoadMenu*>(v, 0x3e50); }
 static pz::SMessageBox*&      RestartBox(SGameView* v)     { return ViewField<pz::SMessageBox*>(v, 0x3e8c); }
 static pz::SMessageBox*&      EndBox(SGameView* v)         { return ViewField<pz::SMessageBox*>(v, 0x3e90); }
 static unsigned char&         WasPaused(SGameView* v)      { return ViewField<unsigned char>(v, 0x3888); }
@@ -356,6 +330,63 @@ void PzOpenInGameMenu(SGameView* v)
     v->InGameMenu = m;                                             // +0x3e48
     v->InsertChild(m);                                             // vtbl +0x54
     m->Create();                                                   // 0x62f690
+}
+
+// PANZERS 0x6205f0
+void PzOpenSaveMenu(SGameView* v)
+{
+    PZ_M3_TRACE("SGameView::OpenSaveMenu (0x6205f0)");
+    SSaveMenu* m = new SSaveMenu();                                // new 0x474, 0x62ccb0
+    SaveMenu(v) = m;                                               // +0x3e4c
+    v->InsertChild(m);                                             // vtbl +0x54
+    m->Create();                                                   // 0x62fcb0
+}
+
+// PANZERS 0x620140
+void PzOpenLoadMenu(SGameView* v)
+{
+    PZ_M3_TRACE("SGameView::OpenLoadMenu (0x620140)");
+    SLoadMenu* m = new SLoadMenu();                                // new 0x280, 0x62cbc0
+    LoadMenu(v) = m;                                               // +0x3e50
+    v->InsertChild(m);                                             // vtbl +0x54
+    m->Create(false);                                              // 0x62f950(0): Load + Back
+}
+
+// The start of SGameView's load-game LoadMap 0x61f840: the open dialogs
+// go (the load menu, the in-game menu, help, objectives, save, the
+// statistics; the options pages +0x3e60..+0x3e68 and +0x3e5c are not lifted).
+void PzGameViewCloseDialogs(SGameView* v)
+{
+    DeleteWidget(LoadMenu(v));                                     // +0x3e50
+    DeleteInGameMenu(v);                                           // +0x3e48
+    DeleteWidget(HelpMenu(v));                                     // +0x3e54
+    DeleteWidget(ObjectivesMenu(v));                               // +0x3e58
+    DeleteWidget(SaveMenu(v));                                     // +0x3e4c
+    PzDeleteStatisticMenu(v);                                      // +0x3e6c
+}
+
+// PANZERS 0x622f50 (case VK_ESCAPE, the dialog part; the chat line, the
+// +0x38dd overlay and the options pages +0x3e60..+0x3e68 are not lifted)
+void PzGameViewEscape(SGameView* v)
+{
+    if (v->InGameMenu) {                                           // +0x3e48
+        DeleteInGameMenu(v);
+        if (!WasPaused(v))                                         // LAB_0062456f
+            ResumeAfterMenu();
+        return;
+    }
+    bool open = !(ObjectivesMenu(v) && ObjectivesMenu(v)->FromBriefing);   // +0x280
+    DeleteWidget(HelpMenu(v));                                     // +0x3e54
+    DeleteWidget(ObjectivesMenu(v));                               // +0x3e58
+    DeleteWidget(SaveMenu(v));                                     // +0x3e4c
+    DeleteWidget(LoadMenu(v));                                     // +0x3e50
+    // +0x3e5c is not lifted.
+    if (open) {
+        PzOpenInGameMenu(v);                                       // 0x620080
+        return;
+    }
+    if (!WasPaused(v))
+        ResumeAfterMenu();
 }
 
 // PANZERS 0x61ff30
@@ -405,6 +436,8 @@ void PzGameViewDeleteMenus(SGameView* v)
     DeleteInGameMenu(v);
     DeleteWidget(HelpMenu(v));
     DeleteWidget(ObjectivesMenu(v));
+    DeleteWidget(SaveMenu(v));
+    DeleteWidget(LoadMenu(v));
     DeleteWidget(RestartBox(v));
     DeleteWidget(EndBox(v));
     PzDeleteStatisticMenu(v);                                      // +0x3e6c (results.cpp)
@@ -436,14 +469,24 @@ bool PzGameViewMenuAction(SGameView* v, SWidget* source, int action, int param)
     switch (action) {
     case PZA_IGM_SAVE:
         DeleteInGameMenu(v);
-        STUB_LOG("SGameView::OpenSaveMenu (0x6205f0)");
-        PzInGameSave(v);               // recompile: saves as F6 (SaveGames/quick.save; loadgame.cpp, agent S)
-        PzOpenInGameMenu(v);           // recompile: the save menu is not lifted, show the menu again
+        PzOpenSaveMenu(v);                                         // 0x6205f0
+        return true;
+    case PZA_SAVE_DONE:                                            // 0x49531 (saved)
+        DeleteWidget(SaveMenu(v));
+        if (!WasPaused(v))
+            ResumeAfterMenu();                                     // LAB_00621836
+        return true;
+    case PZA_SAVE_BACK:                                            // 0x49533
+        DeleteWidget(SaveMenu(v));
+        PzOpenInGameMenu(v);                                       // 0x620080
         return true;
     case PZA_IGM_LOAD:
         DeleteInGameMenu(v);
-        STUB_LOG("SGameView::OpenLoadMenu (0x620140)");
-        PzOpenInGameMenu(v);
+        PzOpenLoadMenu(v);                                         // 0x620140
+        return true;
+    case 0x494c3:                                                  // SLoadMenu Back
+        DeleteWidget(LoadMenu(v));
+        PzOpenInGameMenu(v);                                       // 0x620080
         return true;
     case PZA_IGM_OPTIONS:
         DeleteInGameMenu(v);

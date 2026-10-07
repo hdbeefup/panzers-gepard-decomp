@@ -222,6 +222,16 @@ const char* SSaveLoadListBox::GetFileName(int index) const
     return Items[index].File.buf ? Items[index].File.buf : "";
 }
 
+// PANZERS 0x53fa70
+void SSaveLoadListBox::GetText(int index, SString* code, SString* title, SString* date) const
+{
+    if (index < 0 || index >= ItemCount)
+        Logger.g->Panic("SSaveLoadListBox::GetText: Invalid index");
+    SetStr(code, SStr(Items[index].Code));                        // 0x52c2c0
+    SetStr(title, SStr(Items[index].Title));
+    SetStr(date, SStr(Items[index].Date));
+}
+
 int SSaveLoadListBox::SetCurSel(int index)
 {
     if (index < ItemCount && index >= -1) {

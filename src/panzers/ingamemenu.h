@@ -12,8 +12,8 @@
 //                        End / Restart and then sends GV_GAMEOVER 0x47562 / 0x47565.
 //                        In multiplayer (0x594d20) the buttons are Options, Help,
 //                        Objectives, End, Resume.
-//   SSaveMenu            vftable 0x805e84: dtor 0x62d7a0, OnKeyDown 0x632530,
-//                        OnMouseDown 0x632590, OnAction 0x632040
+//   SSaveMenu            vftable 0x805e84, 0x474 bytes over SCenterMenu (savemenu.h,
+//                        savemenu.cpp; SGameView::OpenSaveMenu 0x6205f0 here)
 //   SLoadMenu            vftable 0x805f04: dtor 0x62d6f0, OnKeyDown 0x632500,
 //                        OnAction 0x631f40 (main-menu Load Game: new 0x280 0x62cbc0,
 //                        Create 0x62f950; LoadReplayNames 0x5959d0 is dead code)
@@ -40,6 +40,8 @@
 #include "mainmenu.h"
 #include "optionsmenu.h"
 #include "hudwidgets.h"
+#include "savemenu.h"
+#include "loadgame_menu.h"
 
 struct SGameView;
 
@@ -89,13 +91,7 @@ struct SInGameBriefingMenu : SCenterMenu {
     void AddObjective(int index);                                    // 0x632bd0
 };
 
-struct SSaveMenu : SRightMenu {
-    SSaveMenu();
-    ~SSaveMenu() override;                                           // 0x62d7a0
-    bool OnKeyDown(int key, bool repeat = false) override;           // +0x14 0x632530
-    void OnMouseDown(int button, int x, int y, int shift) override;  // +0x24 0x632590
-    bool OnAction(SWidget* source, int action, int param) override;  // +0x44 0x632040
-};
+// SSaveMenu (over SCenterMenu): savemenu.h.
 
 // SGameView helpers (HD SGameView members, see above).
 void PzOpenInGameMenu(SGameView* view);                              // 0x620080
@@ -107,5 +103,13 @@ bool PzGameViewMenuAction(SGameView* view, SWidget* source, int action, int para
 // Deletes the menus and boxes above (the view's dtor must call it before
 // SWidget::~SWidget, which panics while children are left).
 void PzGameViewDeleteMenus(SGameView* view);
+// The Esc key of SGameView::OnKeyDown 0x622f50 (the dialog part): closes the
+// in-game menu (and runs again), else the help / objectives / save menus
+// and opens the in-game menu.
+void PzGameViewEscape(SGameView* view);
+// SGameView::OpenLoadMenu 0x620140: SLoadMenu (Load + Back) into +0x3e50.
+void PzOpenLoadMenu(SGameView* view);
+// The dialog part of SGameView's load-game LoadMap 0x61f840.
+void PzGameViewCloseDialogs(SGameView* view);
 
 #endif // PANZERS_INGAMEMENU_H

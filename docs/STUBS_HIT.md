@@ -246,6 +246,7 @@ M4 S (save / load, docs/M4_STATUS.md) replaced `SGameLogic::SaveGameState (0x57e
 (0x5be320)`, `SUnit::Load (0x5bbd30)`, `SPanzersCampaign::LoadGame (0x594f70)`, `SUnit::Slot_14 (0x5bb1c0)`
 and `SUnit::Slot_18 (0x5baf30)` (now InitAfterLoad / LinkAfterLoad), and the F6 / F9 `StubOnce` lines of
 `SGameView::OnKeyDown` (quick save / quick load), and `SMainMenu Load Game submenu (0x62cbc0 /
-0x62f950)` (SLoadMenu lifted). `SGameView::OpenSaveMenu (0x6205f0)` stays logged (SSaveMenu is not
-lifted; Save Game saves as F6). Census `2315 lifted + 1317 SWINE-shared + 183 stubs; 77 lifted bodies
+0x62f950)` (SLoadMenu lifted). `SGameView::OpenSaveMenu (0x6205f0)` stayed logged then (Save Game saved
+as F6); M5 SV replaced it and `SSaveMenu::OnKeyDown (0x632530)`, `OnMouseDown (0x632590)` and
+`OnAction (0x632040)` (SSaveMenu, pz::SEditBox and LoadGameBefore 0x595330 lifted, docs/m5/sv.md). Census `2315 lifted + 1317 SWINE-shared + 183 stubs; 77 lifted bodies
 still contain a STUB_LOG`.

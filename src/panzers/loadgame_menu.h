@@ -66,6 +66,7 @@ struct SSaveLoadListBox : SDXWidget {
     void Sort(int from);                                             // 0x53ff80 newest first (0x53f390)
     void ResetContent();                                             // 0x53ffc0
     const char* GetFileName(int index) const;                        // 0x53f9c0
+    void GetText(int index, SString* code, SString* title, SString* date) const;   // 0x53fa70
     void EnsureVisible(int index);                                   // 0x53f8f0
     int  SetCurSel(int index);
     int  SetTopIndex(int index);

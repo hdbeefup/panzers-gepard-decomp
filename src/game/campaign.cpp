@@ -30,6 +30,7 @@ static SProperties* Props(SPanzersCampaign* c) { return (SProperties*)c->Mission
 // SPanzersCampaign::SaveGameBefore 0x596b30 (the "Before" save of the next
 // mission) lives in campaign_save.cpp.
 bool CampaignSaveGameBefore(SPanzersCampaign* c);
+const char* CampaignGetName(SPanzersCampaign* c);   // 0x5925d0 (campaign_save.cpp)
 
 // ---------------------------------------------------------------------------
 // SDArray<SUnitDef> helpers
@@ -764,7 +765,7 @@ int SPanzersCampaign::SaveGameStartMission(const char* name, const char* title)
     PZ_M3_TRACE("SPanzersCampaign::SaveGameStartMission (0x596e30)");
     // title2 = "<title> - <map>" (" - " 0x7f92bc, map 0x5925d0)
     char full[600];
-    _snprintf(full, sizeof(full) - 1, "%s - %s", title ? title : "", GetMapName());
+    _snprintf(full, sizeof(full) - 1, "%s - %s", title ? title : "", CampaignGetName(this));   // 0x5925d0
     full[sizeof(full) - 1] = 0;
     char file[400];
     _snprintf(file, sizeof(file) - 1, "SaveGames/%s-%s.save", GetMissionCode(), name);

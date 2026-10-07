@@ -40,6 +40,8 @@ add_library(panzersgame STATIC
     minimap.cpp
     ingamemenu.h
     ingamemenu.cpp
+    savemenu.h
+    savemenu.cpp
     results.h
     results.cpp
     market.h

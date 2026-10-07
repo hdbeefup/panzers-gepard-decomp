@@ -48,6 +48,16 @@ void LoadSavedGameNames(SHdArray<SLoadSaveName>* out);
 // PANZERS 0x596b30 SPanzersCampaign::SaveGameBefore (campaign_save.cpp)
 struct SPanzersCampaign;
 bool CampaignSaveGameBefore(SPanzersCampaign* c);
+// PANZERS 0x595330 SPanzersCampaign::LoadGameBefore (campaign_save.cpp): a
+// type-2 save (SaveGames/<file>) into a new campaign, then PrepareMission.
+void CampaignLoadGameBefore(SPanzersCampaign* c, const char* file);
+// PANZERS 0x5925d0 SCampaign::GetName: the map (modes 1, 2, 4, 5), the
+// mission's localised "Name" (mode 3, default "Unnamed").
+const char* CampaignGetName(SPanzersCampaign* c);
+// PANZERS 0x5955d0: the save type of SaveGames/<file> (1 in a mission,
+// 2 "Before", 0 when the file does not open or its header does not read)
+// and its map.
+int ReadSaveGameType(const char* file, SString* map);
 
 } // namespace pz
 

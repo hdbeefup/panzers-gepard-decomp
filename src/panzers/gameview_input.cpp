@@ -29,6 +29,7 @@
 #include <math.h>
 #include <string.h>
 #include "gameview.h"
+#include "ingamemenu.h"
 #include "superwindow.h"
 #include "m3common.h"
 #include "campaign.h"
@@ -572,8 +573,8 @@ bool SGameView::OnKeyDown(int key, bool repeat)
         break;
     case VK_ESCAPE:
         // HD: closes the open dialogs (+0x3e48..+0x3e68, agent H), else the
-        // in-game menu 0x620080.
-        OpenInGameMenu();
+        // in-game menu 0x620080 (ingamemenu.cpp).
+        PzGameViewEscape(this);
         break;
     case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
         if (CtrlDown(this)) {

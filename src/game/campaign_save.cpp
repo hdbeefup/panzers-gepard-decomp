@@ -21,6 +21,7 @@
 #include "m3common.h"
 #include "world_save.h"
 #include "gettext.h"
+#include "properties.h"
 
 namespace pz {
 
@@ -155,6 +156,59 @@ bool ReadSaveGameMapName(const char* file, SString* map)
     return ok;
 }
 
+// PANZERS 0x5955d0
+// "SaveGames/" + file: signature, 'SAVE', the version ('v4pa', 'v2ps' or
+// 'v1ps'), the save type, the map. HD lets a bad header throw out of the
+// caller; the recompile returns 0 for it (the caller then warns).
+int ReadSaveGameType(const char* file, SString* map)
+{
+    char path[400];
+    if (_strnicmp(file, "SaveGames/", 10) == 0 || _strnicmp(file, "SaveGames\\", 10) == 0)
+        _snprintf(path, sizeof(path) - 1, "%s", file);
+    else
+        _snprintf(path, sizeof(path) - 1, "SaveGames/%s", file);  // 0x52c580("SaveGames/" + file)
+    path[sizeof(path) - 1] = 0;
+    SStream* s = FileSystem.OpenRead(path, nullptr);              // 0x65f420(name, 0)
+    if (!s)
+        return 0;
+    int type = 0;
+    try {
+        s->ReadSignature();                                       // 0x65d6a0
+        if (s->ReadChunkHeader() != 0x45564153)                   // 'SAVE'
+            throw "Not a map file";
+        int v = s->ReadInt();
+        if (v != 0x61703476 && v != 0x73703276 && v != 0x73703176)   // 'v4pa', 'v2ps', 'v1ps'
+            throw "Unsupported map file version";
+        type = s->ReadInt();
+        SString m;
+        ReadSaveStr(s, &m);                                       // 0x65d6f0
+        if (map)
+            SetSaveStr(map, SStr(m));                             // 0x52c320
+        FreeSString(&m);
+    } catch (const char* e) {
+        Logger.g->Warning("ReadSaveGameType: %s: %s", path, e);
+        type = 0;
+    }
+    s->Release();
+    return type;
+}
+
+// PANZERS 0x5925d0
+const char* CampaignGetName(SPanzersCampaign* c)
+{
+    switch (c->GameMode) {
+    case 1: case 2: case 4: case 5:
+        return SStr(c->MapName);                                  // +0x20
+    case 3: {
+        SProperties* lp = (SProperties*)c->LocalProps;            // +0x04
+        return lp ? lp->GetString(SStr(c->MissionSection), "Name", "Unnamed") : "Unnamed";   // 0x660570
+    }
+    default:
+        Logger.g->Panic("SCampaign::GetName: GameMode not set");
+        return "";
+    }
+}
+
 // The save's title (the Load Game list): header, map, mission code, title.
 bool ReadSaveGameTitle(const char* file, SString* title)
 {
@@ -279,7 +333,7 @@ bool CampaignSaveGameBefore(SPanzersCampaign* c)
     s->WriteString(code);
     char title[600];
     _snprintf(title, sizeof(title) - 1, "%s - %s",
-              GetText("world/PanzersCampaign.cpp", "Before"), c->GetMapName());   // 0x660c50, " - ", 0x5925d0
+              GetText("world/PanzersCampaign.cpp", "Before"), CampaignGetName(c));   // 0x660c50, " - ", 0x5925d0
     title[sizeof(title) - 1] = 0;
     s->WriteString(title);
     s->WriteInt(c->GameMode);                                     // +0x10
@@ -298,6 +352,60 @@ bool CampaignSaveGameBefore(SPanzersCampaign* c)
     s->WriteChunkEnd();
     s->Release();
     return true;
+}
+
+// PANZERS 0x595330
+// SSuperWindow::OnAction 0x494c1 for a type-2 save, on a new campaign: the
+// header ('v2ps' or 'v1ps', type 2), the map, the mission code and title
+// (skipped), the saved mode (read; the mode becomes 3, campaign), race,
+// start prestige, the Army records, the mission section, +0xe4,
+// difficulty, +0xf8, +0xfc, score and +0xb84 (2 in a 'v1ps' save), then
+// PrepareMission 0x592d80 starts the mission from its beginning with the
+// carried army (MenuToLoad: briefing or game view).
+void CampaignLoadGameBefore(SPanzersCampaign* c, const char* file)
+{
+    PZ_M3_TRACE("SPanzersCampaign::LoadGameBefore (0x595330)");
+    char path[400];
+    if (_strnicmp(file, "SaveGames/", 10) == 0 || _strnicmp(file, "SaveGames\\", 10) == 0)
+        _snprintf(path, sizeof(path) - 1, "%s", file);
+    else
+        _snprintf(path, sizeof(path) - 1, "SaveGames/%s", file);  // 0x52c580("SaveGames/" + file)
+    path[sizeof(path) - 1] = 0;
+    SStream* s = FileSystem.OpenRead(path, nullptr);              // 0x65f420(name, 0)
+    if (!s)
+        return;
+    s->ReadSignature();                                           // 0x65d6a0
+    if (s->ReadChunkHeader() != 0x45564153)                       // 'SAVE'
+        throw "Not a map file";
+    int version = s->ReadInt();
+    if (version != 0x73703276 && version != 0x73703176)           // 'v2ps', 'v1ps'
+        throw "Unsupported map file version";
+    if (s->ReadInt() != 2)
+        throw "Not a start save game file";
+    SString str;
+    ReadSaveStr(s, &str);
+    SetSaveStr(&c->MapName, SStr(str));                           // 0x52c320 on +0x20
+    ReadSaveStr(s, &str);                                         // mission code
+    ReadSaveStr(s, &str);                                         // title
+    FreeSString(&str);
+    s->ReadInt();                                                 // the saved mode
+    c->GameMode = 3;                                              // +0x10
+    c->Race = s->ReadInt();                                       // +0x18
+    c->StartPrestige = s->ReadInt();                              // +0x28
+    ArmyLoadSave(&c->Army, s);                                    // 0x51f860 on +0x2c
+    ReadSaveStr(s, &c->MissionSection);                           // 0x56e7d0 on +0xd8
+    c->MissionResult = s->ReadInt();                              // +0xe4
+    c->Difficulty = s->ReadInt();                                 // +0x1c
+    c->_0f8 = s->ReadInt();
+    c->_0fc = s->ReadInt();
+    c->Score = s->ReadInt();                                      // +0xb60
+    if (version == 0x73703176)                                    // 'v1ps'
+        c->_b84 = 2;
+    else
+        c->_b84 = s->ReadInt();
+    s->ReadChunkValidate(0);                                      // 0x65d460
+    c->PrepareMission();                                          // 0x592d80
+    s->Release();
 }
 
 // PANZERS 0x594f70
