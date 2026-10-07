@@ -27,6 +27,9 @@ void PzCutsceneTick(SGameLogic* gl);
 void PzCutsceneEnd(SGameLogic* gl);
 // 0x58adc0 from UpdateUnitVisuals 0x5638f0: the cut-scene camera between ticks.
 void PzCutsceneCamera(SGameLogic* gl, double interpolation);
+// 0x582380 SGameLogic::UpdateAnimation: true while a .4d cut-scene plays
+// (SGameView::Update then does nothing else).
+bool PzCutsceneUpdateAnimation(SGameLogic* gl);
 // True while an .ingame cut-scene runs (SGameLogic +0x2b8).
 bool PzCutsceneRunning();
 // 0x589860: a camera track of the loaded cut-scene has more than one key.
@@ -51,6 +54,7 @@ void PzCutsceneOverlay(unsigned argb);                             // 0x58c5d0 (
 void PzSubtitlesLoad(const char* file);                            // 0x56fd70 SSubtitler::ParseSubFile + the frame
 void PzSubtitlesShow(int time);                                    // 0x5826c0 (time in 1/25 s)
 void PzSubtitlesEnd();                                             // 0x565390 / 0x5652d0 tail
+void PzCutsceneSoundPause();                                       // Concert +0x60
 void PzCutsceneSoundResume();                                      // Concert +0x64
 int  PzCutsceneSoundStart(const char* file);                       // Concert +0x2c(file, 1, 0, 0, 1)
 void PzCutsceneSoundStop(int id);                                  // Concert +0x3c

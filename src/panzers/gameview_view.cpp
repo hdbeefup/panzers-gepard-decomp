@@ -432,10 +432,14 @@ void SGameView::Update()
         return;
     if (!pz::g_World || !pz::g_Scene)                              // recompile: the market moves them aside
         return;
-    if (Logic->Flag288) {
-        // HD 0x582380: an in-game animation (SInGameAnimLogic) plays instead
-        // of the game: SetPanelMode(2), UpdateUnitVisuals(vp, 0.0). Not lifted.
-        STUB_LOG("SGameLogic::UpdateAnimation (0x582380)");
+    if (pz::PzCutsceneUpdateAnimation(Logic)) {                   // 0x582380(viewport)
+        // A .4d cut-scene plays: the letterbox, the unit visuals, nothing
+        // else this frame (no logic tick, no mission-end check).
+        if (ViewState != 2) {
+            SetPanelMode(2);                                       // 0x625d80(2)
+            Logic->UpdateUnitVisuals(Viewport, 0.0);               // 0x5638f0(vp, 0.0)
+        }
+        return;
     }
     unsigned now = NowMs();
     int ms = (int)(now - ClockStart);

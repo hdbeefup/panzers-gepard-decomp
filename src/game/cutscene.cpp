@@ -26,6 +26,8 @@
 #include "stream.h"
 #include "logger.h"
 #include "stub_log.h"
+#include "timer.h"
+#include "pz/imodel.h"
 #include "campaign.h"
 #include "pz/iscene.h"
 
@@ -630,6 +632,55 @@ void LoadProject(const char* file)
     InitColours();                                                // 0x58b170
 }
 
+// The .4d cut-scene state (SGameLogic +0x288..+0x2b0).
+struct SAnim {
+    double Last;       // +0x298
+    double Length;     // +0x2a0 (model +0x80(0), seconds)
+    double Elapsed;    // +0x2a8
+    int    SoundId = -1;   // +0x2b0
+};
+SAnim g_Anim;
+
+// PANZERS 0x56f0d0 (partly)
+// The .4d cut-scene: messages cleared, the sounds paused (Concert +0x60),
+// the model "<n>.4d" (scale 0.005, flags 1) whose sequence 0 gives the
+// length, the subtitles, "<n>.mp3", +0x288 = 1 and the clock. HD plays it in
+// its own scene (Gepard +0x0c, the window scene through the view callback
+// +0x08, the camera node of the model, "<n>_fade.ingame" colours); the
+// recompile keeps the world scene in view and only loads the model for its
+// length: the renderer's model +0x108 / +0xe4 (SModel::Slot_E4 0x6d62e0) are
+// not lifted.
+void StartAnimation(SGameLogic* gl, const char* name)
+{
+    PzMessagesClearFading(gl);                                    // 0x563860
+    PzMessagesClearStatic(gl);                                    // 0x5638b0
+    PzCutsceneSoundPause();                                       // Concert +0x60
+    char file[300];
+    _snprintf(file, sizeof(file) - 1, "%s.4d", name);
+    file[sizeof(file) - 1] = 0;
+    g_Anim.Length = 0.0;
+    if (g_Scene) {
+        SIModel* m = g_Scene->CreateModelFromFile(file, 0.005f, 1, 0);   // scene +0x50(file, 0x3ba3d70a, 1, 0)
+        if (!m)
+            Logger.g->Panic("SGameLogic::RunTriggers: Cannot open %s", name);
+        m->SetVisible(false, false);
+        g_Anim.Length = (double)m->GetSequenceLengthAt(0);        // model +0x80(0) -> +0x2a0
+        m->Release();
+    }
+    char sub[300];
+    _snprintf(sub, sizeof(sub) - 1, "%s.sub", name);
+    sub[sizeof(sub) - 1] = 0;
+    PzSubtitlesLoad(sub);                                         // 0x56fd70
+    char mp3[300];
+    _snprintf(mp3, sizeof(mp3) - 1, "%s.mp3", name);
+    mp3[sizeof(mp3) - 1] = 0;
+    g_Anim.SoundId = PzCutsceneSoundStart(mp3);                   // Concert +0x2c(mp3, 1, 0, 0, 1) -> +0x2b0
+    g_Anim.Last = (double)Timer.GetTickValue() / 1000.0;          // 0x661800 -> +0x298
+    g_Anim.Elapsed = 0.0;                                         // +0x2a8
+    gl->Flag288 = true;                                           // +0x288
+    Logger.g->Log(0, "PZM5: .4d cut-scene %s: %.2f s at frame %d", name, g_Anim.Length, gl->Frame);
+}
+
 // PANZERS 0x56f530
 void StartInGame(SGameLogic* gl, const char* name)
 {
@@ -720,10 +771,37 @@ void PzCutscenePlay(SGameLogic* gl, const char* name)
         StartInGame(gl, name);                                    // 0x56f530
         return;
     }
-    // PANZERS 0x56f0d0: the .4d cut-scene (own scene, camera node +0x108,
-    // length +0x80, "_fade.ingame", .sub, mp3, SGameLogic +0x288). Not
-    // lifted: the cut-scene is skipped.
-    Logger.g->Log(1, "STUB: SGameLogic 0x56f0d0 .4d cut-scene %s not played (skipped)", name);
+    StartAnimation(gl, name);                                     // 0x56f0d0
+}
+
+// PANZERS 0x582380 (SGameLogic::UpdateAnimation, from SGameView::Update
+// 0x628430 before anything else): while +0x288 is set the view does nothing
+// else that frame (no logic tick, no mission-end check: a victory set by
+// the same trigger shows after the animation). The time runs on the wall
+// clock (+0x298 last, +0x2a8 elapsed, +0x2a0 length); the subtitle line of
+// round(elapsed * 25) (0x5826c0). After the length: 0x58c100 and the end
+// 0x5652d0. The .4d scene, its camera node (model +0xe4) and the scene
+// clock (+0x70 / +0x1c) are not drawn (see StartAnimation).
+bool PzCutsceneUpdateAnimation(SGameLogic* gl)
+{
+    if (!gl->Flag288)
+        return false;
+    if (g_Anim.Elapsed <= g_Anim.Length) {
+        double now = (double)Timer.GetTickValue() / 1000.0;       // 0x661800
+        double last = g_Anim.Last;
+        g_Anim.Last = now;
+        g_Anim.Elapsed = (now - last) + g_Anim.Elapsed;
+        PzSubtitlesShow((int)floor((float)(g_Anim.Elapsed * 25.0) + 0.5f));   // ROUND(elapsed * 25.0 (0x7f7f60)), 0x5826c0
+        return true;
+    }
+    // PANZERS 0x5652d0
+    gl->Flag288 = false;
+    PzCutsceneSoundStop(g_Anim.SoundId);                          // Concert +0x3c(+0x2b0)
+    g_Anim.SoundId = -1;
+    PzCutsceneSoundResume();                                      // Concert +0x64
+    PzSubtitlesEnd();                                             // board +0x0c(+0x274), 0x5634d0(0)
+    Logger.g->Log(0, "PZM5: .4d cut-scene end at frame %d", gl->Frame);
+    return false;
 }
 
 // PANZERS 0x568af0

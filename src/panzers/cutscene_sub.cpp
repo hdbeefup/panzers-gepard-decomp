@@ -128,6 +128,12 @@ void PzSubtitlesEnd()
 // (+0x64) and starts "<name>.mp3" (+0x2c(file, 1, 0.0, 0.0, 1): looping until
 // 0x565390 removes it, +0x3c). A missing file gives -1 (tutorial-01 has none,
 // in the original too).
+void PzCutsceneSoundPause()
+{
+    if (SIPanzersConcert* pc = dynamic_cast<SIPanzersConcert*>(Concert))
+        pc->PauseAllSounds();                                     // Concert +0x60
+}
+
 void PzCutsceneSoundResume()
 {
     if (SIPanzersConcert* pc = dynamic_cast<SIPanzersConcert*>(Concert))
