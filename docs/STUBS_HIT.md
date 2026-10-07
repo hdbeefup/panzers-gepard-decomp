@@ -76,7 +76,7 @@ agents or by M2, in call order:
 | `SGameLogic::~SGameLogic`, `SScene::~SScene`, `SPixie::~SPixie` | D (M2) / A / C | Exit / OnDestroy |
 | `SSuperWindow::Initialize Gepard render options`, `DrawDebugPickerOverlayFromGepard`, `SVersion::GetVersionString` | shell | as before |
 
-Not hit: `SWorld::Slot_04/08/0C/10`, `SWorld::ComputeCamera modes 1/2` (M5: mode 2, the cut-scene eye camera
+Not hit: ~~`SWorld::Slot_04/08/0C/10`~~ (M6-PL: lifted, the trigger-variable slots), `SWorld::ComputeCamera modes 1/2` (M5: mode 2, the cut-scene eye camera
 of 13 campaign missions, lifted by agents CS and MS, docs/m5/cs.md; mode 1 is still a STUB_LOG).
 
 ## M1-I: integration, 3D menu on by default
@@ -203,14 +203,14 @@ Replaced (were hit or reached on the mission path): `SGunner::ServerRefresh (0x5
 `SPProjectileUnit / SPWasterUnit / SPFlyingUnit::CreateUnit` and their animations, the support calls of
 ProcessPacket, `SPanzersSquadUnit::Hook20 (0x59fab0)`, `SSingleUnit::RefreshMisc (0x5af890)` gun crews,
 `SBuildingUnit` StoreUnit / windows / RefreshMisc occupants, `SUnit::OnDriverStucked (0x5bcd20)` speech,
-`SWorld::UnitSpeech (0x5fff20)` (the queue and playback 0x607f50 stay a stub: audio only).
+`SWorld::UnitSpeech (0x5fff20)` (~~the queue and playback 0x607f50 stay a stub: audio only~~ M6-PL: lifted, docs/m6/pl.md).
 
 Still hit or reachable in combat (logged): ~~the building / doodad hit tests (SIModel +0xd0 / +0xd8
 0x6db7c0 / 0x6db550; the doodad grid 0x564c20)~~ (M3-I: lifted; BuildingBetween 0x5630c0,
 ProjectileHitTest 0x562c20, DamageArea 0x576490 / CrushDoodad, the eye heights 0x546f70 / 0x57f6a0);
 ~~`SWorld 0x5d68e0` (an AI group answers an attack:
 support calls, help from other groups; 7.5 KB, not lifted)~~ (M6-AI: lifted in src/world/aigroup.cpp with SAIGroup::Strength 0x5e74e0, AntiTankStrength 0x5e7110 and the radius search 0x5642d0); ~~`SBuildingUnit::OnMemberDied (0x549b70)`~~ (M3-I2: lifted);
-pixie +0x58 / model +0xbc effect hooks (E); ~~repair / supply orders (0x5c01e0 / 0x5bf280 / 0x5bd610)~~ (M5-MS: lifted, with EC_Repair 0x5c1ca0 / EC_Supply 0x5c1e60);
+~~pixie +0x58 / model +0xbc effect hooks (E)~~ (M6-PL: lifted, with the particle births from a model 0x6e1c20 / 0x6e8680 / 0x6e1610); ~~repair / supply orders (0x5c01e0 / 0x5bf280 / 0x5bd610)~~ (M5-MS: lifted, with EC_Repair 0x5c1ca0 / EC_Supply 0x5c1e60);
 ~~the capture flag (0x5471d0)~~ (M5-MS: lifted with the capture 0x54cd70, radar 0x54ac00, support place 0x54acd0 / 0x54a4a0, hangar 0x54a380 and SUnit::NeedsRepair 0x5bc840; the productive building 0x54a660 is still a STUB_LOG).
 
 ## M3-I: the tc1 replay (frames 0..654 equal to the original)
@@ -237,10 +237,11 @@ former stub: the SGameLogic ctor's air start positions (0x55f2c2), `SWalkerAnima
 gun 1 muzzle (0x5ca594). Census `2238 lifted + 1317 SWINE-shared + 189 stubs; 79 lifted bodies still
 contain a STUB_LOG`.
 
-Hit in tc1 and still logged (visual / audio only, no CRC effect): `SWorld::UnitSpeech` queue and
-playback, `SUnit::TakeDamage` combat music, ~~`SSingleUnit::UpdateVisuals` glows and decals~~ (M5-VX),
-~~`SScene::ReplaceModel`~~ (M5-VX) / ~~`DrawLines`~~ / `DrawLakes`, ~~rain / snow effects~~ (M6-WX), `SModel::Slot_BC` / ~~`Slot_CC`~~ (M6-WX).
-Still not lifted and not reached by tc1: ~~`SWorld 0x5d68e0`~~ (M6-AI: lifted). ~~`SSingleUnit::EC_Move (0x5ac4b0)` +0xb0 move backwards~~ (M6-AI: calls EC_MoveReverse, as HD).
+Hit in tc1 and still logged (visual / audio only, no CRC effect): ~~`SWorld::UnitSpeech` queue and
+playback, `SUnit::TakeDamage` combat music~~ (M6-PL: lifted), ~~`SSingleUnit::UpdateVisuals` glows and decals~~ (M5-VX),
+~~`SScene::ReplaceModel`~~ (M5-VX) / ~~`DrawLines`~~ / `DrawLakes`, ~~rain / snow effects~~ (M6-WX), ~~`SModel::Slot_BC`~~ (M6-PL: 0x6dae10, a
+store no HD code reads) / ~~`Slot_CC`~~ (M6-WX).
+Still not lifted and not reached by tc1: ~~`SWorld 0x5d68e0`~~ (M6-AI: lifted). ~~`SSingleUnit::EC_Move (0x5ac4b0)` +0xb0 move backwards~~ (M6-AI / M6-PL: calls EC_MoveReverse, as HD).
 
 M4 S (save / load, docs/M4_STATUS.md) replaced `SGameLogic::SaveGameState (0x57e110)`, `SUnit::Save
 (0x5be320)`, `SUnit::Load (0x5bbd30)`, `SPanzersCampaign::LoadGame (0x594f70)`, `SUnit::Slot_14 (0x5bb1c0)`
@@ -275,3 +276,18 @@ open the market in multi mode; Done -> the Save Army dialog -> SMarket::SaveArmy
 back to the room) and `SMarket::SaveArmy (0x64a180)`. New logged stub (not on the skirmish path):
 `SMarket::SaveArmy 0x64a180: the GameSpy deck branch (game type 4) is not lifted`. Census `2546 lifted +
 1316 SWINE-shared + 139 stubs`.
+
+## M6-PL: partial lifts finished
+
+Branch `m6-pl`. The lifted bodies that still reached a STUB_LOG (census "N lifted bodies still contain
+a STUB_LOG": 61 at master 103b364) went to 36; the list before / after, with which were hit, is
+docs/m6/pl.md. Replaced (hit in the M5 30-mission sweep or the tc1 replay): `SWorld::UnitSpeech` queue
+and `UpdateSpeech 0x607f50` playback, the order acknowledgements (0x5bcad0 / 0x5bc9d0), `SUnit::TakeDamage`
+combat music, `SWasterUnit::Explode` molotov fire (pixie +0x58), `SModel::Slot_BC`. Replaced, not hit:
+`SUnit::GetBuildingAction 0x5ba2b0`, `EnterVehicle` pick-up, the tow paths (0x5bcb60 / 0x5aef40 /
+0x5aed30), `SSingleUnit::EC_Move` backwards, `SUnit +0x84 / +0x9c / EC_Default / EC_AssaultBuilding`,
+the SGunner building step-back, the capture flag after load, `PlayDeathEffects` / `SetWreckModel` model
+hooks, `SParticles` births from a model, `SWorld::Slot_04..10`, the box-select reset 0x619580, the HUD
+Detach / Leave / Move / Equip commands (0x576460, 0x5763f0, 0x6280f0), the boat oars, the squad extra
+model 0x5c76a0, `SGameView::OpenOptionsMenu 0x620570` (the in-game Options menu) and `ShowBriefing
+0x627db0` with the modal close 0x619520.

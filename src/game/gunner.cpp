@@ -1346,17 +1346,16 @@ void SGunner::FireDirect(float tx, float ty, float tz)
                 float sy = (float)((double)ey * einv) * 0.1f;
                 float sz = (float)((double)ez * einv) * 0.1f;
                 float p[3] = { vv->Pos[0], vv->Pos[1], vv->Pos[2] };
-                float py = p[1] + 1.0f;
+                p[1] = p[1] + 1.0f;
                 int steps = 0;
                 for (;;) {
                     p[0] = p[0] - sx;
-                    p[1] = py - sy;
+                    p[1] = p[1] - sy;
                     p[2] = p[2] - sz;
-                    // HD: building model +0xd0 (point inside the mesh; SIModel
-                    // slot not typed yet, agent E): treated as outside.
-                    STUB_LOG("SGunner::ServerRefresh (0x584d00) building incidence: model +0xd0 point test");
-                    PZ_M3_TRACE("SGunner::ServerRefresh (0x584d00) model +0xd0");
-                    break;
+                    if (!WorldUnit(victim)->Model->HitTestPoint(p))   // building model (+0x08) +0xd0
+                        break;
+                    if (++steps >= 100)
+                        break;
                 }
                 if (steps < 100) {
                     float up[3] = { 0.0f, 1.0f, 0.0f };

@@ -50,10 +50,14 @@ pz::SUnit* Target(int unit)
     return w && w->Units.IsLive(unit) ? w->Units.Array[unit].Unit : nullptr;
 }
 
+} // namespace
+
+namespace pz {
+
 // PANZERS 0x5ba280
 // The order a unit would take on the target (vtbl +0xa8); 10 (a building)
 // becomes the building action 0x5ba2b0.
-int ActionOn(pz::SUnit* u, int target)
+int UnitActionOn(pz::SUnit* u, int target)
 {
     int k = u->ActionOn(target);                                   // vtbl +0xa8
     if (k == 10)
@@ -74,7 +78,7 @@ int SelectionActionOn(int target)
         pz::SUnit* u = w->Units.Array[i].Unit;
         if ((*((const unsigned char*)u + 0x104) & 1) == 0)
             continue;
-        int k = ActionOn(u, target);
+        int k = UnitActionOn(u, target);
         if (k == -1 || k == 0)
             continue;
         if (kind == -1)
@@ -85,7 +89,7 @@ int SelectionActionOn(int target)
     return kind;
 }
 
-} // namespace
+} // namespace pz
 
 // PANZERS 0x543970 (the colour half; the glyph is SWidget::Cursor)
 void PzViewSetCursor(SGameView* view, int cursor, unsigned color)
@@ -120,7 +124,7 @@ void PzHoverCursor(SGameView* view, int x, int y)
         return;
     }
     int cursor = 0;
-    switch (SelectionActionOn(unit)) {                             // 0x56d490
+    switch (pz::SelectionActionOn(unit)) {                             // 0x56d490
     case 1: case 2: cursor = 5; break;
     case 3: cursor = 1; break;
     case 4: cursor = 8; break;

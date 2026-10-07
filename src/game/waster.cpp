@@ -287,9 +287,7 @@ void SWasterUnit::Explode()
             if (IsMolotov(Proto)) {
                 if (g_Pixie && g_Scene) {
                     int e = g_Pixie->CreateEffect(g_Scene, fx.Array[i].Proto, Pos, dir);   // pixie +0x2c
-                    // HD: pixie +0x58(e, building model): attaches the fire to
-                    // the building (SIPixie Slot_58, not typed).
-                    STUB_LOG("SWasterUnit::Explode (0x5d2880) pixie +0x58 (fire on the building)");
+                    g_Pixie->SetEffectModel(e, (int)(intptr_t)b->Model);   // pixie +0x58(e, building +0x08): births from the building
                     g_Pixie->ReleaseEffect(e);                    // pixie +0x38
                 }
             } else if (fx.Size > 0) {
@@ -316,8 +314,8 @@ void SWasterUnit::Explode()
             float dir[3] = { 0.0f, 1.0f, 0.0f };
             if (g_Pixie && g_Scene)
                 FireEffect = g_Pixie->CreateEffect(g_Scene, pg->ShotEffects.Array[0].Proto, Pos, dir);   // pixie +0x2c
-            // HD: pixie +0x58(FireEffect, unit model): the fire follows the unit.
-            STUB_LOG("SWasterUnit::Explode (0x5d2880) pixie +0x58 (molotov fire on the unit)");
+            if (g_Pixie)                                          // pixie +0x58(+0x350, unit +0x08): the fire follows the unit
+                g_Pixie->SetEffectModel(FireEffect, (int)(intptr_t)WorldUnit(AttachedUnit)->Model);
         }
     }
     (void)kUp;

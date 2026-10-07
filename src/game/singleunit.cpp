@@ -425,8 +425,9 @@ void SSingleUnit::OnDriverReachedTarget()
             return;
         }
     } else if (kind == 0xc) {
-        // HD: if (target unit +0x58(this)) this +0x6c(target unit): tow it.
-        STUB_LOG("SSingleUnit::OnDriverReachedTarget (0x5aed30) tow: unit +0x58 (C5) / +0x6c (0x5c2390)");
+        int c = tgt::I(ct, tgt::kUnit);
+        if (WorldUnit(c)->Slot_58((int)(intptr_t)this))           // target unit +0x58(this)
+            Tow(tgt::I(CurrentTarget, tgt::kUnit));               // +0x6c(current +0x08): hook it up
     }
     SUnit::OnDriverReachedTarget();                               // 0x5bcb60
 }

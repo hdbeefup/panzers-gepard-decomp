@@ -20,6 +20,7 @@
 #include "world.h"
 #include "gamelogic.h"
 #include "results.h"
+#include "settings.h"
 
 static const char* Tx(const char* id) { return GetText("panzers/InGameMenu.cpp", id); }
 
@@ -74,6 +75,40 @@ bool SInGameMenu::OnAction(SWidget* source, int action, int param)
         }
     }
     return true;
+}
+
+// ---------------------------------------------------------------------------
+// SOptionsMenu (in-game)
+// ---------------------------------------------------------------------------
+
+// PANZERS 0x62cc40
+SOptionsMenu::SOptionsMenu() {}
+
+SOptionsMenu::~SOptionsMenu() {}
+
+// PANZERS 0x62fc10
+void SOptionsMenu::Create()
+{
+    PZ_M3_TRACE("SOptionsMenu::Create (0x62fc10)");
+    SRightMenu::Create(GetText("panzers/InGameMenu.cpp", "Options"), false);   // 0x64bdf0
+    const char* texts[4] = { Tx("Game Options"), Tx("Graphics"), Tx("Audio"), Tx("Back") };
+    CreateButtons(Buttons, texts, 4, 0);                           // 0x64c210
+}
+
+// PANZERS 0x631fb0
+bool SOptionsMenu::OnAction(SWidget* source, int action, int param)
+{
+    (void)param;
+    if (action != PZA_BUTTON_CLICK)
+        return false;
+    static const int kActions[4] = { PZA_IGO_GAME, PZA_IGO_GRAPHICS, PZA_IGO_AUDIO, PZA_IGO_BACK };
+    for (int i = 0; i < 4; ++i) {
+        if (source == &Buttons[i]) {
+            SendAction(kActions[i], 0);                            // 0x543930
+            return true;
+        }
+    }
+    return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -287,6 +322,10 @@ static SHelpMenu*&            HelpMenu(SGameView* v)       { return ViewField<SH
 static SInGameBriefingMenu*&  ObjectivesMenu(SGameView* v) { return ViewField<SInGameBriefingMenu*>(v, 0x3e58); }
 static SSaveMenu*&            SaveMenu(SGameView* v)       { return ViewField<SSaveMenu*>(v, 0x3e4c); }
 static SLoadMenu*&            LoadMenu(SGameView* v)       { return ViewField<SLoadMenu*>(v, 0x3e50); }
+static SOptionsMenu*&         OptionsMenu(SGameView* v)    { return ViewField<SOptionsMenu*>(v, 0x3e5c); }
+static SAudioOptionsMenu*&    AudioPage(SGameView* v)      { return ViewField<SAudioOptionsMenu*>(v, 0x3e60); }
+static SGraphicsOptionsMenu*& GraphicsPage(SGameView* v)   { return ViewField<SGraphicsOptionsMenu*>(v, 0x3e64); }
+static SGameOptionsMenu*&     GameOptionsPage(SGameView* v){ return ViewField<SGameOptionsMenu*>(v, 0x3e68); }
 static pz::SMessageBox*&      RestartBox(SGameView* v)     { return ViewField<pz::SMessageBox*>(v, 0x3e8c); }
 static pz::SMessageBox*&      EndBox(SGameView* v)         { return ViewField<pz::SMessageBox*>(v, 0x3e90); }
 static unsigned char&         WasPaused(SGameView* v)      { return ViewField<unsigned char>(v, 0x3888); }
@@ -353,6 +392,112 @@ void PzOpenLoadMenu(SGameView* v)
     m->Create(false);                                              // 0x62f950(0): Load + Back
 }
 
+// PANZERS 0x620570
+void PzOpenOptionsMenu(SGameView* v)
+{
+    PZ_M3_TRACE("SGameView::OpenOptionsMenu (0x620570)");
+    SOptionsMenu* m = new SOptionsMenu();                          // new 0x228, 0x62cc40
+    OptionsMenu(v) = m;                                            // +0x3e5c
+    v->InsertChild(m);                                             // vtbl +0x54
+    m->Create();                                                   // 0x62fc10
+}
+
+// PANZERS 0x61f7c0
+static void PzOpenAudioPage(SGameView* v)
+{
+    SAudioOptionsMenu* m = new SAudioOptionsMenu();                // new 0x4b0, 0x62c740
+    AudioPage(v) = m;                                              // +0x3e60
+    v->InsertChild(m);
+    m->Create(false);                                              // 0x62d800(0): Ok / Back
+}
+
+// PANZERS 0x61feb0
+static void PzOpenGraphicsPage(SGameView* v)
+{
+    SGraphicsOptionsMenu* m = new SGraphicsOptionsMenu();          // new 0xa10, 0x62c900
+    GraphicsPage(v) = m;                                           // +0x3e64
+    v->InsertChild(m);
+    m->Create(false);                                              // 0x62e280(0)
+}
+
+// PANZERS 0x61fe30
+static void PzOpenGameOptionsPage(SGameView* v)
+{
+    SGameOptionsMenu* m = new SGameOptionsMenu();                  // new 0x6f4, 0x62c7f0
+    GameOptionsPage(v) = m;                                        // +0x3e68
+    v->InsertChild(m);
+    m->Create(false);                                              // 0x62dbf0(0)
+}
+
+// A page closed with its changes kept (Game Ok, or Esc on a page): HD
+// re-registers the key hint texts (0x626290, not lifted: no hint registry
+// yet), takes the unit voice level into World+0x73ac (0x64e2b0) and opens
+// the Options menu again (0x620570).
+static void PzOptionsPageDone(SGameView* v)
+{
+    if (v->World)
+        *(int*)((unsigned char*)v->World + 0x73ac) = Settings.UnitVoice;   // 0x64e2b0
+    PzOpenOptionsMenu(v);
+}
+
+// PANZERS 0x627db0
+// The mission's briefing picture (menu/briefing/<map>_hq.tga, ger-01 when
+// it is missing) as a full-screen button over the hidden panels; the game
+// stops until it is clicked (0x619520).
+void PzShowBriefing(SGameView* v)
+{
+    PZ_M3_TRACE("SGameView::ShowBriefing (0x627db0)");
+    v->SetPanelMode(1);                                            // 0x625d80(1)
+    if (v->SoundHandle3894 >= 0) {
+        PzReleaseTexture(v->SoundHandle3894);                      // board +0x80
+        v->SoundHandle3894 = -1;
+    }
+    const char* map = pz::g_Campaign ? pz::g_Campaign->GetMapName() : nullptr;   // 0x592040
+    if (!map)
+        map = "";
+    const char* base = map;                                        // 0x5625a0: no directory
+    for (const char* p = map; *p; ++p)
+        if (*p == '/' || *p == '\\')
+            base = p + 1;
+    char name[260];
+    strncpy(name, base, sizeof(name) - 1);
+    name[sizeof(name) - 1] = 0;
+    if (char* dot = strrchr(name, '.'))                            // 0x5651f0: no extension
+        *dot = 0;
+    char file[300];
+    _snprintf(file, sizeof(file) - 1, "menu/briefing/%s_hq.tga", name);   // 0x52da80
+    file[sizeof(file) - 1] = 0;
+    const char* pick = FileSystem.Stat(file, nullptr) == 0 ? file : "menu/briefing/ger-01_hq.tga";   // 0x65faf0
+    v->SoundHandle3894 = PzLoadTexture(pick);                      // board +0x7c
+    pz::SButton* b = new pz::SButton();                            // new 0x74, 0x537a20
+    v->Modal = b;                                                  // +0x389c
+    v->InsertChild(b);                                             // vtbl +0x54
+    b->SetPosition(0, 0, 0x400, 0x300);                            // vtbl +0x08
+    b->Create(v->SoundHandle3894, 0, 0, -1, -1);                   // 0x537a80
+    b->SetFocus();                                                 // 0x5439f0
+    PzViewSetCursor(v, -1, 0xffffffffu);                           // 0x543970(-1, -1)
+    if (v->Logic)
+        v->Logic->SetRunning(0);                                   // +0x3e44, 0x5802f0(0)
+}
+
+// PANZERS 0x619520
+// Closes the briefing picture: the panels come back (0x625d80(0)), then the
+// objectives menu it was opened from, or the game runs again.
+void PzCloseModal(SGameView* v)
+{
+    if (v->Modal) {
+        delete v->Modal;
+        v->Modal = nullptr;
+    }
+    v->SetPanelMode(0);                                            // 0x625d80(0)
+    if (ObjectivesMenu(v)) {
+        ObjectivesMenu(v)->SetVisible(true);                       // +0x3e58 vtbl +0x6c(1)
+        return;
+    }
+    if (v->Logic && (!pz::g_Campaign || pz::g_Campaign->GetMissionResult() == 0))   // 0x5920b0
+        v->Logic->SetRunning(1);
+}
+
 // The start of SGameView's load-game LoadMap 0x61f840: the open dialogs
 // go (the load menu, the in-game menu, help, objectives, save, the
 // statistics; the options pages +0x3e60..+0x3e68 and +0x3e5c are not lifted).
@@ -363,6 +508,10 @@ void PzGameViewCloseDialogs(SGameView* v)
     DeleteWidget(HelpMenu(v));                                     // +0x3e54
     DeleteWidget(ObjectivesMenu(v));                               // +0x3e58
     DeleteWidget(SaveMenu(v));                                     // +0x3e4c
+    DeleteWidget(OptionsMenu(v));                                  // +0x3e5c
+    DeleteWidget(AudioPage(v));                                    // +0x3e60
+    DeleteWidget(GraphicsPage(v));                                 // +0x3e64
+    DeleteWidget(GameOptionsPage(v));                              // +0x3e68
     PzDeleteStatisticMenu(v);                                      // +0x3e6c
 }
 
@@ -376,12 +525,19 @@ void PzGameViewEscape(SGameView* v)
             ResumeAfterMenu();
         return;
     }
+    if (AudioPage(v) || GraphicsPage(v) || GameOptionsPage(v)) {   // an options page: back to Options
+        DeleteWidget(AudioPage(v));                                // +0x3e60
+        DeleteWidget(GraphicsPage(v));                             // +0x3e64
+        DeleteWidget(GameOptionsPage(v));                          // +0x3e68
+        PzOptionsPageDone(v);
+        return;
+    }
     bool open = !(ObjectivesMenu(v) && ObjectivesMenu(v)->FromBriefing);   // +0x280
+    DeleteWidget(OptionsMenu(v));                                  // +0x3e5c
     DeleteWidget(HelpMenu(v));                                     // +0x3e54
     DeleteWidget(ObjectivesMenu(v));                               // +0x3e58
     DeleteWidget(SaveMenu(v));                                     // +0x3e4c
     DeleteWidget(LoadMenu(v));                                     // +0x3e50
-    // +0x3e5c is not lifted.
     if (open) {
         PzOpenInGameMenu(v);                                       // 0x620080
         return;
@@ -416,7 +572,7 @@ void PzOpenObjectivesMenu(SGameView* v, bool fromBriefing)
 static void ResetMouseMode(SGameView* v)
 {
     if (v->MouseMode == 1)
-        STUB_LOG("SGameView 0x619580: mouse mode 1 -> 0x5ddb60 (not mapped)");
+        v->World->HideSelectionBox();                              // +0x3e40, 0x5ddb60
     v->MouseMode = 0;                                              // +0x478
 }
 
@@ -439,6 +595,10 @@ void PzGameViewDeleteMenus(SGameView* v)
     DeleteWidget(ObjectivesMenu(v));
     DeleteWidget(SaveMenu(v));
     DeleteWidget(LoadMenu(v));
+    DeleteWidget(OptionsMenu(v));
+    DeleteWidget(AudioPage(v));
+    DeleteWidget(GraphicsPage(v));
+    DeleteWidget(GameOptionsPage(v));
     DeleteWidget(RestartBox(v));
     DeleteWidget(EndBox(v));
     PzDeleteStatisticMenu(v);                                      // +0x3e6c (results.cpp)
@@ -447,6 +607,10 @@ void PzGameViewDeleteMenus(SGameView* v)
 // PANZERS 0x6216b0 (the in-game-menu cases; the rest of OnAction is agent V's / O's)
 bool PzGameViewMenuAction(SGameView* v, SWidget* source, int action, int param)
 {
+    if (action == PZA_BUTTON_DOWN && v->Modal) {                   // 0x42541 with +0x389c: the picture clicked
+        PzCloseModal(v);                                           // 0x619520
+        return true;
+    }
     if (PzHudAction(v, source, action, param))                     // the HUD buttons (hud.cpp)
         return true;
     if (source && source == RestartBox(v)) {
@@ -491,8 +655,45 @@ bool PzGameViewMenuAction(SGameView* v, SWidget* source, int action, int param)
         return true;
     case PZA_IGM_OPTIONS:
         DeleteInGameMenu(v);
-        STUB_LOG("SGameView::OpenOptionsMenu (0x620570)");
-        PzOpenInGameMenu(v);
+        PzOpenOptionsMenu(v);                                      // 0x620570
+        return true;
+    case PZA_IGO_AUDIO:
+        DeleteWidget(OptionsMenu(v));                              // +0x3e5c
+        PzOpenAudioPage(v);                                        // 0x61f7c0
+        return true;
+    case PZA_IGO_GRAPHICS:
+        DeleteWidget(OptionsMenu(v));
+        PzOpenGraphicsPage(v);                                     // 0x61feb0
+        return true;
+    case PZA_IGO_GAME:
+        DeleteWidget(OptionsMenu(v));
+        PzOpenGameOptionsPage(v);                                  // 0x61fe30
+        return true;
+    case PZA_IGO_BACK:
+        DeleteWidget(OptionsMenu(v));
+        PzOpenInGameMenu(v);                                       // 0x620080
+        return true;
+    case PZA_AUDIO_OK:                                             // 0x4f411
+    case PZA_AUDIO_BACK:                                           // 0x4f412
+        DeleteWidget(AudioPage(v));                                // +0x3e60
+        PzOpenOptionsMenu(v);
+        return true;
+    case PZA_GRAPHICS_OK:                                          // 0x4f561
+    case PZA_GRAPHICS_CANCEL:                                      // 0x4f562
+        DeleteWidget(GraphicsPage(v));                             // +0x3e64
+        PzOpenOptionsMenu(v);
+        return true;
+    case PZA_GAME_OK2:                                             // 0x4f472: the fog view at once
+        if (pz::g_GameLogic)
+            pz::g_GameLogic->SetVisOverlayMode(Settings.FogOfWarView);   // 0x57f970(0x64df00())
+        return true;
+    case PZA_GAME_OK:                                              // 0x4f471
+        DeleteWidget(GameOptionsPage(v));                          // +0x3e68
+        PzOptionsPageDone(v);
+        return true;
+    case PZA_GAME_BACK:                                            // 0x4f473
+        DeleteWidget(GameOptionsPage(v));
+        PzOpenOptionsMenu(v);
         return true;
     case PZA_IGM_HELP:
         DeleteInGameMenu(v);
@@ -531,7 +732,7 @@ bool PzGameViewMenuAction(SGameView* v, SWidget* source, int action, int param)
     case PZA_OBJ_BRIEFING:
         if (ObjectivesMenu(v))
             ObjectivesMenu(v)->SetVisible(false);                  // vtbl +0x6c(0)
-        STUB_LOG("SGameView::ShowBriefing (0x627db0)");
+        PzShowBriefing(v);                                         // 0x627db0
         return true;
     default:
         return false;

@@ -125,10 +125,13 @@ struct STriggerVariable {
 struct SWorld {
     explicit SWorld(int p1);                                   // 0x5d2f90
     virtual ~SWorld();                                         // +0x00 HD 0x5d68b0 (scalar deleting dtor) -> 0x5d5510
-    virtual void Slot_04();                                    // +0x04 HD 0x5ec2a0
-    virtual void Slot_08();                                    // +0x08 HD 0x5fec80
-    virtual void Slot_0C();                                    // +0x0c HD 0x5ec0c0
-    virtual void Slot_10();                                    // +0x10 HD 0x5ebee0
+    // The trigger variable slots; the game calls the non-virtual bodies
+    // below (GetTriggerVariableValue ...), these forward to them. The name
+    // slots return an SString in HD; here they fill a buffer.
+    virtual int  VGetTriggerVariableValue(int index, bool special);             // +0x04 HD 0x5ec2a0
+    virtual void VSetTriggerVariableValue(int index, int value, bool special);  // +0x08 HD 0x5fec80
+    virtual void GetTriggerVariableShortName(char* out, int size, int index, bool special);   // +0x0c HD 0x5ec0c0
+    virtual void GetTriggerVariableLongName(char* out, int size, int index, bool special);    // +0x10 HD 0x5ebee0
 
     void ShowLoadingIcon(int parentFrame);                     // 0x5edca0 "menu/panzers_loading_icons_hq.tga"
     void HideLoadingIcon();                                    // 0x5dc7d0

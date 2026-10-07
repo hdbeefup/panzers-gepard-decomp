@@ -24,6 +24,9 @@
 #include "unitextern.h"
 #include "logger.h"
 #include "stub_log.h"
+#include "iconcert.h"
+
+extern SIConcert* Concert;
 #include "campaign.h"
 #include "cutscene.h"
 #include "pz/ipixie.h"
@@ -48,6 +51,8 @@ void PzMessageFading(SGameLogic* gl, const char* text, int color);// tutorial_ms
 void PzTriggerTextBlock(SGameLogic* gl, const char* key, bool fading);   // tutorial_msg.cpp (0x40 / 0x41)
 void PzSpeechQueue(const char* file);                             // tutorial_msg.cpp 0x600770
 void PzSpeechTick();                                              // tutorial_msg.cpp 0x607f50 (trigger part)
+void PzUnitSpeechPlay(SWorld* w);                                 // combat_speech.cpp 0x607f50 (unit part)
+void PzUnitSpeechDropUnplayed();                                  // combat_speech.cpp 0x607f50 (end)
 
 // Trigger trace (recompile only): one line per started trigger and per
 // executed action, with the tick, so the 90 s loop can be compared with the
@@ -129,24 +134,22 @@ void SWorld::SetTriggerVariableValue(int index, int value, bool special)
     Logger.g->Panic("SWorld::SetTriggerVariableValue(): Invalid special variable index.");
 }
 
-// PANZERS 0x607f50 (menu path)
-// Plays the queued speech (World+0x726c SHeap, element 0x38) through the
-// Concert, by priority and time. The menu queues no speech, so with the
-// queue empty only the guards run.
+// PANZERS 0x607f50
+// Plays the speech: the unit speech queue (World+0x726c, combat_speech.cpp),
+// the trigger speech (+0x7280, tutorial_msg.cpp), then the unit entries of
+// priority 0 that did not play leave the queue.
 void SWorld::UpdateSpeech()
 {
     PZ_M2_TRACE("SWorld::UpdateSpeech (0x607f50)");
-    if (!g_GameLogic || g_GameLogic->IsPaused())
+    if (!g_GameLogic || g_GameLogic->IsPaused())                  // DAT_008f2078, 0x56e150
         return;
-    PzSpeechTick();                                               // +0x7280 trigger speech (tutorial_msg.cpp, M4)
-    const int* q = (const int*)((const unsigned char*)this + 0x726c);   // {array, size, max, free, count}
-    if (q[1] > 0 && q[4] > 0) {
-        static bool once;
-        if (!once && Logger.g) {
-            once = true;
-            Logger.g->Warning("SWorld::UpdateSpeech: %d queued speech entries not played (0x607f50 not lifted)", q[4]);
-        }
+    if (!Concert) {                                               // DAT_008f1c5c
+        Logger.g->Warning("SWorld::UpdateSpeech(): Concert is NULL.");
+        return;
     }
+    PzUnitSpeechPlay(this);
+    PzSpeechTick();                                               // +0x7280 trigger speech (tutorial_msg.cpp, M4)
+    PzUnitSpeechDropUnplayed();
 }
 
 // HD 0x604620; the body is P's BlockMap_RefreshDirtyRect (blockmaprefresh.cpp,

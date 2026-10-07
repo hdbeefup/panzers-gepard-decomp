@@ -55,6 +55,10 @@ enum PzInGameMenuAction {
     PZA_IGM_END        = 0x494d8,
     PZA_IGM_RESUME     = 0x494d9,
     PZA_HELP_BACK      = 0x49481,      // SHelpMenu Back (0x631d40)
+    PZA_IGO_BACK       = 0x494f1,      // SOptionsMenu (in-game) Back (0x631fb0)
+    PZA_IGO_AUDIO      = 0x494f2,      // Audio
+    PZA_IGO_GRAPHICS   = 0x494f3,      // Graphics
+    PZA_IGO_GAME       = 0x494f4,      // Game Options
     PZA_OBJ_BACK       = 0x4947421,    // SInGameBriefingMenu Back; param = opened from the briefing
     PZA_OBJ_BRIEFING   = 0x4947422,    // SInGameBriefingMenu Briefing
 };
@@ -66,6 +70,18 @@ struct SInGameMenu : SRightMenu {
     ~SInGameMenu() override;                                         // 0x62d670
     bool OnAction(SWidget* source, int action, int param) override;  // +0x44 0x631dd0
     void Create();                                                   // 0x62f690
+};
+
+// HD SOptionsMenu (vftable 0x806104, 0x228 bytes): the in-game "Options"
+// right menu: Game Options / Graphics / Audio / Back. The pages are the main
+// menu's (optionsmenu.h) created with instant = 0 (Ok / Back).
+struct SOptionsMenu : SRightMenu {
+    SComplexButton Buttons[4];   // HD +0x58, stride 0x74
+
+    SOptionsMenu();                                                  // 0x62cc40
+    ~SOptionsMenu() override;
+    bool OnAction(SWidget* source, int action, int param) override;  // +0x44 0x631fb0
+    void Create();                                                   // 0x62fc10
 };
 
 struct SHelpMenu : SCenterMenu {
@@ -96,6 +112,9 @@ struct SInGameBriefingMenu : SCenterMenu {
 // SGameView helpers (HD SGameView members, see above).
 void PzOpenInGameMenu(SGameView* view);                              // 0x620080
 void PzOpenHelpMenu(SGameView* view);                                // 0x61ff30
+void PzOpenOptionsMenu(SGameView* view);                             // 0x620570
+void PzShowBriefing(SGameView* view);                                // 0x627db0
+void PzCloseModal(SGameView* view);                                  // 0x619520
 void PzOpenObjectivesMenu(SGameView* view, bool fromBriefing);       // 0x61ffb0
 // The in-game-menu cases of SGameView::OnAction 0x6216b0. Returns true when
 // the action was handled (the caller then returns true).

@@ -287,29 +287,67 @@ SWorld::~SWorld()
     FreeSString(&MinimapName);
 }
 
-// HD 0x5ec2a0 / 0x5fec80 / 0x5ec0c0 / 0x5ebee0: not reached by the menu.
-void SWorld::Slot_04()
+// PANZERS 0x5ec2a0 (the body: GetTriggerVariableValue, triggers.cpp)
+int SWorld::VGetTriggerVariableValue(int index, bool special)
 {
-    STUB_LOG("SWorld::Slot_04 (0x5ec2a0)");
-    PZ_TRACE("SWorld::Slot_04 (0x5ec2a0)");
+    return GetTriggerVariableValue(index, special);
 }
 
-void SWorld::Slot_08()
+// PANZERS 0x5fec80 (the body: SetTriggerVariableValue, triggers.cpp)
+void SWorld::VSetTriggerVariableValue(int index, int value, bool special)
 {
-    STUB_LOG("SWorld::Slot_08 (0x5fec80)");
-    PZ_TRACE("SWorld::Slot_08 (0x5fec80)");
+    SetTriggerVariableValue(index, value, special);
 }
 
-void SWorld::Slot_0C()
+// HD 0x5ec0c0 / 0x5ebee0: the name of a trigger variable (a copy of its
+// SString), or of a special one (0x40000014.. the support counts of the
+// players, five groups of four) when `special`.
+static void TriggerVariableName(SWorld* w, char* out, int size, int index, bool special, bool longName)
 {
-    STUB_LOG("SWorld::Slot_0C (0x5ec0c0)");
-    PZ_TRACE("SWorld::Slot_0C (0x5ec0c0)");
+    if (size <= 0)
+        return;
+    out[0] = 0;
+    if (w->TriggerVariables.IsLive(index)) {
+        const SString& n = w->TriggerVariables.Array[index].Data.Name;
+        if (n.size != 0)
+            _snprintf(out, size - 1, "%s", n.buf);
+        out[size - 1] = 0;
+        return;
+    }
+    static const char* const kShort[5] = { "* Cannonade Plr%d", "* ReconPlane Plr%d", "* TacBomber Plr%d",
+                                           "* HeavyBomber Plr%d", "* Parachute Plr%d" };
+    static const char* const kLong[5] = { "Number of Cannonade supports of Player%d",
+                                          "Number of ReconPlane supports of Player%d",
+                                          "Number of TacBomber supports of Player%d",
+                                          "Number of HeavyBomber supports of Player%d",
+                                          "Number of Parachute supports of Player%d" };
+    if (!special) {
+        Logger.g->Warning(longName ? "SWorld::GetTriggerVariableLongName(): Invalid variable index."
+                                   : "SWorld::GetTriggerVariableShortName(): Invalid variable index.");
+        return;
+    }
+    for (int g = 0; g < 5; ++g) {
+        unsigned first = 0x40000014u + 4u * (unsigned)g;
+        if ((unsigned)index - first < 4) {
+            _snprintf(out, size - 1, longName ? kLong[g] : kShort[g], index - (int)(first - 1));   // 0x51ee20
+            out[size - 1] = 0;
+            return;
+        }
+    }
+    Logger.g->Warning(longName ? "SWorld::GetTriggerVariableLongName(): Invalid special variable index."
+                               : "SWorld::GetTriggerVariableShortName(): Invalid special variable index.");
 }
 
-void SWorld::Slot_10()
+// PANZERS 0x5ec0c0
+void SWorld::GetTriggerVariableShortName(char* out, int size, int index, bool special)
 {
-    STUB_LOG("SWorld::Slot_10 (0x5ebee0)");
-    PZ_TRACE("SWorld::Slot_10 (0x5ebee0)");
+    TriggerVariableName(this, out, size, index, special, false);
+}
+
+// PANZERS 0x5ebee0
+void SWorld::GetTriggerVariableLongName(char* out, int size, int index, bool special)
+{
+    TriggerVariableName(this, out, size, index, special, true);
 }
 
 // PANZERS 0x5edca0

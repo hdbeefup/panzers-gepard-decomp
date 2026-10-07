@@ -13,6 +13,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "unit.h"
+#include "buildingunit.h"
+#include "packets.h"
 #include "singleunit.h"
 #include "squadunit.h"
 #include "gunner.h"
@@ -595,7 +597,7 @@ void SUnit::EnterVehicle(int unit)
         t->Unit = unit;
         SetCurrentTarget(t, 0);                               // +0xa0
     } else {
-        STUB_LOG("SUnit::EnterVehicle (0x5b5810) vehicle +0xd8(unit) pick-up, then +0xc4");
+        WorldUnit(unit)->EC_Tow(WorldIndex);                  // vehicle +0xd8(this +0x74)
         ClearTargets();                                       // +0xc4
     }
     WorldUnit(unit)->_190 = true;
@@ -690,10 +692,11 @@ void SUnit::AutoRepairSupply(float supplyLevel)
     }
 }
 
-// PANZERS 0x5ba2b0 (entry tests)
+// PANZERS 0x5ba2b0
 // What a unit ordered into a building does there (1 enter, 3 attack, 4 get
-// in). Only buildings answer; the building part (0x56d2a0, 0x583b60,
-// 0x5b7040) is not lifted: no menu order targets a building.
+// in). Only buildings answer. An enemy building (0x56d2a0 -1) is attacked
+// when the main gunner can hit it (0x583b60) or it is a type 2 building;
+// otherwise the unit gets in when the building would store it (0x5b7040).
 int SUnit::GetBuildingAction(int unit)
 {
     if (!g_GameLogic)
@@ -702,8 +705,14 @@ int SUnit::GetBuildingAction(int unit)
         return -1;
     if (WorldUnit(unit)->Proto->ClassType != 9)
         return -1;
-    STUB_LOG("SUnit::GetBuildingAction (0x5ba2b0) building");
-    return -1;
+    SBuildingUnit* b = static_cast<SBuildingUnit*>(WorldUnit(unit));   // 0x546490
+    if (GetUnitRelation(unit, Player) == -1) {                   // 0x56d2a0(unit, +0xfc)
+        if (Gunners.Size > 0 && Gunners.Array[0]->CanTargetUnit(b, true))   // +0x48[0], 0x583b60
+            return 3;
+        if (b->P->BuildingType == 2)                              // +0x340 +0x13c
+            return 3;
+    }
+    return b->CanStoreUnit(WorldIndex) ? 4 : 1;                   // 0x5b7040(+0x74)
 }
 
 // ---------------------------------------------------------------------------
@@ -1124,7 +1133,7 @@ void SUnit::OnDriverReachedTarget()
         if (PrimaryTarget && TKind(PrimaryTarget) == 5 && CurrentTarget && TKind(CurrentTarget) == 0)
             DropTarget(&PrimaryTarget);
         if (PrimaryTarget && TKind(PrimaryTarget) == 0xd && CurrentTarget && TKind(CurrentTarget) == 0)
-            STUB_LOG("SUnit::OnDriverReachedTarget (0x5bcb60) +0x150 (enter the vehicle)");
+            Slot_150(PrimaryTarget->Unit);                    // +0x150(primary +0x08)
         DropTarget(&CurrentTarget);
         if (Proto->ClassType != 6)
             AI_Heartbeat();                                   // +0x190
@@ -1727,10 +1736,27 @@ void SSingleUnit::RefreshTargeting()
             SetCurrentTarget(t, 0);                           // +0xa0
     }
     if (PrimaryTarget && TKind(PrimaryTarget) == 0xd) {
-        if (PzTargetRefresh(PrimaryTarget, WorldIndex))       // 0x5bd210
-            STUB_LOG("SSingleUnit::RefreshTargeting (0x5aef40) vehicle entry (+0x58, +0x150)");
-        else
+        // The unit to hook up (tow kind 0xd): while it still takes this one
+        // (its +0x58(this)) go to it, and within 9 m (81 squared) hook it up
+        // (+0x150); otherwise the orders are dropped.
+        SUnit* v = PzTargetRefresh(PrimaryTarget, WorldIndex)  // 0x5bd210
+                       ? WorldUnit(tgt::I(PrimaryTarget, tgt::kUnit)) : nullptr;
+        if (v && v->Slot_58((int)(intptr_t)this)) {
+            if (!CurrentTarget || TKind(CurrentTarget) != 0) {
+                STarget* t = PzTargetNew(0);                      // new 0x38, 0x5b27c0(0)
+                tgt::I(t, tgt::kType) = 0;                        // 0x5c21b0
+                tgt::I(t, tgt::kUnit) = tgt::I(PrimaryTarget, tgt::kUnit);
+                SetCurrentTarget(t, 0);                           // +0xa0
+            }
+            v = WorldUnit(tgt::I(PrimaryTarget, tgt::kUnit));
+            float dx = v->Pos[0] - Pos[0];                        // +0x8c
+            float dy = v->Pos[1] - Pos[1];
+            float dz = v->Pos[2] - Pos[2];
+            if (81.0f > dx * dx + dy * dy + dz * dz)              // DAT_007fb6c4
+                Slot_150(tgt::I(PrimaryTarget, tgt::kUnit));      // +0x150
+        } else {
             ClearTargets();                                   // +0xc4
+        }
     }
     AI_Heartbeat();                                           // +0x190
 }

@@ -100,7 +100,7 @@ struct SModel : SIModel, SAttachable {
     SHeightPatch* GetHeightPatch() override;                     // +0xb0 0x6d6700
     void Slot_B4() override;
     void Slot_B8() override;
-    void Slot_BC() override;
+    void SetModelMode(int mode) override;
     void SetHighlight(int mode) override;
     void Slot_C4() override;
     void Slot_C8() override;

@@ -10,6 +10,8 @@
 #include "worldapi.h"
 #include "stub_log.h"
 #include "packets.h"
+#include "pzunitregistry.h"
+#include "logger.h"
 
 namespace pz {
 
@@ -75,10 +77,20 @@ float SUnit::GetEntranceDir()
     return Dir;
 }
 
-void SUnit::Slot_84()
+// PANZERS 0x5c0fa0
+// The experience of a rank: 0 for rank 0, else the registry's XpLevel_<rank>
+// (+0x44.., as a float) into +0x64.
+void SUnit::SetRankXP(int rank)
 {
-    STUB_LOG("SUnit::Slot_84 (0x5c0fa0)");
-    PZ_M2_TRACE("SUnit::Slot_84 (0x5c0fa0)");
+    const SUnitRegistry* r = g_UnitRegistry;                      // DAT_00929a4c
+    switch (rank) {
+    case 0: XP = 0.0f; break;
+    case 1: XP = (float)r->XpLevel[0]; break;
+    case 2: XP = (float)r->XpLevel[1]; break;
+    case 3: XP = (float)r->XpLevel[2]; break;
+    case 4: XP = (float)r->XpLevel[3]; break;
+    default: break;
+    }
 }
 
 // PANZERS 0x55cee0
@@ -87,16 +99,29 @@ void SUnit::AddXP(int victim, float xp, int p3)
     (void)victim; (void)xp; (void)p3;
 }
 
-void SUnit::Slot_9C()
+// PANZERS 0x5c1d40
+void SUnit::SetFlag112(bool on)
 {
-    STUB_LOG("SUnit::Slot_9C (0x5c1d40)");
-    PZ_M2_TRACE("SUnit::Slot_9C (0x5c1d40)");
+    _112 = on;
 }
 
+// PANZERS 0x5b8ab0
+// The default order on a unit: by this unit's action on it (+0xa8), none,
+// follow (2, +0xb8) or attack (3, +0xe8).
 void SUnit::EC_Default(int p1, int p2)
 {
-    STUB_LOG("SUnit::EC_Default (0x5b8ab0)");
-    PZ_M2_TRACE("SUnit::EC_Default (0x5b8ab0)");
+    int k = ActionOn(p1);                                         // +0xa8
+    if (k == 0)
+        return;
+    if (k == 2) {
+        EC_Follow(p1, p2);                                        // +0xb8
+        return;
+    }
+    if (k == 3) {
+        EC_Attack(p1, p2);                                        // +0xe8
+        return;
+    }
+    Logger.g->Panic("SSingleUnit::EC_Default - invalid UDC_...");
 }
 
 // PANZERS 0x5b9170
@@ -109,10 +134,34 @@ void SUnit::Slot_C8()
     Stop();                                                       // +0xc0
 }
 
+// PANZERS 0x5b82b0
+// Assault (enter) a building: the primary target kind 5 on the unit (+0x20
+// = 1), the current one a path to its position, then RefreshTargeting
+// (+0x34). Not for a defeated player, an untargetable unit or itself.
 void SUnit::EC_AssaultBuilding(int p1, int p2)
 {
-    STUB_LOG("SUnit::EC_AssaultBuilding (0x5b82b0)");
     PZ_M2_TRACE("SUnit::EC_AssaultBuilding (0x5b82b0)");
+    if (*(int*)(g_World->Players[Player] + 0x08) == 2)            // World+0x178
+        return;
+    if (!IsTargetable(p1, true) || p1 == WorldIndex)              // 0x5bb6b0(p1, 1), +0x74
+        return;
+    if (WorldUnit(p1)->Proto->ClassType == 3)
+        Logger.g->Panic("SUnit::EC_AssaultBuilding: Attacking projectile");
+    if (WorldUnit(p1)->Proto->ClassType == 6 || WorldUnit(p1)->Proto->ClassType == 4)
+        Logger.g->Panic("SUnit::EC_AssaultBuilding: Trying to attack a squad member unit instead of a squad.");
+    STarget* t = STarget::Create(5);                              // new 0x38, 0x5b27c0(5)
+    t->Type = 0;
+    t->Unit = p1;
+    t->Mode = 1;                                                  // +0x20
+    SetTarget(&PrimaryTarget, t);                                 // +0x1f8
+    STarget* c = STarget::Create(0);
+    SUnit* b = WorldUnit(PrimaryTarget->Unit);
+    c->Type = kTargetPath;                                        // 2
+    c->Pos[0] = b->Pos[0];                                        // +0x8c..+0x94
+    c->Pos[1] = b->Pos[1];
+    c->Pos[2] = b->Pos[2];
+    SetCurrentTarget(c, p2);                                      // +0xa0
+    RefreshTargeting();                                           // +0x34
 }
 
 // PANZERS 0x547b90

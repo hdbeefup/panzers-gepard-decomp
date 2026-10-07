@@ -251,7 +251,7 @@ void SGameView::OnMouseDown(int button, int x, int y, int shift)
     if (!World)                                                   // +0x3e40
         return;
     if (Modal != 0) {                                             // +0x389c
-        StubOnce("SGameView::OnMouseDown modal box click 0x619520");
+        PzCloseModal(this);                                       // 0x619520
         return;
     }
     if (ViewState == 2)                                           // cut-scene
@@ -538,7 +538,7 @@ bool SGameView::OnKeyDown(int key, bool repeat)
         return true;
     }
     if (Modal != 0) {
-        StubOnce("SGameView::OnKeyDown modal box 0x619520");
+        PzCloseModal(this);                                       // 0x619520
         return true;
     }
     pz::SGameLogic* gl = this->Logic;

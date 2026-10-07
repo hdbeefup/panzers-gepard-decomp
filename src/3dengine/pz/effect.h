@@ -352,6 +352,8 @@ struct SParticles : SEffect {
     void Birth();                                                     // 0x6e21a0
     void BirthCentralized();                                          // 0x6e1890
     void BirthAt(float x, float y, float z, float frac);              // 0x6e1610
+    void CollectBirthPoints();                                        // 0x6e8680 (+0xb4 from the model)
+    void BirthFromModel();                                            // 0x6e1c20 (birth styles 1, 2)
     void InitParticle(int i, float frac, float x, float y, float z);  // 0x6e2250
     void InitParticleTracks(int i);                                   // 0x6e9950
     void InitParticleSpin(int i);                                     // 0x6e8150

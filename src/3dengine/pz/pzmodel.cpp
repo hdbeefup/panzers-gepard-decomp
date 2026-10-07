@@ -1259,7 +1259,18 @@ SHeightPatch* SModel::GetHeightPatch()
 
 void SModel::Slot_B4() { STUB_LOG("SModel::Slot_B4 (0x6d59e0)"); }
 void SModel::Slot_B8() { STUB_LOG("SModel::Slot_B8 (0x6d5ae0)"); }
-void SModel::Slot_BC() { STUB_LOG("SModel::Slot_BC (0x6dae10)"); }
+
+// PANZERS 0x6dae10
+// HD stores the dword at +0xf4 (where the ctor 0x6d4cee keeps the
+// CreateModel flag). No HD code reads +0xf4 back as an integer (scan of
+// 0x660000..0x720000: only the ctor, this slot and float fields of other
+// classes), so the value has no effect; the recompile's +0xf4 Flag picks the
+// scene heap in RemoveModel and is left alone.
+void SModel::SetModelMode(int mode)
+{
+    (void)mode;
+}
+
 
 // PANZERS 0x6dad40
 void SModel::SetHighlight(int mode)

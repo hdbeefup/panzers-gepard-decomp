@@ -66,7 +66,7 @@ void SBuildingUnit::Slot_14()
     }
     if (P->BuildingType == 3) {
         FlagNode = Model->FindNode("flag");                       // +0x44c (0x7f436c)
-        STUB_LOG("SBuildingUnit 0x5471d0 (the capture flag model), called by SBuildingUnit after load 0x549500");
+        UpdateCaptureFlag();                                      // 0x5471d0
     }
     InitViewPoints();                                             // 0x548660
     OnStaticBlock = false;                                        // +0x454

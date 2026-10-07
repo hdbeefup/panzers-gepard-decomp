@@ -348,7 +348,7 @@ void SUnit::InitModel()
             Model2->SetFlags(0xb);
     }
     if (p->Invisible && Model)
-        Model->Slot_BC();                                      // +0xbc(3) (slot not named in imodel.h)
+        Model->SetModelMode(3);                                // +0xbc(3)
     if (Anim && Model)
         Anim->InitModel(Model);                                // +0x04
     else if (Model)
@@ -1656,7 +1656,7 @@ void SUnit::PlayDeathEffects()
             Model->GetPosition(pos);                              // model +0x10
             float dir[3] = { 0.0f, 1.0f, 0.0f };
             int h = g_Pixie->CreateEffect(g_Scene, fx.Array[i].Proto, pos, dir);   // pixie +0x2c
-            STUB_LOG("SUnit::PlayDeathEffects (0x5c26e0) pixie +0x58(effect, model) (slot untyped, E)");
+            g_Pixie->SetEffectModel(h, (int)(intptr_t)Model);     // pixie +0x58(h, +0x08)
             g_Pixie->ReleaseEffect(h);                            // pixie +0x38
         } else if (node < 0) {
             float pos[3] = { Pos[0], Pos[1] + 1.25f, Pos[2] };    // 0x7fd6f4
@@ -1715,7 +1715,7 @@ void SUnit::SetWreckModel()
     g_Scene->ReplaceModel(Model, Proto->WreckProto);              // scene +0x60
     Model->SetFlags(0);                                           // model +0x94
     if (Proto->Invisible)                                         // +0x89
-        STUB_LOG("SUnit::SetWreckModel (0x5be2b0) model +0xbc(3) (slot untyped, E)");
+        Model->SetModelMode(3);                                   // model +0xbc(3)
     if (Anim)
         Anim->InitModel(Model);                                   // +0x04
 }

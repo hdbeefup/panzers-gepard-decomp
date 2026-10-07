@@ -39,6 +39,8 @@
 
 void PzMinimapPing(int unit);   // src/panzers/minimap.cpp (HD 0x570f30 board +0xb4)
 
+void PzPlayTriggerMusic(const char* track); // src/panzers/results.cpp: Concert +0x6c, +0x70, +0x78(0)
+
 namespace pz {
 
 namespace {
@@ -619,9 +621,7 @@ void SUnit::TakeDamage(float damage, int weaponType, int attacker, float x, floa
                 int n = ((rand() * 6) >> 15) + 1;                 // CRT rand 0x78c846: audio only
                 _snprintf(name, sizeof(name) - 1, "music/war_%02d.mp3", n);   // 0x52da80, 0x7fd1f4
                 name[sizeof(name) - 1] = 0;
-                // HD: Concert (0x8f1c5c) +0x6c, +0x70(name), +0x78(0): the
-                // Panzers concert slots are not in the recompile's SIConcert.
-                STUB_LOG("SUnit::TakeDamage (0x5c4080) combat music (Panzers concert +0x6c/+0x70/+0x78)");
+                PzPlayTriggerMusic(name);                         // Concert +0x6c, +0x70(name), +0x78(0)
             }
             GameLogicInt(0x14) = g_GameLogic->GetFrame();
         }

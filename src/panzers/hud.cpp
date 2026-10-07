@@ -611,6 +611,9 @@ struct SGameHud {
     int ArmorText[4] = { -1, -1, -1, -1 };// +0x2808 [0xa02]
     SUnitButton UnitButton;               // +0x2818 [0xa06]
     SUnitButton Units2[2];                // +0x28d8 [0xa36]
+    int EquipMode[2] = { 0, 0 };          // +0x2a58 / +0x2a5c the command modes of Equip1 / Equip2 (set
+                                          // where the equipment buttons are shown; that HUD part is not
+                                          // lifted, the buttons stay hidden)
     int Vehicle[4] = { -1, -1, -1, -1 };  // +0x2a60 [0xa98] sprites, [0xa9a] texts
     int Equip1Kind = 0;                   // +0x2a58 [0xa96] command kind of Equip1 (equipment kind + 4)
     int Equip2Kind = 0;                   // +0x2a5c [0xa97]
@@ -1740,6 +1743,36 @@ void PzHudUpdate(SGameView* v)
     }
 }
 
+// PANZERS 0x6280f0
+// Enter a command mode from a HUD button: the mouse mode is reset
+// (0x5437c0); modes 1..9, 0xe..0x13, 0x15..0x1a wait for the click on the
+// map (+0x478 = 4, +0x3884 = mode); 10 and 11 are sent at once (0x576200 op
+// 0x18, 0x575820 op 0x19, with the shift state).
+static void PzViewCommandMode(SGameView* v, int mode, bool shift)
+{
+    v->MouseMode = 0;                                              // +0x478
+    v->ReleaseMouse();                                             // 0x5437c0
+    pz::SGameLogic* gl = pz::g_GameLogic;
+    switch (mode) {
+    case 1: case 2: case 3: case 4: case 5: case 6: case 7: case 8: case 9:
+    case 0xe: case 0xf: case 0x10: case 0x11: case 0x12: case 0x13:
+    case 0x15: case 0x16: case 0x17: case 0x18: case 0x19: case 0x1a:
+        v->CommandMode = mode;                                     // +0x3884
+        v->MouseMode = 4;
+        break;
+    case 10:
+        if (gl)
+            pz::Pkt_Flag(gl, pz::PZ_PKT_18, shift);                // 0x576200
+        break;
+    case 0xb:
+        if (gl)
+            pz::Pkt_Flag(gl, pz::PZ_PKT_19, shift);                // 0x575820
+        break;
+    default:
+        break;
+    }
+}
+
 // The HUD-button cases of SGameView::OnAction 0x6216b0 (button down
 // 0x42541 for the toggles and states, click 0x42542 for the others).
 bool PzHudAction(SGameView* v, SWidget* s, int action, int param)
@@ -1868,12 +1901,14 @@ bool PzHudAction(SGameView* v, SWidget* s, int action, int param)
     }
     if (s == &h->Detach) {
         h->Detach.SetChecked(true);
-        STUB_LOG("SGameView 0x6216b0: Detach 0x576460 (no builder in packets.h)");
+        if (gl)
+            pz::Pkt_Flag(gl, pz::PZ_PKT_35, shift);                // 0x576460
         return true;
     }
     if (s == &h->Leave) {
         h->Leave.SetChecked(true);
-        STUB_LOG("SGameView 0x6216b0: Leave 0x5763f0(-1) (packets.h Pkt_TwoFlags 0x31 takes bools)");
+        if (gl)
+            pz::Pkt_TwoFlags(gl, pz::PZ_PKT_31, 0xff, shift);      // 0x5763f0(-1, shift)
         return true;
     }
     // A stored unit's icon: it gets out (0x5763f0(slot, shift)) when the
@@ -1897,9 +1932,13 @@ bool PzHudAction(SGameView* v, SWidget* s, int action, int param)
             return true;
         }
     }
-    if (s == &h->Move || s == &h->Equip1 || s == &h->Equip2) {
+    if (s == &h->Move) {
+        PzViewCommandMode(v, 1, shift);                            // 0x6280f0(1)
+        return true;
+    }
+    if (s == &h->Equip1 || s == &h->Equip2) {
         static_cast<pz::SButton*>(s)->SetChecked(true);
-        STUB_LOG("SGameView 0x6280f0 (move / equipment mode, agent V/O)");
+        PzViewCommandMode(v, h->EquipMode[s == &h->Equip1 ? 0 : 1], shift);   // 0x6280f0(+0x2a58 / +0x2a5c)
         return true;
     }
     return false;

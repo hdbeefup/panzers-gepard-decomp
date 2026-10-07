@@ -96,7 +96,7 @@ struct SIModel {
     virtual SHeightPatch* GetHeightPatch() = 0;             // +0xb0 HD 0x6d6700 (0 arg dwords) "Platform" node heights per terrain vertex; null without the node (M3-I)
     virtual void Slot_B4() = 0;                             // +0xb4 HD 0x6d59e0 (1 arg dword)
     virtual void Slot_B8() = 0;                             // +0xb8 HD 0x6d5ae0 (1 arg dword)
-    virtual void Slot_BC() = 0;                             // +0xbc HD 0x6dae10 (1 arg dword)
+    virtual void SetModelMode(int mode) = 0;                // +0xbc HD 0x6dae10 (1 arg dword) +0xf4 = mode (3 for Invisible units; no HD code reads it back) (name guessed)
     virtual void SetHighlight(int mode) = 0;                // +0xc0 HD 0x6dad40 (1 arg dword) +0xf8 (SDoodad +0x28)
     virtual void Slot_C4() = 0;                             // +0xc4 HD 0x6d7ef0 (0 arg dwords)
     virtual void Slot_C8() = 0;                             // +0xc8 HD 0x6d7920 (2 arg dwords)

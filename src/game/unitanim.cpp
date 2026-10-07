@@ -19,6 +19,7 @@
 #include "pz/hdmath.h"
 #include "pz/imodel.h"
 #include "pz/iscene.h"
+#include "pz/iviewport.h"
 #include "pz/igepardhd.h"
 #include "pz/pzgepard.h"
 #include "pz/pmodel.h"
@@ -797,14 +798,23 @@ float* SSquadAnimation::GetFirePosition(float* out, int gunner, float dirOffset,
     return out;
 }
 
-// HD 0x5c76a0: 0x5cadc0(p1, unit model) places the squad's extra model (+0x28)
-// at the unit model's position with p1's orientation (visual only).
+// PANZERS 0x5c76a0 (+ 0x5cadc0)
+// The squad's extra model (+0x28) stands at the unit model's drawn position
+// (+0x14), turned to the camera's yaw (viewport +0x24), with the unit's
+// selection highlight (+0x104 -> model +0xc0).
 void SSquadAnimation::Slot_0C(void* p1)
 {
-    if (Extra) {
-        STUB_LOG("SSquadAnimation::Slot_0C (0x5c76a0) extra model placement 0x5cadc0");
-    }
-    (void)p1;
+    if (!Extra)
+        return;
+    SIViewport* vp = static_cast<SIViewport*>(p1);
+    SIModel* m = Model();                                         // unit +0x08
+    float pos[3] = { 0.0f, 0.0f, 0.0f };
+    m->GetRenderPosition(pos);                                    // +0x14
+    Extra->SetPosition(pos[0], pos[1], pos[2]);                   // +0x18
+    float cx, cy, cz, yaw, pitch;
+    vp->GetCamera(&cx, &cy, &cz, &yaw, &pitch);                   // vp +0x24
+    Extra->SetRotation(yaw, 0.0f, 0.0f);                          // +0x1c
+    Extra->SetHighlight(UnitField<int>(Unit, 0x104));             // +0xc0(unit +0x104)
 }
 
 // PANZERS 0x5cb100
@@ -1384,11 +1394,19 @@ void SWalkerAnimation::UpdateModel()
         AdvanceByDistance();
     }
 
-    // Boat oars (sub-states "_leftboat" / "_rightboat"): not in the menu.
-    if (SubStateIs(u, "_leftboat") || SubStateIs(u, "_rightboat")) {
-        // HD: scene +0x58(oar prototype, 1), then oar +0xdc(model, node
-        // "R Arm03" / "L Arm03") attaches it. SIModel +0xdc is a Slot_ stub.
-        STUB_LOG("SWalkerAnimation::UpdateModel: boat oars (SIModel +0xdc attach) not lifted");
+    // Boat oars (sub-states "_leftboat" / "_rightboat"): once, the oar model
+    // (scene +0x58(proto +0x20 / +0x24, 1)) hung on the hand node "R Arm03" /
+    // "L Arm03" (oar +0xdc(model, model +0x40(node))).
+    bool left = SubStateIs(u, "_leftboat");
+    if (left || SubStateIs(u, "_rightboat")) {
+        if (!Oar) {
+            SIScene* sc = e.Scene ? e.Scene() : nullptr;          // DAT_00929a54
+            if (sc) {
+                Oar = sc->CreateModelFromPrototype(left ? WProto->LeftOarProto : WProto->RightOarProto, 1);
+                if (Oar)
+                    Oar->AttachTo(m, m->FindNode(left ? "R Arm03" : "L Arm03"));
+            }
+        }
     } else if (Oar) {
         Oar->Release();
         Oar = nullptr;

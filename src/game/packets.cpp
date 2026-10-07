@@ -17,6 +17,7 @@
 #include "gamelogic.h"
 #include "trigger.h"
 #include "unit.h"
+#include "gunner.h"
 #include "world.h"
 #include "worldapi.h"
 #include "blockmap.h"
@@ -182,13 +183,12 @@ void UnitOrderAtDir(SUnit* u, int command, const float* xz, float dir, bool queu
 }
 
 // --- Order acknowledgements (SUnit 0x5bc9d0..0x5bcdf0): the voice of the
-// unit through SWorld 0x5fff20 (agent F). With its last argument 0 that
+// unit through SWorld::UnitSpeech 0x5fff20. With its last argument 0 that
 // event plays only for the local player's units and picks the sample with
 // the CRT rand (0x78c846), so it never reaches the world CRC.
 void WorldSpeech(int unit, int kind)
 {
-    STUB_LOG("SWorld::UnitSpeech (0x5fff20) order acknowledgement");
-    (void)unit; (void)kind;
+    g_World->UnitSpeech(unit, kind, false);                       // 0x5fff20(unit, kind, 0)
 }
 
 // PANZERS 0x5bcdf0
@@ -210,14 +210,36 @@ void SpeechGunners(SUnit* u)
         WorldSpeech(u->WorldIndex, 2);
 }
 
-// SUnit 0x5bcad0 (attack a unit) and 0x5bc9d0 (op 0x0f): the voice depends
-// on the selected units' building action (0x56d490) and the main gunner
-// (0x583b60). Audio only (see WorldSpeech).
+// PANZERS 0x5bc9d0
+// Attack a unit: "Attack" (5) when the main gunner can hit it (0x583b60),
+// else "CantAttack" (6); nothing without a gunner or a live target.
+void SpeechAttackUnit(SUnit* u, int target)
+{
+    if (u->Gunners.Size <= 0 || !g_World->Units.IsLive(target))
+        return;
+    if (u->Gunners.Array[0]->CanTargetUnit(WorldUnit(target), true))   // +0x48[0], 0x583b60(target, 1)
+        WorldSpeech(u->WorldIndex, 5);
+    else
+        WorldSpeech(u->WorldIndex, 6);
+}
+
+// PANZERS 0x5bcad0
+// The voice for an order on a unit, by the selection's order on it
+// (0x56d490): 1 / 2 move, 3 attack (0x5bc9d0), otherwise "Acknowledge".
 void SpeechAttack(SUnit* u, int target)
 {
-    STUB_LOG("SUnit::0x5bcad0 / 0x5bc9d0 attack acknowledgement (0x56d490, 0x583b60)");
-    (void)target;
-    SpeechOrder(u);
+    int k = SelectionActionOn(target);                            // 0x56d490
+    if (k > 0) {
+        if (k < 3) {
+            SpeechMove(u);
+            return;
+        }
+        if (k == 3) {
+            SpeechAttackUnit(u, target);
+            return;
+        }
+    }
+    WorldSpeech(u->WorldIndex, 2);
 }
 
 // --- ProcessPacket cases whose effect belongs to another agent.
@@ -902,7 +924,7 @@ void ApplyRecords(SGameLogic* gl, int player, SStream* s, SFoundUnits* group)
             ReadGroup(group, s);
             gl->OrderAtUnit(group, 0x11, unit, b1, b2);
             if (group->Leader >= 0)
-                SpeechAttack(LiveUnit(group->Leader), unit);      // 0x5bc9d0(unit)
+                SpeechAttackUnit(LiveUnit(group->Leader), unit);  // 0x5bc9d0(unit)
             break;
         }
         case 0x15: {

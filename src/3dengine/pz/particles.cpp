@@ -748,9 +748,13 @@ void SParticles::Birth()
         if (pr->BirthStyle == 0) {
             BirthCentralized();
         } else {
-            // Along the edge / from basement need the model's birth points
-            // (0x6e8680, 0x6e1c20).
-            STUB_LOG("SParticles::Birth from a model (0x6e1c20)");
+            if (!Model)                                           // +0x30
+                return;
+            if (RefreshBirthPoints) {                             // +0x88
+                RefreshBirthPoints = false;
+                CollectBirthPoints();                             // 0x6e8680
+            }
+            BirthFromModel();                                     // 0x6e1c20
         }
     }
     if (DurationLeft != 0.0f) {
@@ -803,11 +807,149 @@ void SParticles::BirthCentralized()
     }
 }
 
-// HD 0x6e1610: one particle at a given point (birth styles 1 and 2).
+// PANZERS 0x6e1610
+// One particle at a given point (birth styles 1 and 2): as BirthCentralized
+// with the position given, and no MaxParticles test (the caller makes it).
 void SParticles::BirthAt(float x, float y, float z, float frac)
 {
-    STUB_LOG("SParticles::BirthAt (0x6e1610)");
-    (void)x; (void)y; (void)z; (void)frac;
+    SPParticles* pr = Prototype;
+    SParticleData zero;
+    memset(&zero, 0, sizeof(zero));
+    Particles.push_back(zero);                                    // 0x6e1590
+    int i = (int)Particles.size() - 1;
+    SParticleData& p = Particles[i];
+    p.Spin[0] = -1.0f;
+    p.Collided = false;
+    p.Age = 0.0f;
+    p.LifeTime = LifeTimeBase + (float)((double)rand() * (1.0 / 32768.0) * (double)pr->LifeTimeRnd);
+    p.InvLifeTime = 1.0f / p.LifeTime;
+    InitParticle(i, frac * 0.0f, x, y, z);                        // 0x6e2250
+    SParticleData& q = Particles[i];
+    q.Rotation = (float)((double)rand() * (1.0 / 32768.0) * 359.0);
+    q.FrameLength = FrameLength + (float)((double)rand() * (1.0 / 32768.0) * (double)FrameLengthRnd);
+    if (pr->VariationType == 0) {
+        float n = (pr->LastFrame - pr->FirstFrame) + 1.0f;
+        q.Frame = (int)((float)((rand() * ((int)n & 0xffff)) >> 15) + pr->FirstFrame);
+    } else {
+        q.Frame = (int)pr->FirstFrame;
+    }
+    q.FrameTime = 0.0f;
+    InitParticleTracks(i);                                        // 0x6e9950
+    InitParticleSpin(i);                                          // 0x6e8150
+    InitParticleModel(i);                                         // 0x6e5b80
+}
+
+// PANZERS 0x6e8680
+// The birth points of styles 1 / 2 (+0xb4, appended, never cleared): a grid
+// of SamplingRate steps over the model's world box (or a cube of Radius
+// around the emitter), keeping the points on the surface. Without a radius:
+// inside the model (HitTestPoint) with one of the 14 neighbours one metre
+// away outside; with one: outside with a neighbour inside, within Radius.
+void SParticles::CollectBirthPoints()
+{
+    SPParticles* pr = Prototype;
+    SIModel* m = reinterpret_cast<SIModel*>(Model);
+    float minX, maxX, minY, maxY, minZ, maxZ;
+    if (pr->Radius == 0.0f) {
+        m->GetWorldBounds(&minX, &maxX, &minY, &maxY, &minZ, &maxZ);   // model +0xfc
+    } else {
+        minX = Pos[0] - pr->Radius;
+        maxX = pr->Radius + Pos[0];
+        minY = Pos[1] - pr->Radius;
+        maxY = pr->Radius + Pos[1];
+        minZ = Pos[2] - pr->Radius;
+        maxZ = pr->Radius + Pos[2];
+    }
+    const bool inside = pr->Radius == 0.0f;
+    for (float x = minX - 0.5f; x < maxX + 0.5f; x = pr->SamplingRate + x) {
+        for (float y = minY - 0.5f; y < maxY + 0.5f; y = pr->SamplingRate + y) {
+            for (float z = minZ - 0.5f; z < maxZ + 0.5f; z = pr->SamplingRate + z) {
+                float c[3] = { x, y, z };
+                if (m->HitTestPoint(c) != inside)                 // model +0xd0
+                    continue;
+                const float xp = x + 1.0f, ym = y - 1.0f, xm = x - 1.0f;
+                const float yp = y + 1.0f, zm = z - 1.0f, zp = z + 1.0f;
+                const float nb[14][3] = {
+                    { xp, y, z }, { x, ym, z }, { xm, y, z }, { x, yp, z }, { x, y, zm }, { x, y, zp },
+                    { xm, ym, zm }, { xm, ym, zp }, { xm, yp, zm }, { xm, yp, zp },
+                    { xp, ym, zm }, { xp, ym, zp }, { xp, yp, zm }, { xp, yp, zp } };
+                bool surface = false;
+                for (int k = 0; k < 14 && !surface; ++k)
+                    if (m->HitTestPoint(nb[k]) != inside)
+                        surface = true;
+                if (!surface)
+                    continue;
+                if (pr->Radius != 0.0f) {
+                    float dx = Pos[0] - x, dy = Pos[1] - y, dz = Pos[2] - z;
+                    float d = (float)sqrt((double)(dx * dx + dy * dy + dz * dz));
+                    if (d > pr->Radius)
+                        continue;
+                }
+                BirthPoints.push_back(x);
+                BirthPoints.push_back(y);
+                BirthPoints.push_back(z);
+            }
+        }
+    }
+}
+
+// PANZERS 0x6e1c20
+// Births from the model, one round per whole BirthAcc while under
+// MaxParticles: style 1 at the birth points (all of them, or Quantity random
+// ones), style 2 on the ground under the model's box edge (grid points
+// 0.5 m above the terrain inside the model whose eight neighbours at height
+// 0.5 are not all inside).
+void SParticles::BirthFromModel()
+{
+    SPParticles* pr = Prototype;
+    SPixie* px = SPixie::Instance();
+    if (!pr->BirthInRain && !(px && px->RainIntensity <= 15.0f))
+        return;
+    SIModel* m = reinterpret_cast<SIModel*>(Model);
+    while (1.0f < BirthAcc) {
+        BirthAcc -= 1.0f;
+        if ((int)Particles.size() >= pr->MaxParticles) {
+            BirthAcc = 0.0f;
+            continue;
+        }
+        int n = (int)BirthPoints.size() / 3;
+        if (pr->BirthStyle == 1) {
+            if (pr->Quantity < 1) {
+                for (int i = 0; i < n; ++i)
+                    BirthAt(BirthPoints[i * 3], BirthPoints[i * 3 + 1], BirthPoints[i * 3 + 2], 0.0f);
+            } else {
+                for (int k = 0; k < pr->Quantity; ++k) {
+                    int i = (int)((double)rand() * (1.0 / 32768.0) * (double)n);
+                    if (i < 0 || i >= n)
+                        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "SVector", i);
+                    BirthAt(BirthPoints[i * 3], BirthPoints[i * 3 + 1], BirthPoints[i * 3 + 2], 0.0f);
+                }
+            }
+        } else if (pr->BirthStyle == 2) {
+            float minX, maxX, minY, maxY, minZ, maxZ;
+            m->GetWorldBounds(&minX, &maxX, &minY, &maxY, &minZ, &maxZ);   // model +0xfc
+            for (float x = minX - 0.5f; x < maxX + 0.5f; x = pr->SamplingRate + x) {
+                for (float z = minZ - 0.5f; z < maxZ + 0.5f; z = pr->SamplingRate + z) {
+                    float g = g_EffectGroundHeight ? g_EffectGroundHeight(x, z) : 0.0f;   // 0x6f4c00
+                    float c[3] = { x, g + 0.5f, z };
+                    if (m->HitTestPoint(c) != true)               // model +0xd0
+                        continue;
+                    const float xm = x - 1.0f, xp = x + 1.0f, zm = z - 1.0f, zp = z + 1.0f;
+                    const float nb[8][3] = {
+                        { xm, 0.5f, zm }, { x, 0.5f, zm }, { xp, 0.5f, zm }, { xp, 0.5f, z },
+                        { xp, 0.5f, zp }, { x, 0.5f, zp }, { xm, 0.5f, zp }, { xm, 0.5f, z } };
+                    bool all = true;
+                    for (int k = 0; k < 8 && all; ++k)
+                        if (!m->HitTestPoint(nb[k]))
+                            all = false;
+                    if (all)
+                        continue;
+                    float h = g_EffectGroundHeight ? g_EffectGroundHeight(x, z) : 0.0f;
+                    BirthAt(x, h + 0.5f, z, 0.0f);
+                }
+            }
+        }
+    }
 }
 
 // PANZERS 0x6e2250

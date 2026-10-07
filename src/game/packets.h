@@ -49,6 +49,7 @@ struct SStream;
 namespace pz {
 
 struct SGameLogic;
+struct SUnit;
 
 // Opcodes. "units" = the selected units follow the arguments.
 // cmd = the unit command code passed to the handler (SUnit order queue).
@@ -136,6 +137,8 @@ void Pkt_33(SGameLogic* gl, unsigned short unit);                           // 0
 // Relation of a unit to a player (the order input and the cursor use it).
 int GetUnitRelation(int unit, int player);                                  // 0x56d2a0: 1 own, -1 enemy, 0 allied / neutral, 3 not to be ordered
 int GetUnitRelationToLocal(int unit);                                       // 0x56d280 (World+0x16c)
+int UnitActionOn(SUnit* u, int target);                                    // 0x5ba280 (panzers/hudcursor.cpp): vtbl +0xa8, 10 -> 0x5ba2b0
+int SelectionActionOn(int target);                                         // 0x56d490 (panzers/hudcursor.cpp): the selection's order on target, -1 none, 0 mixed
 void WriteSelectedUnits(SGameLogic* gl);                                    // 0x576130
 
 // Applies one player's frame records (the switch of SGameLogic::ProcessPacket

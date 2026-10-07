@@ -31,7 +31,9 @@
 #include "stream.h"
 #include "worldapi.h"
 #include "timer.h"
-#include "stub_log.h"
+#include "iconcert.h"
+
+extern SIConcert* Concert;
 
 namespace pz {
 
@@ -63,6 +65,140 @@ struct SSpeechState {
 };
 }
 
+// The unit speech queue, HD World+0x726c SHeap (element 0x38: {Next, pad,
+// SString name, unit, race, group, event, sample, priority, bool anyPlayer,
+// double time}). Kept here; InitSpeechCounts (the SWorld ctor) empties it.
+struct SSpeechEntry {
+    int    Next;          // +0x00 kSpeechLive when used, else the next free
+    int    _04;
+    char*  Name;          // +0x08 SString
+    int    Unit;          // +0x10
+    int    Race;          // +0x14
+    int    Group;         // +0x18
+    int    Event;         // +0x1c
+    int    Sample;        // +0x20
+    int    Priority;      // +0x24 0 dropped unless played this frame, 1, 2
+    bool   AnyPlayer;     // +0x28
+    double Time;          // +0x30 timer seconds when queued
+};
+struct SSpeechHeap {
+    SSpeechEntry* Array;  // +0x726c
+    int Size;             // +0x7270
+    int Max;              // +0x7274
+    int Free;             // +0x7278
+    int Count;            // +0x727c
+};
+static SSpeechHeap g_UnitSpeech = { nullptr, 0, 0, -1, 0 };
+static const int kSpeechLive = 0x7fffffff;
+
+static bool SpeechLive(int i)
+{
+    return i >= 0 && i < g_UnitSpeech.Size && g_UnitSpeech.Array[i].Next == kSpeechLive;
+}
+
+// HD 0x5d8ed0 (SHeap::Alloc): the free head first, else a new slot (the
+// array grows to 16, then by 6/5).
+static int SpeechAlloc()
+{
+    SSpeechHeap& q = g_UnitSpeech;
+    ++q.Count;
+    if (q.Free >= 0) {
+        int i = q.Free;
+        q.Free = q.Array[i].Next;
+        q.Array[i].Next = kSpeechLive;
+        memset((char*)&q.Array[i] + 8, 0, sizeof(SSpeechEntry) - 8);
+        return i;
+    }
+    if (q.Size == q.Max) {
+        int m = q.Max < 0x10 ? 0x10 : q.Max * 6 / 5;
+        q.Array = (SSpeechEntry*)realloc(q.Array, m * sizeof(SSpeechEntry));
+        memset(q.Array + q.Max, 0, (m - q.Max) * sizeof(SSpeechEntry));
+        q.Max = m;
+    }
+    q.Array[q.Size].Next = kSpeechLive;
+    return q.Size++;
+}
+
+// HD 0x5f7540 (SHeap::Remove): the name freed, the slot to the free head.
+static void SpeechRemove(int i)
+{
+    SSpeechHeap& q = g_UnitSpeech;
+    if (!SpeechLive(i))
+        return;
+    q.Array[i].Next = q.Free;
+    free(q.Array[i].Name);
+    q.Array[i].Name = nullptr;
+    --q.Count;
+    q.Free = i;
+}
+
+static void SpeechClear()
+{
+    SSpeechHeap& q = g_UnitSpeech;
+    for (int i = 0; i < q.Size; ++i)
+        if (q.Array[i].Next == kSpeechLive)
+            free(q.Array[i].Name);
+    free(q.Array);
+    q.Array = nullptr;
+    q.Size = q.Max = q.Count = 0;
+    q.Free = -1;
+}
+
+// SWorld::UpdateSpeech 0x607f50, the unit speech part before the trigger
+// speech (triggers.cpp calls it with the Concert set): entries of units that
+// are gone leave the queue; when the last sample has ended (+0x7290, wall
+// clock) the entry of the highest priority plays (ties: the higher group,
+// then the older one); a "MultiSelection" resets the repeat count.
+void PzUnitSpeechPlay(SWorld* w)
+{
+    SSpeechHeap& q = g_UnitSpeech;
+    for (int i = 0; i < q.Size; ++i)
+        if (q.Array[i].Next == kSpeechLive && q.Array[i].Unit >= 0 && !w->Units.IsLive(q.Array[i].Unit))
+            SpeechRemove(i);                                      // 0x5f7540
+    SSpeechState s = { (unsigned char*)w };
+    float now = (float)((double)Timer.GetTickValue() / 1000.0);   // 0x661800
+    double& until = *(double*)(s.w + 0x7290);
+    if (!(until <= (double)now))
+        return;
+    int best = -1, bestPriority = -1, bestGroup = -1;
+    float bestTime = now;
+    for (int i = 0; i < q.Size; ++i) {
+        const SSpeechEntry& e = q.Array[i];
+        if (e.Next != kSpeechLive)
+            continue;
+        if (bestPriority < e.Priority ||
+            (e.Priority == bestPriority && (bestGroup < e.Group || e.Time < (double)bestTime))) {
+            bestPriority = e.Priority;
+            bestGroup = e.Group;
+            bestTime = (float)e.Time;
+            best = i;
+        }
+    }
+    if (best < 0)
+        return;
+    if (q.Array[best].Event == 1)
+        s.At(0x73a4) = 0;
+    const char* name = q.Array[best].Name ? q.Array[best].Name : "";
+    float len = Concert->PlaySound(name, 0.0f, 0.0f, -2);         // concert +0x50
+    static int s_log = -1;                                        // recompile-only: PZ_M6_SPEECH_LOG=1 logs each sample
+    if (s_log < 0)
+        s_log = getenv("PZ_M6_SPEECH_LOG") != nullptr;
+    if (s_log && Logger.g)
+        Logger.g->Log(0, "PZM6 speech %s %.2f s (priority %d, queue %d)", name, (double)len,
+                      q.Array[best].Priority, q.Count);
+    until = (double)len + (double)now;
+    SpeechRemove(best);
+}
+
+// The end of 0x607f50: the entries of priority 0 not played this frame leave.
+void PzUnitSpeechDropUnplayed()
+{
+    SSpeechHeap& q = g_UnitSpeech;
+    for (int i = 0; i < q.Size; ++i)
+        if (q.Array[i].Next == kSpeechLive && q.Array[i].Priority == 0)
+            SpeechRemove(i);
+}
+
 // PANZERS 0x5edd00
 // Counts speech/<race>/<group>/<event>_NN.mp3 (NN = 01, 02 ...) for every
 // race, group and event, and resets the speech state. Called at the end of
@@ -85,6 +221,7 @@ void SWorld::InitSpeechCounts()
                     ++*c;
                 }
             }
+    SpeechClear();                                                // the +0x726c queue starts empty
     memset(s.LastTime(0), 0, 32 * sizeof(double));               // +0x72a0, 0x40 dwords
     s.At(0x73a0) = -1;
     s.At(0x73a8) = -1;
@@ -240,14 +377,24 @@ void SWorld::UnitSpeech(int unit, int event, bool anyPlayer)
         else
             sample = ((rand() * (int)(count & 0xffff)) >> 15) + 1;   // CRT rand 0x78c846: audio only
         // 0x5f43b0 builds "speech/%s/%s/%s_%02d.mp3" (it fails only out of
-        // range), then the entry {unit, name, anyPlayer, race, group, event,
-        // sample, priority, time} goes into the World+0x726c queue that
-        // UpdateSpeech 0x607f50 plays. The queue and the player are not lifted
-        // (audio only, no CRC field); the timing state is kept as in HD.
+        // range), then the entry goes into the World+0x726c queue that
+        // UpdateSpeech 0x607f50 plays.
         if ((unsigned)race < 8 && (unsigned)group < 0x1b && (unsigned)event < 0x20) {
-            STUB_LOG("SWorld::UnitSpeech (0x5fff20) speech queue World+0x726c (0x5d8ed0) and playback 0x607f50");
-            (void)priority;
-            (void)sample;
+            char name[260];
+            _snprintf(name, sizeof(name) - 1, "speech/%s/%s/%s_%02d.mp3", kSpeechRace[race], kSpeechGroup[group],
+                      kSpeechEvent[event], sample);               // 0x52da80
+            name[sizeof(name) - 1] = 0;
+            int i = SpeechAlloc();                                // 0x5d8ed0
+            SSpeechEntry& e = g_UnitSpeech.Array[i];              // 0x5d6590
+            e.Unit = unit;
+            e.Name = _strdup(name);                               // 0x52c2c0
+            e.AnyPlayer = anyPlayer;
+            e.Race = race;
+            e.Group = group;
+            e.Event = event;
+            e.Sample = sample;
+            e.Priority = priority;
+            e.Time = now;
             *s.LastTime(event) = now;
         }
     }

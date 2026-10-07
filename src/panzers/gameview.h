@@ -134,7 +134,7 @@ struct SGameViewData {
     unsigned char _3891[0x3894 - 0x3891];
     int           SoundHandle3894;   // +0x3894 released at mission start (Concert +0x80)
     int           SoundHandle3898;   // +0x3898 released at mission start (Concert +0x0c)
-    int           Modal;             // +0x389c
+    SWidget*      Modal;             // +0x389c the full-screen briefing picture (ShowBriefing 0x627db0), closed by 0x619520
     unsigned char _38a0[0x3e40 - 0x38a0];
     pz::SWorld*   World;             // +0x3e40 new 0x7538 in LoadMap
     pz::SGameLogic* Logic;           // +0x3e44 new 0x318 in LoadMap

@@ -105,13 +105,13 @@ struct SUnit : SIUnit {
     float* GetEntrance(float* out3) override;                    // 0x55ce70
     float GetEntranceDir() override;                             // 0x55ce60
     bool HasWoundedMember() override;                            // 0x54a240
-    void Slot_84() override;
+    void SetRankXP(int rank) override;
     int GetRank() override;                                      // 0x5b9e60
     void AddXP(int victim, float xp, int p3) override;           // 0x55cee0 (empty)
     int ShotsToKill(const float* from, int attacker) override;   // 0x5b6040 (combat.cpp)
     void TakeDamage(float damage, int weaponType, int attacker, float x, float y, float z, int hitMode) override;   // 0x5c4080
     void Heal(float amount) override;                            // 0x5c5050
-    void Slot_9C() override;
+    void SetFlag112(bool on) override;
     void SetCurrentTarget(STarget* target, int p2) override;     // 0x5c0d10
     void EC_Default(int p1, int p2) override;
     int ActionOn(int target) override;                           // 0x5ba3e0

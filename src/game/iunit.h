@@ -84,13 +84,13 @@ struct SIUnit {
     virtual float* GetEntrance(float* out3) = 0;                 // +0x78 HD 0x55ce70 (1 arg dwords) (name guessed, M3-C3) the point a unit walks to to enter: +0x8c (x, y, z); buildings 0x548200 the door; returns out3
     virtual float GetEntranceDir() = 0;                          // +0x7c HD 0x55ce60 (0 arg dwords) (name guessed, M3-C3) +0xb0; buildings 0x5481f0
     virtual bool HasWoundedMember() = 0;                         // +0x80 HD 0x54a240 (0 arg dwords) [menu: >=1/s via SPanzersSquadUnit 0x59d670] (name guessed) squads: any member with +0x114 below the threshold
-    virtual void Slot_84() = 0;                                  // +0x84 HD 0x5c0fa0 (1 arg dwords)
+    virtual void SetRankXP(int rank) = 0;                        // +0x84 HD 0x5c0fa0 (1 arg dword) +0x64 = 0 / XpLevel_<rank> (name guessed)
     virtual int GetRank() = 0;                                   // +0x88 HD 0x5b9e60 (0 arg dwords) [menu: >=20/s] (name guessed) XP (+0x64) against the SUnitRegistry thresholds +0x44..
     virtual void AddXP(int victim, float xp, int p3) = 0;        // +0x8c HD 0x55cee0 (3 arg dwords) (name guessed, M3-C) empty in SUnit; SSingleUnit 0x5ad070 / buildings 0x548d30 pass it on, squads 0x59c2a0 share it; IncreaseUnitXP 0x5ec840, RefreshDead 0x5af2c0 (-1, 50 / 100, 0)
     virtual int ShotsToKill(const float* from, int attacker) = 0; // +0x90 HD 0x5b6040 (2 arg dwords) (name guessed, M3-C2) shots of the attacker (world index) this unit survives, armour side facing from (x, y, z); 100 = attacker unarmed
     virtual void TakeDamage(float damage, int weaponType, int attacker, float x, float y, float z, int hitMode) = 0; // +0x94 HD 0x5c4080 (7 arg dwords) symbol: SUnit::TakeDamage; weaponType = SPGunner +0x24 (0 bullet, 1 AT, 2 HE, 3 fire), attacker = world index (-1), (x, y, z) = where the hit came from, hitMode 0 directional armour, 1 top armour, 2 no armour
     virtual void Heal(float amount) = 0;                         // +0x98 HD 0x5c5050 (1 arg dwords) (name guessed, M3-C2) HP += amount / hit points * 4 (max 1)
-    virtual void Slot_9C() = 0;                                  // +0x9c HD 0x5c1d40 (1 arg dwords)
+    virtual void SetFlag112(bool on) = 0;                        // +0x9c HD 0x5c1d40 (1 arg dword) +0x112 = on; squads 0x5a0a10 (name guessed)
     virtual void SetCurrentTarget(STarget* target, int p2) = 0;  // +0xa0 HD 0x5c0d10 (2 arg dwords) [menu: periodic<1/s] SPanzersSquadUnit::SetCurrentTarget (0x59f580); takes a reference into +0x1f4
     virtual void EC_Default(int p1, int p2) = 0;                 // +0xa4 HD 0x5b8ab0 (2 arg dwords) symbol: SSingleUnit::EC_Default
     virtual int ActionOn(int target) = 0;                        // +0xa8 HD 0x5ba3e0 (1 arg dword) the order this unit would take on `target` (cursor glyph: 0 none, 2 move / follow, 3 attack, 4 enter, 5 tow, 6 unhook, 7 repair, 8 supply, 9 heal, 10 a building, 0x5ba2b0)

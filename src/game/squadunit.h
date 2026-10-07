@@ -108,8 +108,8 @@ struct SPanzersSquadUnit : SUnit {
     void UpdateMovingMembersRelPos();                            // 0x5a0d30
     void UpdateMoveGlobalState();                                // 0x5a0fc0
     // The squad's +0x9c override (0x5a0a10): +0x112 on the squad and its
-    // members. Not virtual here: the slot is still Slot_9C() in iunit.h.
-    void SetFlag112(bool on);                                    // 0x5a0a10
+    // members.
+    void SetFlag112(bool on) override;                           // +0x9c 0x5a0a10
     void CreateBoardElements();                                  // the board part of Init 0x59c470 (unitboard.cpp)
 
     SPPanzersSquadUnit* P;           // +0x340
