@@ -15,6 +15,8 @@
 #include "pzscene.h"
 #include "pzviewport.h"
 #include "pzgepard.h"
+#include "pzterrain.h"
+#include "ipixie.h"
 #include "mesh.h"
 #include "tracks.h"
 #include "logger.h"
@@ -229,6 +231,72 @@ void SModel::Initialize(SPModel* proto, SPModel* proto2)
     }
     Dirty = true;
     PrevDirty = true;
+}
+
+// PANZERS 0x6d9c20
+// Swaps the prototype (SScene::ReplaceModel 0x6ba810): new node instances
+// (0x6d82b0); every old node whose name the new prototype has passes on its
+// local transform, visibility, texture animation, light, effect and attached
+// children; the others let their children go (parent 0, node -1, +0x08) and
+// drop their light (scene +0x38) and effect (pixie +0x34). Then the old
+// prototype is released (0x693f40), the old nodes freed and the second
+// shadow decal destroyed (terrain +0x64).
+void SModel::SetPrototype(SPModel* proto, SPModel* proto2)
+{
+    SModelNode* old = Nodes;
+    SPModel* oldProto = Proto;
+    Initialize(proto, proto2);
+    for (int i = 0; i < oldProto->NodeCount; ++i) {
+        SModelNode& o = old[i];
+        const char* name = oldProto->Nodes[i].Name.buf ? oldProto->Nodes[i].Name.buf : "";
+        int j = 0;
+        for (; j < Proto->NodeCount; ++j) {
+            const char* nn = Proto->Nodes[j].Name.buf ? Proto->Nodes[j].Name.buf : "";
+            if (!_stricmp(nn, name))
+                break;
+        }
+        if (j < Proto->NodeCount) {
+            SModelNode& n = Nodes[j];
+            memcpy(n.Pos, o.Pos, 0x40);                          // +0x60..+0x9f
+            n.Visible = o.Visible;
+            n.EffVisible = true;
+            n.TexAnimType = o.TexAnimType;
+            memcpy(n.TexAnim, o.TexAnim, sizeof(n.TexAnim));
+            n.Light = o.Light;
+            n.Effect = o.Effect;
+            if (n.AttachedMax < o.AttachedCount) {
+                n.AttachedMax = o.AttachedCount;
+                n.Attached = (SIAttachable**)realloc(n.Attached, o.AttachedCount * sizeof(SIAttachable*));
+            }
+            n.AttachedCount = o.AttachedCount;
+            for (int k = 0; k < o.AttachedCount; ++k) {
+                n.Attached[k] = o.Attached[k];
+                SAttachable* c = static_cast<SAttachable*>(o.Attached[k]);
+                c->AttachParent = this;
+                c->AttachNode = j;
+            }
+        } else {
+            for (int k = 0; k < o.AttachedCount; ++k) {
+                SAttachable* c = static_cast<SAttachable*>(o.Attached[k]);
+                c->AttachParent = nullptr;
+                c->AttachNode = -1;
+                c->Attach_08();
+            }
+            if (o.Light >= 0 && Scene)
+                Scene->DestroyLight(o.Light);                    // scene +0x38
+            if (o.Effect >= 0 && GepardPixie())
+                GepardPixie()->StopEffect(o.Effect);             // pixie +0x34
+        }
+    }
+    --oldProto->RefCount;                                        // 0x693f40
+    for (int i = 0; i < oldProto->NodeCount; ++i)
+        free(old[i].Attached);                                   // node dtor 0x6d5300
+    operator delete(old);
+    if (ShadowDecal2 >= 0) {
+        if (Scene && Scene->Terrain)
+            Scene->Terrain->DestroyEffectDecal(ShadowDecal2);    // scene +0x1c8, terrain +0x64
+        ShadowDecal2 = -1;
+    }
 }
 
 SModel::~SModel()
@@ -1284,7 +1352,12 @@ void SModel::SetSway(float phase, float p2, float p3)
     SwayZ = p3;
 }
 
-void SModel::Slot_EC() { STUB_LOG("SModel::Slot_EC (0x6da310)"); }
+// PANZERS 0x6da310
+void SModel::SetColor(bool on, unsigned color)
+{
+    ColorOverride = on;
+    Color = (int)color;
+}
 // PANZERS 0x6da2c0
 void SModel::SetColor2(bool on, unsigned color)
 {

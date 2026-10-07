@@ -110,6 +110,7 @@ struct SPanzersSquadUnit : SUnit {
     // The squad's +0x9c override (0x5a0a10): +0x112 on the squad and its
     // members. Not virtual here: the slot is still Slot_9C() in iunit.h.
     void SetFlag112(bool on);                                    // 0x5a0a10
+    void CreateBoardElements();                                  // the board part of Init 0x59c470 (unitboard.cpp)
 
     SPPanzersSquadUnit* P;           // +0x340
     int      MedicDelay;             // +0x344 10 while a member moves (ServerRefreshMedic 0x59ede0)
@@ -118,7 +119,7 @@ struct SPanzersSquadUnit : SUnit {
     int      _358;                   // +0x358
     bool     CanHeal;                // +0x35c 1 (medic scan 0x59dda0)
     unsigned char _35d[3];
-    int      Board[8];               // +0x360 board elements (not created by the recompile)
+    int      Board[8];               // +0x360 board elements (unitboard.cpp)
     int      _380;                   // +0x380 board element
     SUnitArray<int> MemberOrderDelay;// +0x384 ticks until member i gets its next EC_Move (0x59e0d0)
     bool     RestartOrders;          // +0x390 1: MemberOrderDelay[i] = 2 * i on the next tick
@@ -133,6 +134,8 @@ struct SPanzersSquadUnit : SUnit {
 struct SPanzersSquadMemberUnit : SUnit {
     SPanzersSquadMemberUnit(SPPanzersSquadMemberUnit* proto, int worldIndex);   // 0x5977e0
     ~SPanzersSquadMemberUnit() override;                         // 0x597940
+    void CreateBoardElements();                                  // the board part of the ctor 0x5977e0 (unitboard.cpp)
+    void ReleaseBoardElements();                                 // the board part of the dtor 0x597940
     void InitNew(int player, const float* pos, float dir, int p4, float hp) override;   // 0x598940
     void RefreshTargeting() override;                            // 0x5989d0
     void RefreshMisc() override;                                 // 0x598ab0
@@ -164,7 +167,7 @@ struct SPanzersSquadMemberUnit : SUnit {
     // --- end M3-C5
 
     SPPanzersSquadMemberUnit* P;     // +0x340
-    int      Board344;               // +0x344 board element (health bar)
+    int      Board344;               // +0x344 board element: health bar (child of +0x348)
     int      Board348;               // +0x348 board element
     int      ParachuteTicks;         // +0x34c > 0 while the parachute animates (RefreshMisc 0x598ab0)
     SIModel* Parachute;              // +0x350 prototype +0x13c model, flags 7

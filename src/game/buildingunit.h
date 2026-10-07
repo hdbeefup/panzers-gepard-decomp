@@ -43,6 +43,7 @@ struct SBuildingUnit : SUnit {
     void AddXP(int victim, float xp, int p3) override;           // +0x8c 0x548d30 to the occupants
     // --- M3-C5
     void Uninit() override;                                      // 0x547690
+    void CreateBoardElements();                                  // the board part of Init 0x548f20 (unitboard.cpp)
     void Slot_14() override;                                     // 0x549500 after load (unit_afterload.cpp, agent S)
     void GetClassDescriptor(void** obj, const SUnitClassDesc** desc) override;   // 0x548b20
     void SetCurrentTarget(STarget* target, int p2) override;     // 0x54ca80

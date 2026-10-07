@@ -153,7 +153,7 @@ Stubs hit on the M2 path, besides the shell / menu3d ones listed above
 | Stub | HD address | When |
 |---|---|---|
 | ~~`SDriver::StartEffects`, `StartMoveEffects`, `StartWaterEffects`~~ (lifted in M2-V with pixie +0x28 / +0x30 / +0x64; the water one no longer runs: `SWorld::UpdateWaterMap` 0x608600 is lifted) | 0x55bb80 / 0x55bc50 / 0x55be10 | a vehicle starts moving |
-| `SSingleUnit::UpdateVisuals (0x5aaaa0) board and armour decals` | board part of 0x5aaaa0 | every frame (no health bars) |
+| ~~`SSingleUnit::UpdateVisuals (0x5aaaa0) board and armour decals`~~ (lifted in M5-VX with the glows, src/game/unitboard.cpp) | board part of 0x5aaaa0 | every frame (no health bars) |
 | `SBuildingUnit 0x546f70 building eye heights` | 0x546f70 (engine model +0x100 / +0xd8) | map load (visibility map eye heights next to the house) |
 | ~~`SPanzersSquadUnit::Hook20 (0x59fab0) equipment slots`~~ (lifted in M3-C5) | 0x59fab0 | squad creation |
 | ~~`SIModel +0xac (0x6d8090) node points`~~ (M3-I: typed `GetNodePoints` and lifted) | 0x548f20 / 0x5497a0 | building creation |
@@ -186,8 +186,7 @@ Stubs still hit on `-nointro -m3` (Training Camp round trip, engine side): `SMod
 (0x6dad80)` (see above), `SPixie::Slot_14 (0x69ee50)` (miscalled), `SPzGepard::SwitchModelPrototypeNodes
 (0x681010)` (node reorder of a unit prototype; models draw without it), `SScene::DrawSea / DrawLines /
 DrawLakes` (called every frame, nothing to draw on training.map), `SPRain` / `SPSnowfall` (prototypes
-only). `SScene::ReplaceModel (0x6ba810)` needs SModel 0x6d9c20 and stays a stub (2 calls in the HD
-trace).
+only). ~~`SScene::ReplaceModel (0x6ba810)`~~ (lifted in M5-VX with SModel 0x6d9c20).
 
 
 ## M3-C: combat and AI on the Training Camp path
@@ -239,8 +238,8 @@ gun 1 muzzle (0x5ca594). Census `2238 lifted + 1317 SWINE-shared + 189 stubs; 79
 contain a STUB_LOG`.
 
 Hit in tc1 and still logged (visual / audio only, no CRC effect): `SWorld::UnitSpeech` queue and
-playback, `SUnit::TakeDamage` combat music, `SSingleUnit::UpdateVisuals` glows and decals,
-`SScene::ReplaceModel / DrawLines / DrawLakes`, rain / snow effects, `SModel::Slot_BC / Slot_CC`.
+playback, `SUnit::TakeDamage` combat music, ~~`SSingleUnit::UpdateVisuals` glows and decals~~ (M5-VX),
+~~`SScene::ReplaceModel`~~ (M5-VX) / `DrawLines / DrawLakes`, rain / snow effects, `SModel::Slot_BC / Slot_CC`.
 Still not lifted and not reached by tc1: `SWorld 0x5d68e0`.
 
 M4 S (save / load, docs/M4_STATUS.md) replaced `SGameLogic::SaveGameState (0x57e110)`, `SUnit::Save

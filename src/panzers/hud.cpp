@@ -31,6 +31,20 @@
 
 static const char* Gv(const char* id) { return GetText("panzers/GameView.cpp", id); }
 
+#include "settings.h"
+
+// SSettings +0xcc OwnIcon / +0xd0 AlliedIcon / +0xd4 EnemyIcon (HD getters
+// 0x64e060 / 0x64d900 / 0x64def0), for the unit board elements
+// (src/game/unitboard.cpp).
+int PzUnitIconSetting(int which)
+{
+    switch (which) {
+    case 0: return Settings.OwnIcon;
+    case 1: return Settings.AlliedIcon;
+    default: return Settings.EnemyIcon;
+    }
+}
+
 #include "hud_glyphs.inl"
 
 // ===========================================================================

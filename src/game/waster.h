@@ -16,6 +16,8 @@ struct SWasterUnit : SUnit {
     SWasterUnit(SPWasterUnit* proto, int worldIndex);            // 0x5d1cd0
     ~SWasterUnit() override;                                     // 0x5d1db0
     void Uninit() override;                                      // 0x5d2070
+    void CreateBoardElements();                                  // the board part of Init 0x5d22b0 / Slot_14 0x5d23d0 (unitboard.cpp)
+    void ReleaseBoardElements();                                 // the board part of Uninit 0x5d2070
     void Init(SUnitDef* def) override;                           // 0x5d22b0
     void InitNew(int player, const float* pos, float dir, int p4, float hp) override;   // 0x5d2330
     void Slot_14() override;                                     // 0x5d23d0 (the board elements)

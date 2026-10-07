@@ -86,7 +86,7 @@ SWasterUnit::~SWasterUnit()
 // PANZERS 0x5d2070
 void SWasterUnit::Uninit()
 {
-    // HD: board +0x0c(+0x358) releases the board element (not created).
+    ReleaseBoardElements();                                       // board +0x0c(+0x358)
     SUnit::Uninit();                                              // 0x5b7e40
 }
 
@@ -94,7 +94,7 @@ void SWasterUnit::Uninit()
 void SWasterUnit::Init(SUnitDef* def)
 {
     SUnit::Init(def);                                             // 0x5ba8e0
-    // HD: board +0x08(4, ...) twice into +0x358 / +0x354, +0x18(elem, 0).
+    CreateBoardElements();                                        // board +0x08(4, ...) twice (unitboard.cpp)
     if (g_GameLogic)
         RefreshTargeting();                                       // +0x34
 }
@@ -111,7 +111,7 @@ void SWasterUnit::InitNew(int player, const float* pos, float dir, int p4, float
 void SWasterUnit::Slot_14()
 {
     SUnit::Slot_14();                                             // 0x5bb1c0
-    // HD: the board elements again (+0x358, +0x354), not created.
+    CreateBoardElements();                                        // the board elements again (HD does not release the old pair)
 }
 
 // PANZERS 0x5d2290
@@ -148,17 +148,7 @@ void SWasterUnit::EC_Die()
     Wrecked = true;                                               // +0x150
 }
 
-// PANZERS 0x5d1e30
-// Draws the timer bar (board elements +0x354 / +0x358) under the waster
-// when it is selected (+0x104) and in front of the camera; the bar colour
-// follows the health (green / yellow / red). Render only.
-void SWasterUnit::UpdateVisuals(SIViewport* vp)
-{
-    (void)vp;
-    if (!Model)
-        return;
-    PZ_M3_TRACE("SWasterUnit::UpdateVisuals (0x5d1e30) board timer bar (board elements not created)");
-}
+// SWasterUnit::UpdateVisuals 0x5d1e30: unitboard.cpp (M5-VX).
 
 // PANZERS 0x5d21a0
 void SWasterUnit::EC_AttackPos(int xBits, int zBits, int p3)

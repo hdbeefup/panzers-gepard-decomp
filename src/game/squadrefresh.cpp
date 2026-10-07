@@ -294,15 +294,7 @@ void SPanzersSquadUnit::ServerRefreshMedic(float dt)
     SUnit::ServerRefreshMedic(dt);                            // 0x5bfa50
 }
 
-// PANZERS 0x599620
-// Per frame: the squad's board elements (name tag, rank icons, health and
-// equipment bars) placed over GetCenterPosition (+0x1c8) through the
-// viewport projection (+0x3c). The recompile creates no board elements, so
-// nothing is left; HD does not call SUnit::UpdateVisuals here.
-void SPanzersSquadUnit::UpdateVisuals(SIViewport* vp)
-{
-    (void)vp;
-}
+// SPanzersSquadUnit::UpdateVisuals 0x599620: unitboard.cpp (M5-VX).
 
 // PANZERS 0x59d130
 // Two members closer than 0.25 m.
@@ -802,14 +794,7 @@ void SPanzersSquadMemberUnit::RefreshMisc()
     }
 }
 
-// PANZERS 0x597a10
-// Per frame: the health bar board elements (+0x344 / +0x348) over the
-// member, coloured by HP. The recompile creates no board elements, so
-// nothing is left; HD does not call SUnit::UpdateVisuals here.
-void SPanzersSquadMemberUnit::UpdateVisuals(SIViewport* vp)
-{
-    (void)vp;
-}
+// SPanzersSquadMemberUnit::UpdateVisuals 0x597a10: unitboard.cpp (M5-VX).
 
 // PANZERS 0x598570
 // Unlike SUnit::EC_Move the member keeps no target of its own: the new

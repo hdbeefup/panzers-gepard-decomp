@@ -274,8 +274,9 @@ void STerrain::LoadLayerTexture(int layer, const char* baseName)
         TerrainReleaseTexture(found[i]);
 }
 
-// HD 0x6f52b0 (the directory listing 0x65e720 is replaced by the SWINE
-// file-system search; prototype loading goes through the facade)
+// PANZERS 0x6f52b0
+// (the listing 0x65e720 is SFileSystem::FindFiles; prototype loading goes
+// through the facade)
 void STerrain::LoadFloraLayer(int layer, const char* floraDir, float scale)
 {
     PZ_TRACE("STerrain::LoadFloraLayer (0x6f52b0)");
@@ -287,20 +288,26 @@ void STerrain::LoadFloraLayer(int layer, const char* floraDir, float scale)
     f.Count = 0;
     if (!floraDir || !*floraDir)
         return;
-    // HD lists "<dir>*.4d" (up to 32 files) and loads each as a model
-    // prototype with the given scale. The pak TOC listing is not ported:
-    // try the names the flora folders use (grass01.4d ...).
-    for (int i = 1; i <= 32 && f.Count < 32; ++i) {
+    // HD lists "<dir>*.4d" (0x65e720, archives and directories) and loads the
+    // first 32 as model prototypes with the given scale (Gepard +0x20).
+    // M5-VX: the listing replaces the old "grass%02d.4d" guess, which missed
+    // the folders whose models have other names (scrogs01.4d, sas.4d).
+    SDArray<SString> files;
+    memset(&files, 0, sizeof(files));
+    FileSystem.FindFiles(floraDir, "*.4d", &files);
+    int n = files.size < 0x20 ? files.size : 0x20;
+    for (int i = 0; i < n; ++i) {
         char name[300];
-        _snprintf(name, sizeof(name), "%sgrass%02d.4d", floraDir, i);
+        _snprintf(name, sizeof(name), "%s%s", floraDir, files.array[i].buf ? files.array[i].buf : "");   // 0x5335c0
         name[sizeof(name) - 1] = 0;
-        if (FileSystem.Stat(name, nullptr) != 0)
-            break;
         int proto = PzGepard()->LoadModelPrototype(name, scale, nullptr, 0);
         f.Protos[f.Count] = proto;
         if (proto >= 0)
             ++f.Count;
     }
+    for (int i = 0; i < files.size; ++i)
+        delete[] files.array[i].buf;
+    free(files.array);
 }
 
 // HD 0x6f5740 (reimplemented: loads the sketch bitmap as a texture; HD
@@ -680,12 +687,14 @@ void STerrain::Cull(SViewport* vp)
     float f[3] = { sinf(c.Yaw) * cosf(a), sinf(a), cosf(c.Yaw) * cosf(a) };
     float r[3] = { cosf(c.Yaw), 0.0f, -sinf(c.Yaw) };
     float u[3] = { f[1] * r[2] - f[2] * r[1], f[2] * r[0] - f[0] * r[2], f[0] * r[1] - f[1] * r[0] };
-    float aspect = 4.0f / 3.0f;
-    IDirect3DDevice9* dev = TerrainDevice();
-    D3DVIEWPORT9 view;
-    if (dev && SUCCEEDED(dev->GetViewport(&view)) && view.Height)
-        aspect = (float)view.Width / (float)view.Height;
-    float ty = tanf(c.Fov * 0.5f), tx = ty * aspect;
+    // HD 0x6f1180 takes the half extents from the projection (0x68bd80:
+    // m00, m11). Camera.Fov is the HORIZONTAL field of view (SetProjection
+    // 0x68cfd0: m00 = 1/tan(fov/2), m11 = m00 * w/h); the old code used it as
+    // the vertical one, so the frustum was 4/3 too wide and 16/9 too tall
+    // and parcels below the view (trees under the HUD) were drawn into the
+    // shadow buffer (M5-VX).
+    float tx = vp->Proj[0] != 0.0f ? 1.0f / vp->Proj[0] : tanf(c.Fov * 0.5f);
+    float ty = vp->Proj[5] != 0.0f ? 1.0f / vp->Proj[5] : tx * 0.75f;
     struct Plane { float N[3]; float D; } planes[6];
     for (int i = 0; i < 3; ++i) {
         planes[0].N[i] = f[i] * tx + r[i];
@@ -1027,6 +1036,26 @@ void STerrain::RenderFlora(SViewport* vp)
         return;
     float cx, cy, cz, yaw, pitch;
     vp->GetCamera(&cx, &cy, &cz, &yaw, &pitch);   // viewport +0x24
+    // HD 0x6f33c0 (M5-VX): the grass is lit by the sun at 0.4 (0x7f5e20) and
+    // an ambient raised by the sun colour times (max(0, -sun.y) - 0.127324)
+    // (0x886e98), applied with 0x6ba8f0 (lights, ambient, fog); both are put
+    // back after the flora.
+    float saved[4];
+    memcpy(saved, Scene->Ambient, sizeof(saved));
+    {
+        float sy = (Scene->SunDir[0] * 0.0f - Scene->SunDir[1] * 1.0f) + Scene->SunDir[2] * 0.0f;
+        float f = 0.0f <= sy ? sy : 0.0f;
+        float lc[4] = { Scene->SunColor[0] * 0.4f, Scene->SunColor[1] * 0.4f,
+                        Scene->SunColor[2] * 0.4f, Scene->SunColor[3] * 0.4f };
+        Scene->SetLightColor(Scene->SunLight, lc);                // 0x6bab60
+        f -= 0.127324f;
+        for (int i = 0; i < 4; ++i)
+            Scene->Ambient[i] = saved[i] + Scene->SunColor[i] * f;
+        Scene->SetLights();                                       // 0x6ba8f0: 0x680620
+        GepardSetAmbient(Scene->Ambient);                         //   0x680510
+        SetPassFog(Scene->FogStart, Scene->FogEnd, Scene->FogColor);   // 0x688ac0
+        memcpy(Scene->Ambient, saved, sizeof(saved));
+    }
     for (int pz = 0; pz < ParcelsZ; ++pz)
         for (int px = 0; px < ParcelsX; ++px) {
             if (!Parcels[ParcelsX * pz + px].Visible)
@@ -1041,8 +1070,14 @@ void STerrain::RenderFlora(SViewport* vp)
                             continue;
                         float h = Heights[Stride * z + x];
                         float d2 = (z - cz) * (z - cz) + (x - cx) * (x - cx) + (h - cy) * (h - cy);
-                        if (d2 > 3600.0f)
+                        if (d2 > 3600.0f)                 // 0x886ebc
                             continue;
+                        if (d2 <= 2500.0f) {              // 0x886eb8
+                            g_MeshDraw.AlphaOverride = false;   // 0x93ced0
+                        } else {
+                            g_MeshDraw.AlphaOverride = true;
+                            g_MeshDraw.Alpha = (float)((60.0 - sqrt((double)d2)) * 0.1);   // 0x7fe0e0, 0x7f83e0
+                        }
                         const SFloraJitter& j = FloraJitter[(z & 0x3f) * 0x40 + (x & 0x3f)];
                         int proto = Flora[k].Protos[(int)((float)Flora[k].Count * j.Pick)];
                         float wx = x + j.DX, wz = z + j.DZ;
@@ -1053,6 +1088,13 @@ void STerrain::RenderFlora(SViewport* vp)
                     }
                 }
         }
+    Scene->SetLightColor(Scene->SunLight, Scene->SunColor);       // 0x6bab60
+    memcpy(Scene->Ambient, saved, sizeof(saved));
+    Scene->SetLights();                                           // 0x6ba8f0
+    GepardSetAmbient(Scene->Ambient);
+    SetPassFog(Scene->FogStart, Scene->FogEnd, Scene->FogColor);
+    g_MeshDraw.AlphaOverride = false;                             // 0x93ced0
+    g_MeshDraw.Color2Override = false;                            // 0x93cee0
 }
 
 } // namespace pz

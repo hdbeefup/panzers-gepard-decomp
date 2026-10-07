@@ -21,9 +21,9 @@ struct SSingleUnit : SUnit {
     void RefreshMisc() override;                                 // 0x5af890
     void OnMemberDied(int unit) override;                        // +0x1b4 0x5ae970 a crew member died
     void AddXP(int victim, float xp, int p3) override;           // +0x8c 0x5ad070 to the stored units
-    void Uninit() override;                                      // 0x5abde0 (unitai.cpp)
+    void Uninit() override;                                      // 0x5abde0 (unitboard.cpp)
     void RefreshTargeting() override;                            // 0x5aef40 (unitai.cpp)
-    void UpdateVisuals(SIViewport* vp) override;                 // 0x5aaaa0 (unitai.cpp)
+    void UpdateVisuals(SIViewport* vp) override;                 // 0x5aaaa0 (unitboard.cpp)
     void EC_Move(int xBits, int zBits, int p3, bool p4, int p5) override;   // 0x5ac4b0 (unitai.cpp)
     float GetMaxRange(int weapon) override;                      // 0x5acbd0 (unitai.cpp)
     float GetMinRange(int weapon) override;                      // 0x5acd30 (unitai.cpp)
@@ -37,9 +37,10 @@ struct SSingleUnit : SUnit {
 
     void InitCrewAndChildren(int player, float dir, bool fromDef, float cargo);   // the shared part of 0x5ad150 / 0x5ad9f0
     void PlaceAttachedUnit(SUnit* unit, int node);               // 0x5b02e0
+    void CreateBoardElements();                                  // the board part of 0x5ad150 / 0x5ad9f0 (unitboard.cpp)
 
     SPSingleUnit* P;                 // +0x340
-    int      Board[0x19];            // +0x344..+0x3a4 board elements (health, rank, selection; not created)
+    int      Board[0x19];            // +0x344..+0x3a4 board elements (health, rank, selection) and +0x37c..+0x38c terrain decals (unitboard.cpp)
 };
 
 PZ_HD_SIZE(SSingleUnit, kHdSizeSSingleUnit);

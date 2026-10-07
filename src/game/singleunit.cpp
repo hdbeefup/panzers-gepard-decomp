@@ -50,10 +50,8 @@ SSingleUnit::~SSingleUnit()
 // The part of SSingleUnit::Init 0x5ad150 / 0x5ad9f0 after the base Init:
 // the built-in driver unit (+0x208), the child units (+0x1fc), then the
 // armoured-vehicle rule (no active driver, gunners off until a crew gets
-// in). The board elements HD creates in between (selection, health and rank
-// icons) are not created by the recompile; the model attach of the driver
-// and children (model +0xdc at the animation's driver node / the child mesh
-// node) needs a model slot not in imodel.h.
+// in). The board elements (selection, health and rank icons) are created in
+// between (CreateBoardElements, unitboard.cpp).
 void SSingleUnit::InitCrewAndChildren(int player, float dir, bool fromDef, float cargo)
 {
     if (P->BuiltInDriver && P->BuiltInDriverUnitName.size != 0) {
@@ -87,6 +85,7 @@ void SSingleUnit::InitCrewAndChildren(int player, float dir, bool fromDef, float
         WorldUnit(c)->SetParent(WorldIndex);
         WorldUnit(c)->Model->AttachTo(Model, node);           // child model +0xdc at its mesh node
     }
+    CreateBoardElements();                                    // 0x5ad5e0..0x5ad91e
     if (P->ArmourType != 0) {
         if (!P->BuiltInDriver) {
             SetActiveDriver(-1);                              // 0x5c0cb0(-1)

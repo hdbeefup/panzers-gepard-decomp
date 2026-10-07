@@ -473,6 +473,10 @@ struct SWorldLoadStats {
 };
 extern SWorldLoadStats g_WorldStats;
 void LogWorldStats(const char* when);
+// The board elements of the SWorld ctor 0x5d2f90 / dtor 0x5d5510 (selection
+// and insignia icon sets, drag-box frames): src/game/unitboard.cpp.
+void WorldCreateBoardElements(SWorld* w);
+void WorldReleaseBoardElements(SWorld* w);
 
 // Prototype load through Gepard +0x20 with the M1 counters. HD panics on
 // failure in some callers; while agent A's loader is a stub it returns -1.

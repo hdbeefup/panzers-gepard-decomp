@@ -55,6 +55,7 @@ add_library(pzgame STATIC
     squadunit.h
     squadunit.cpp
     squadrefresh.cpp
+    unitboard.cpp
     squadcombat.cpp
     buildingunit.h
     buildingunit.cpp

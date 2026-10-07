@@ -107,7 +107,7 @@ struct SIModel {
     virtual void Slot_E0() = 0;                             // +0xe0 HD 0x6d7310 (0 arg dwords)
     virtual void Slot_E4() = 0;                             // +0xe4 HD 0x6d62e0 (2 arg dwords)
     virtual void SetSway(float phase, float p2, float p3) = 0; // +0xe8 HD 0x6dade0 (3 arg dwords) swaying doodads (0.035, 0.035) (name guessed)
-    virtual void Slot_EC() = 0;                             // +0xec HD 0x6da310 (2 arg dwords)
+    virtual void SetColor(bool on, unsigned color) = 0;     // +0xec HD 0x6da310 (2 arg dwords) first colour override (the heat glow of SSingleUnit 0x5aaaa0) (name guessed)
     virtual void SetColor2(bool on, unsigned color) = 0;    // +0xf0 HD 0x6da2c0 (2 arg dwords) second colour override (fog-of-war tint of buildings)
     virtual void Slot_F4() = 0;                             // +0xf4 HD 0x6d7900 (0 arg dwords)
     virtual void Slot_F8() = 0;                             // +0xf8 HD 0x6d85d0 (0 arg dwords)

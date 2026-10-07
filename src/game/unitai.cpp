@@ -1642,38 +1642,7 @@ void SSingleUnit::EC_Move(int xBits, int zBits, int p3, bool p4, int p5)
     SUnit::EC_Move(xBits, zBits, p3, p4, p5);                 // 0x5b8ea0
 }
 
-// PANZERS 0x5abde0
-// Releases the board elements (+0x344..+0x3a4) and the armour decals
-// (+0x37c..+0x38c, World+0xe4 +0x64), then SUnit::Uninit. The recompile
-// creates neither (all -1).
-void SSingleUnit::Uninit()
-{
-    for (int i = 0; i < 0x19; ++i)
-        if (Board[i] != -1)
-            STUB_LOG("SSingleUnit::Uninit (0x5abde0) board element / decal release");
-    SUnit::Uninit();                                          // 0x5b7e40
-}
-
-// PANZERS 0x5aaaa0
-// Per frame: the model's damage / heat glow (model +0xec / +0xf0), the board
-// above the vehicle (selection, health bar, rank, weapons, ammo) and the
-// armour decals under it, placed from the screen projection of the model.
-// None of it feeds the logic; the board and the untyped model slots log.
-void SSingleUnit::UpdateVisuals(SIViewport* vp)
-{
-    if (!Model)
-        return;
-    float pos[3] = { 0.0f, 0.0f, 0.0f };
-    Model->GetRenderPosition(pos);                            // model +0x14
-    float sx = 0.0f, sy = 0.0f, size = 0.0f, sz = 0.0f;
-    int fog = 0;
-    vp->ProjectToScreen(pos, 1.0f, &sx, &sy, &size, &sz, &fog);   // viewport +0x3c
-    if (_118 > 0.0f)
-        STUB_LOG("SSingleUnit::UpdateVisuals (0x5aaaa0) heat glow (model +0xec)");
-    if (!(HP > 0.5f))                                         // DAT_007f453c
-        STUB_LOG("SSingleUnit::UpdateVisuals (0x5aaaa0) damage glow (model +0xf0)");
-    STUB_LOG("SSingleUnit::UpdateVisuals (0x5aaaa0) board and armour decals");
-}
+// SSingleUnit::Uninit 0x5abde0 and UpdateVisuals 0x5aaaa0: unitboard.cpp (M5-VX).
 
 // ---------------------------------------------------------------------------
 // Callable forms for the driver environment (g_DriverEnv, driverunit.cpp).

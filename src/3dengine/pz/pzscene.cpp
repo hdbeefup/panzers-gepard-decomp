@@ -1032,12 +1032,15 @@ void SScene::Slot_5C()
     PZ_TRACE("SScene::Slot_5C (0x6ba8a0)");
 }
 
-// HD SScene vtbl +0x60 -> 0x6ba810 (2 arg dwords)
+// PANZERS 0x6ba810
+// The model gets another prototype (a unit's wreck, SUnit 0x5be2b0).
 void SScene::ReplaceModel(SIModel* model, int proto)
 {
-    STUB_LOG("SScene::ReplaceModel (0x6ba810)");
     PZ_TRACE("SScene::ReplaceModel (0x6ba810)");
-    (void)model; (void)proto;
+    SPModel* p = GepardModelPrototype(proto);                     // Gepard +0x550 heap
+    if (!p)
+        Logger.g->Panic("SScene::ReplaceModel: Invalid prototype index");
+    static_cast<SModel*>(model)->SetPrototype(p, nullptr);        // 0x6d9c20(proto, 0)
 }
 
 // HD SScene vtbl +0x6c -> 0x6a9000 (5 arg dwords)

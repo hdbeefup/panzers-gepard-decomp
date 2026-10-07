@@ -148,12 +148,13 @@ SWorld::SWorld(int p1)
     // +0x63c, +0x640 = -1. Ambient sound is not part of M1 (SWINE concert).
     *(int*)((unsigned char*)this + 0x63c) = -1;
     *(int*)((unsigned char*)this + 0x640) = -1;
-    // HD: board +0x74 "menu/selection_hq.tga" (0x38 glyphs), "menu/insignils_hq.tga",
-    // "menu/multiplayer_insignils_hq.tga" and four board +0x08 frames: in-game
-    // selection UI, not used by the menu scene (left -1).
+    // Board +0x74 "menu/selection_hq.tga" (0x38 glyphs), "menu/insignils_hq.tga",
+    // "menu/multiplayer_insignils_hq.tga" and the four drag-box frames
+    // (board +0x08): src/game/unitboard.cpp.
     BoardIconSet = Insignia = MultiInsignia = -1;
     for (int i = 0; i < 4; ++i)
         BoardFrames[i] = -1;
+    WorldCreateBoardElements(this);
     SelectionTextures[0] = PzGepard()->LoadTexture("shaders/10 Misc-Egyeb/kijelolo keret_alul_a.tga", 1, true);
     SelectionTextures[1] = PzGepard()->LoadTexture("shaders/10 Misc-Egyeb/kijelolo keret_alul_csik2_a.tga", 1, true);
     SelectionTextures[2] = PzGepard()->LoadTexture("shaders/10 Misc-Egyeb/kijelolo keret_alul_csik1_a.tga", 1, true);
@@ -177,10 +178,9 @@ SWorld::SWorld(int p1)
     LoadParam3 = LoadParam4 = 0;
     Obj74e4 = Obj74e8 = nullptr;
     RangeUnit = -1;
-    // HD: Gepard +0x44("shaders\\10 Misc-Egyeb\\range_a", 0, 1) (weapon range
-    // overlay). The name has no extension; the facade's SWINE LoadTexture
-    // crashes on it (agent A), and the menu never draws it: left -1.
-    RangeTexture = -1;
+    // Gepard +0x44 (the weapon range overlay of the selected unit,
+    // ShowUnitRange 0x5fee00). The facade's LoadTexture adds the ".tga".
+    RangeTexture = PzGepard()->LoadTexture("shaders\\10 Misc-Egyeb\\range_a", 0, true);
     LoadIconSet = -1;
     LoadIconFrame = -1;
     LoadIconParent = 0;
@@ -230,6 +230,7 @@ SWorld::~SWorld()
     for (int i = 0; i < 4; ++i)
         if (SelectionTextures[i] >= 0)
             PzGepard()->ReleaseTexture(SelectionTextures[i]);     // Gepard +0x48
+    WorldReleaseBoardElements(this);                              // board +0x0c x4, +0x80 x3
     if (RangeTexture >= 0)
         PzGepard()->ReleaseTexture(RangeTexture);
     for (int i = 0; i < Layers.Size; ++i) {

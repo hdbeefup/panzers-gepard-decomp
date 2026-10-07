@@ -37,6 +37,9 @@ SPanzersSquadUnit::SPanzersSquadUnit(SPPanzersSquadUnit* proto, int worldIndex)
 {
     memset(&P, 0, sizeof(SPanzersSquadUnit) - offsetof(SPanzersSquadUnit, P));
     P = proto;
+    for (int i = 0; i < 8; ++i)                               // recompile: no board element before Init
+        Board[i] = -1;                                        // (0 would be the board's root frame)
+    _380 = -1;
     CanHeal = true;
     RestartOrders = true;
     RequestedState = -1;
@@ -49,13 +52,7 @@ SPanzersSquadUnit::~SPanzersSquadUnit()
     free(RelPos.Array);
 }
 
-// PANZERS 0x599c70
-void SPanzersSquadUnit::Uninit()
-{
-    // HD: board +0x0c releases the squad's board elements (+0x380,
-    // +0x360..+0x37c); the recompile does not create them.
-    SUnit::Uninit();
-}
+// SPanzersSquadUnit::Uninit 0x599c70: unitboard.cpp (M5-VX).
 
 // PANZERS 0x59fda0
 void SPanzersSquadUnit::SetMembersRadius()
@@ -228,7 +225,7 @@ void SPanzersSquadUnit::Init(SUnitDef* def)
         WorldUnit(m)->SetGlobalState(def->GlobalState, 0);    // 0x5b7390
     }
     SetAIGroup(AIGroup);                                      // 0x5c0c10(+0x80)
-    // HD: the squad's board elements (name tag, rank icons, ...) here.
+    CreateBoardElements();                                    // 0x59c7f8..0x59c96a (unitboard.cpp)
     _ec = def->GlobalState;                                   // param_1[0x3b]
     SUnit::Init(def);                                         // 0x5ba8e0
     if (g_GameLogic)                                          // DAT_008f2078
@@ -518,7 +515,7 @@ SPanzersSquadMemberUnit::SPanzersSquadMemberUnit(SPPanzersSquadMemberUnit* proto
     : SUnit(proto, worldIndex)
 {
     P = proto;
-    Board344 = Board348 = 0;                                  // board +0x08(4, ...): not created
+    CreateBoardElements();                                    // board +0x08(4, ...) twice (unitboard.cpp)
     ParachuteTicks = 0;
     Parachute = nullptr;
     if (proto->ParachuteProto >= 0) {
@@ -537,6 +534,7 @@ SPanzersSquadMemberUnit::~SPanzersSquadMemberUnit()
         Parachute->Release();
         Parachute = nullptr;
     }
+    ReleaseBoardElements();                                   // board +0x0c(+0x348)
 }
 
 // PANZERS 0x598940

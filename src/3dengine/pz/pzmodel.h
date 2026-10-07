@@ -112,7 +112,7 @@ struct SModel : SIModel, SAttachable {
     void Slot_E0() override;
     void Slot_E4() override;
     void SetSway(float phase, float p2, float p3) override;
-    void Slot_EC() override;
+    void SetColor(bool on, unsigned color) override;
     void SetColor2(bool on, unsigned color) override;
     void Slot_F4() override;
     void Slot_F8() override;
@@ -127,6 +127,7 @@ struct SModel : SIModel, SAttachable {
 
     // Non-virtual HD members.
     void Initialize(SPModel* proto, SPModel* proto2);            // 0x6d82b0
+    void SetPrototype(SPModel* proto, SPModel* proto2);          // 0x6d9c20 (SScene::ReplaceModel)
     void Render(SViewport* vp);                                  // 0x6d8830
     void RenderShadow(SViewport* vp);                            // 0x6d9570
     void ComputeNodes(int frame, const float* attach, bool prev); // 0x6dc7b0
@@ -177,7 +178,7 @@ struct SModel : SIModel, SAttachable {
     float          SwayPhase;         // +0x114
     float          SwayX;             // +0x118
     float          SwayZ;             // +0x11c
-    bool           ColorOverride;     // +0x120 (Slot_EC)
+    bool           ColorOverride;     // +0x120 (SetColor)
     unsigned char  _121[3];
     int            Color;             // +0x124
     bool           Color2Override;    // +0x128 (Slot_F0)

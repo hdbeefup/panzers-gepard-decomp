@@ -133,10 +133,11 @@ void SWorld::UnfixBridges()
 // capture flag of a capturable building, the targeting refresh, the
 // "Platform" rebuild when the bridges are already fixed, and +0x454 (a
 // "Block" point stands on the static block map). The board elements
-// (+0x350 / +0x354) are not created by the recompile.
+// (+0x350 / +0x354): unitboard.cpp.
 void SBuildingUnit::Init(SUnitDef* def)
 {
     SUnit::Init(def);                                         // 0x5ba8e0
+    CreateBoardElements();                                    // board +0x08(4, ...) twice
     _110 = true;
     BlockNode = Model->BuildNodeBlockBitmap(4, "Block");      // +0xa8
     BlockMap_ApplyBitmap(g_World, BlockNode, true, 4);        // 0x5f4910
@@ -899,27 +900,7 @@ void SBuildingUnit::RefreshOccupants()
     }
 }
 
-// PANZERS 0x546d20
-// The health bar over the building (board elements +0x350 / +0x354) when
-// it is selected and in front of the camera; otherwise both are hidden.
-void SBuildingUnit::UpdateVisuals(SIViewport* vp)
-{
-    if (!Model)
-        return;
-    float pos[3] = { 0.0f, 0.0f, 0.0f };
-    Model->GetRenderPosition(pos);                                // +0x14
-    float sx, sy, size, sz;
-    int fog;
-    vp->ProjectToScreen(pos, 1.0f, &sx, &sy, &size, &sz, &fog);   // +0x3c
-    if ((!g_GameLogic || !g_GameLogic->IsPaused()) && _104 != 0 && size >= 0.0f) {
-        // HD: board +0x18(+0x350 / +0x354, 1) and their position / size
-        // and HP colour. The recompile creates no board elements (as the
-        // squads' 0x599620), so there is nothing to show.
-        return;
-    }
-    // HD: board +0x18(+0x350, 0) and +0x18(+0x354, 0) hide the bar. The
-    // recompile creates no board elements (Board350 / Board354 stay 0).
-}
+// SBuildingUnit::UpdateVisuals 0x546d20: unitboard.cpp (M5-VX).
 
 // SDArray<T>::Remove (inline in HD): memmove the tail down, clear the freed
 // last element.
