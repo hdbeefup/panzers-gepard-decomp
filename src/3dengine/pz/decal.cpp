@@ -275,7 +275,7 @@ void STerrain::SetEffectDecalScale(int decal, float scale)
 
 // HD 0x6f6640 (reimplemented texture-coordinate transform: HD composes
 // translate(-x,-z), rotate, scale(1/sx, -1/sz), translate(0.5, 0.5) with its
-// 2D matrix helper 0x661bb0; the composition order was not verified)
+// 2D matrix helper 0x661bb0; order and rotation sign checked in M6)
 void STerrain::RenderEffectDecals(bool shadowPass, int pass)
 {
     IDirect3DDevice9* dev = TerrainDevice();
@@ -346,8 +346,13 @@ void STerrain::RenderEffectDecals(bool shadowPass, int pass)
                 }
                 o.Color = color;
                 float dx = (float)x - d.X, dz = (float)z - d.Z;
-                o.U = (dx * cr - dz * sr) / sx + 0.5f;
-                o.V = -(dx * sr + dz * cr) / sz + 0.5f;
+                // HD: T(-x, -z) * R * S(1/sx, -1/sz) * T(0.5, 0.5), row
+                // vectors (0x661bb0), R = [cos(-r) -sin(-r); sin(-r) cos(-r)]
+                // as rows: u = dx cos(-r) + dz sin(-r), v = -dx sin(-r) +
+                // dz cos(-r). The old code turned the other way (M6: the
+                // selection frame of a vehicle was not aligned with it).
+                o.U = (dx * cr + dz * sr) / sx + 0.5f;
+                o.V = -(dz * cr - dx * sr) / sz + 0.5f;
             }
         unsigned short* idx = new unsigned short[w * h * 6];
         int k = 0;
