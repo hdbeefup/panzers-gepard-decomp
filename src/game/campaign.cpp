@@ -27,9 +27,9 @@ SPanzersCampaign* g_Campaign = nullptr;   // HD 0x929a0c
 
 static SProperties* Props(SPanzersCampaign* c) { return (SProperties*)c->MissionProps; }
 
-// SPanzersCampaign::SaveGameBefore (the "Before" save of the next mission,
-// agent S): a logged stub in src/stubs/stub_panzers.cpp until S lands it.
-void PzStub_SaveGameBefore(SPanzersCampaign* c);
+// SPanzersCampaign::SaveGameBefore 0x596b30 (the "Before" save of the next
+// mission) lives in campaign_save.cpp.
+bool CampaignSaveGameBefore(SPanzersCampaign* c);
 
 // ---------------------------------------------------------------------------
 // SDArray<SUnitDef> helpers
@@ -554,7 +554,7 @@ void SPanzersCampaign::LetResultsDone()
         }
         ArmyCopyFrom(&Army, &MissionArmy);                        // 0x591500(ECX +0x2c, +0x3c): the mission's survivors are carried
         StartPrestige = Props(this)->GetInt(SStr(MissionSection), "SP", 0) + Prestige;   // +0x28 = SP + +0x38
-        PzStub_SaveGameBefore(this);                              // SPanzersCampaign::SaveGameBefore (agent S)
+        CampaignSaveGameBefore(this);                             // SPanzersCampaign::SaveGameBefore 0x596b30
         PrepareMission();                                         // 0x592d80
         return;
     }
@@ -756,70 +756,7 @@ void SPanzersCampaign::LoadSupportCounts()
 // ---------------------------------------------------------------------------
 // Save
 
-// PANZERS 0x5966a0
-// SaveGames/<file>: 'SAVE' chunk {'v4pa', 1, map, mission code, title, mode,
-// race, start prestige, Army, MissionArmy, prestige, section, +0xe4,
-// difficulty, +0xf8, +0xfc, +0xb84, objectives, 12 player records, +0xb60,
-// then the game state (SGameLogic 0x57e110)}. docs/FORMATS.md.
-bool SPanzersCampaign::SaveGame(const char* file, const char* title)
-{
-    PZ_M3_TRACE("SPanzersCampaign::SaveGame (0x5966a0)");
-    if (GameMode == 4)
-        return false;
-    SString dir;
-    FileSystem.FileNameProcess(&dir, "SaveGames");                // 0x65f020
-    CreateDirectoryA(SStr(dir), nullptr);                         // 0x65fde0 (MakeDir)
-    FreeSString(&dir);
-    SStream* s = FileSystem.OpenWrite(file, nullptr);             // 0x65f7a0
-    if (!s)
-        return false;
-    s->WriteSignature();                                          // 0x65dc60
-    s->WriteChunkStart(0x45564153);                               // 'SAVE'
-    s->WriteInt(0x61703476);                                      // 'v4pa'
-    s->WriteInt(1);
-    s->WriteString(GetMapName());
-    s->WriteString(GetMissionCode());
-    s->WriteString(title ? title : "");
-    s->WriteInt(GameMode);
-    s->WriteInt(Race);
-    s->WriteInt(StartPrestige);
-    s->WriteInt(Army.Size);
-    for (int i = 0; i < Army.Size; ++i)
-        UnitDefSave(&Army.Array[i], s);
-    s->WriteInt(MissionArmy.Size);
-    for (int i = 0; i < MissionArmy.Size; ++i)
-        UnitDefSave(&MissionArmy.Array[i], s);
-    s->WriteInt(Prestige);
-    s->WriteString(SStr(MissionSection));
-    s->WriteInt(MissionResult);                                     // +0xe4
-    s->WriteInt(Difficulty);
-    s->WriteInt(_0f8);
-    s->WriteInt(_0fc);
-    s->WriteInt(_b84);
-    s->WriteInt(ObjectiveCount);
-    for (int i = 0; i < ObjectiveCount; ++i) {
-        s->WriteByte((unsigned char)Objectives[i].Hidden);        // +4 (byte)
-        s->WriteInt(Objectives[i].State);                         // +0
-    }
-    for (int pl = 0; pl < 12; ++pl) {
-        const int* r = (const int*)PlayerStats[pl];
-        // 12 x {+0x0c, +0x3c, +0x6c, +0x9c} (index i), then +0xcc, +0xd4.
-        for (int i = 0; i < 12; ++i) {
-            s->WriteInt(r[3 + i]);
-            s->WriteInt(r[0xf + i]);
-            s->WriteInt(r[0x1b + i]);
-            s->WriteInt(r[0x27 + i]);
-        }
-        s->WriteInt(r[0x33]);
-        s->WriteInt(r[0x35]);
-    }
-    s->WriteInt(Score);                                           // +0xb60
-    if (g_GameLogic)
-        g_GameLogic->SaveGameState(s);                            // 0x57e110
-    s->WriteChunkEnd();                                           // 0x65db10
-    s->Release();
-    return true;
-}
+// SPanzersCampaign::SaveGame 0x5966a0 is in campaign_save.cpp (agent S, M4).
 
 // PANZERS 0x596e30
 int SPanzersCampaign::SaveGameStartMission(const char* name, const char* title)
@@ -837,13 +774,7 @@ int SPanzersCampaign::SaveGameStartMission(const char* name, const char* title)
     return 1;
 }
 
-bool SPanzersCampaign::LoadGame(const char* file)
-{
-    STUB_LOG("SPanzersCampaign::LoadGame (0x594f70)");
-    PZ_M3_TRACE("SPanzersCampaign::LoadGame (0x594f70)");
-    (void)file;
-    return false;
-}
+// SPanzersCampaign::LoadGame 0x594f70 is in campaign_save.cpp (agent S, M4).
 
 // ---------------------------------------------------------------------------
 // Replay header

@@ -168,6 +168,8 @@ struct SGameLogic {
     void PreloadArmyUnits();              // 0x56e8e0 GetPUnit(name, 1) for every mission-army record
     void StartPacketRecording(const char* file);   // 0x5805c0 +0x1b0 = file, byte 3, the replay header
     void StartPacketPlayback(const char* file);    // 0x580540 +0x1b4 = file, version byte 3, ReadReplayHeader
+    void LoadGameState(SStream* s, bool camera);   // 0x56eb50 (gamelogic_save.cpp, agent S)
+    void AddMinimapObjective(float x, float z, int a, int b);   // 0x560eb0 (record only; gamelogic_save.cpp)
     void SaveGameState(SStream* s);       // 0x57e110 the game part of a save (PLY3 AIGP UNIS EEFS CAM LOCS TRIG RTRG TVAR ECHO CNTR VARS SEED ODDD WIR3 MGRP AMOD WTHR OBJT)
     void CastVisCone(int player, float eye, int cell, int radius, float dir, float width);   // 0x5664f0 occupied-building window sight (logicextra.cpp)
     void CastVisOctantHalf(int player, float eye, int cell, int radius, int outer, int inner, float cx, float cy);   // 0x567280 0x5662b0 limited to ring*cy + step*cx > 0, bits 0xb
@@ -272,6 +274,7 @@ struct SGameLogic {
     int           ShellFallFx;       // +0x310 "effects/sound/s_shell_fall.fx"
     unsigned char _314[0x318 - 0x314];
 };
+void M4SaveTestHook(SGameLogic* g);   // recompile-only PZ_M4_SAVE_AT (gamelogic_save.cpp, agent S)
 PZ_HD_SIZE(SGameLogic, kHdSizeSGameLogic);
 #if defined(_M_IX86)
 static_assert(offsetof(SGameLogic, Frame) == 0x008, "Refresh param_1[2]");

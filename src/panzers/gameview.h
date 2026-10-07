@@ -194,6 +194,7 @@ struct SGameView : SDXWidget, SIGameViewCallback, SGameViewData {
     void Create();                                                   // 0x619c90
     void LoadMap();                                                  // 0x6201c0 (agent F)
     void MissionStart();                                             // 0x6281a0 (agent F)
+    void LoadGame(const char* file);                                 // 0x61f840 load-game LoadMap (agent S, loadgame.cpp)
     void CreateSubViewports();                                       // 0x61e500
     void DestroySubViewports();                                      // 0x61e680
     void SetPanelMode(int mode);                                     // 0x625d80

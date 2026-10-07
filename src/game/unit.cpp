@@ -25,17 +25,7 @@ void SUnit::Slot_10()
     PZ_M2_TRACE("SUnit::Slot_10 (0x5bc2d0)");
 }
 
-void SUnit::Slot_14()
-{
-    STUB_LOG("SUnit::Slot_14 (0x5bb1c0)");
-    PZ_M2_TRACE("SUnit::Slot_14 (0x5bb1c0)");
-}
-
-void SUnit::Slot_18()
-{
-    STUB_LOG("SUnit::Slot_18 (0x5baf30)");
-    PZ_M2_TRACE("SUnit::Slot_18 (0x5baf30)");
-}
+// SUnit::Slot_14 0x5bb1c0 / Slot_18 0x5baf30 (after load): unitsave.cpp (agent S, M4).
 
 // PANZERS 0x5ba220
 void SUnit::GetClassDescriptor(void** obj, const SUnitClassDesc** desc)

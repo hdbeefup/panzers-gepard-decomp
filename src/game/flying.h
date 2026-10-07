@@ -29,6 +29,7 @@ namespace pz {
 struct SFlyingUnit : SUnit {
     SFlyingUnit(SPFlyingUnit* proto, int worldIndex);            // 0x55c9d0 (draws the world seed once)
     ~SFlyingUnit() override;                                     // 0x55cd10
+    void GetClassDescriptor(void** obj, const SUnitClassDesc** desc) override;   // 0x55cec0 (M4 S, savedesc.cpp)
     void Init(SUnitDef* def) override;                           // 0x55cef0
     void InitNew(int player, const float* pos, float dir, int p4, float hp) override;   // 0x55cf20
     void RefreshDead() override;                                     // 0x55cfc0 the wreck falls / explodes

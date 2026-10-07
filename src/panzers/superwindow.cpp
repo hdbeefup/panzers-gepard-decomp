@@ -69,6 +69,8 @@ const char* PzStub_GetVersionString();             // SVersion::GetVersionString
 bool SuperWindowM3Action(SSuperWindow* sw, int action, int param);
 void M3RestoreMovedWorld();
 void M3OnMainMenu(SSuperWindow* sw);
+void M4OnMainMenu(SSuperWindow* sw);
+bool PzLoadGameAction(SSuperWindow* sw, const char* file);
 
 static pz::SUnitRegistry* s_UnitRegistry = nullptr;   // HD 0x929a4c (new 0x124)
 
@@ -543,6 +545,7 @@ void SSuperWindow::LoadMainMenu()
     Logger.g->Log(0, "SSuperWindow::LoadMainMenu: releasing scene");
     if (pz::g_M3.Enabled)
         M3OnMainMenu(this);                                        // recompile-only -m3 -packetplay replay start
+    M4OnMainMenu(this);                                            // recompile-only PZ_M4_LOADGAME (loadgame.cpp)
 }
 
 // PANZERS 0x658300
@@ -672,6 +675,8 @@ bool SSuperWindow::OnAction(SWidget* source, int action, int param)
     // (optionsmenu.cpp).
     if (SuperWindowOptionsAction(this, action, param))
         return true;
+    if (action == 0x494c1)                                         // Load Game (loadgame.cpp, agent S)
+        return PzLoadGameAction(this, (const char*)(size_t)param);
     // M3 Training Camp path (default off): campaign, game view, market,
     // mission start and GV_GAMEOVER cases of 0x659250.
     if (pz::g_M3.Enabled && SuperWindowM3Action(this, action, param))

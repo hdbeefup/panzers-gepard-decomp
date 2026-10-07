@@ -57,3 +57,78 @@ Left:
 - MenuToLoad 8 ("Intro Anim", commented out in every mission) goes to the main menu as in HD.
 - Cut-scenes between missions: no HD call in this flow (they are trigger-driven, agent T).
 - Trains (class 10) in ger-02.
+
+
+
+## Save / load (agent S)
+
+The game state is saved and loaded in the original's format (docs/FORMATS.md "Save games").
+
+### What saves and loads
+
+| Part | HD | Recompile |
+|---|---|---|
+| Campaign part of a save | SaveGame 0x5966a0, LoadGame 0x594f70 | `src/game/campaign_save.cpp` |
+| Game state, 19 chunks | SGameLogic 0x57e110 / 0x56eb50 | `src/game/gamelogic_save.cpp`, `src/game/world_save.cpp` |
+| Units, gunners, drivers, targets | SUnit::Save 0x5be320 / Load 0x5bbd30, UNIS 0x5fb630 / 0x5f3820 | `src/game/unitsave.cpp` |
+| Descriptor lists (32, from HD .data) | 0x8dc540 ... | `src/game/savedesc.cpp` |
+| After-load slots | SUnit 0x5bb1c0 / 0x5baf30, SBuildingUnit 0x549500, squads 0x59cf80 / 0x598980 | `unitsave.cpp`, `unit_afterload.cpp` |
+| Load Game action, load-game LoadMap | 0x659250 case 0x494c1, SGameView 0x61f840 | `src/panzers/loadgame.cpp` |
+| Quick save / quick load | SGameView::OnKeyDown 0x622f50 F6 / F9 | `loadgame.cpp` |
+| Save list | LoadSavedGameNames 0x595fa0 | `campaign_save.cpp` |
+| Load Game screen | SLoadMenu 0x62cbc0 / 0x62f950 / 0x631f40, SSaveLoadListBox 0x53eef0..0x540200 | `src/panzers/loadgame_menu.cpp` |
+| "Before" save (campaign) | SaveGameBefore 0x596b30 | `campaign_save.cpp` (`pz::CampaignSaveGameBefore`, for K's LetResultsDone stub) |
+
+The mission-start autosave, F6 (`SaveGames/quick.save`), F9 and the main menu's Load Game screen
+(the saves with code, title and date, newest first; Load or a double click loads) work. SSaveMenu
+(the in-game save screen with a name) is not lifted: the in-game menu's Save Game saves as F6.
+
+### Byte compatibility
+
+Our Training Camp mission-start autosave (tc1.rec start: German, Panzer III F + Riflemen) against the
+original's `TRNG-Start.save` (scratch `m3f\ref_TRNG-Start.save`): same size (2,572,085 bytes), 184
+bytes differ, all of them the `VoiceVar` (+0xdc) of 184 units. That value comes from the CRT `rand()`,
+which both games seed with the time at start-up, so it also differs between two runs of the original.
+Fixed on the way: SUnit::SetGlobalState 0x5b7390 cleared +0xf8 (`MoveState`), which HD keeps.
+
+The original's own save loads without a warning (358 units, seed 141334d6, every chunk read).
+
+### Round trip
+
+Test hooks (recompile only): `PZ_M4_SAVE_AT=<frame>` saves `SaveGames/M4RT-<frame>.save` between two
+logic ticks, with a sidecar `.rt` (the `-packetplay` position, the CRC queue, FramesSent);
+`PZ_M4_LOADGAME=<file>` loads it through the Load Game action from the first main menu; with
+`-packetplay Replays\tc1.rec PZ_M3_NAIVE_PLAY=1 PZ_M4_RT=1` the replay goes on after the load.
+
+Saving tc1 at frame 1000 and loading it:
+
+- `PZ_M4_FIXFIRST=1`: the world CRC of frame 1000 after the load is the original's
+  (`7460c00e f14045bc 357`). The run then goes on to frame 2275 without errors, but frame 1001 differs
+  (seed d16309ba instead of f9642426).
+- `PZ_M4_VISION=1` as well (every player's vision map built right after the load): the Panzer III
+  F's targeting and the LastHeardFrame differences below go away; what is left are squad and crew
+  members that move slightly.
+- HD order (default): frame 1000 differs already (`752283d7`, same seed and unit count). HD fixes the
+  bridges after the units' after-load slots, so units on platforms (the 88 mm flak and its crew) get
+  their height from the unfixed terrain until their next refresh; it also shifts LastPos / PreLastPos
+  in LinkAfterLoad. `PZ_M4_FIXFIRST=1` fixes the bridges first and keeps the loaded interpolation state.
+
+What still differs one tick after the load, by saving frame 1001 in both runs and comparing the
+files: squad and crew members that stand still in the saved run move slightly, the Panzer III F's
+gunner does not acquire unit 150, and a squad's LastHeardFrame. These come from state the save
+does not hold, in HD too: the per-player vision maps (rebuilt one player per tick), the member
+formation state and the animation state.
+
+### Regressions (final build)
+
+- Menu CRC: 0 mismatches over the 1,180 frames of `docs/re/m2_crc_original.txt` (75 s, `-nointro`).
+- Training Camp replay: CRC, seed and units equal on every frame 0..3900, 0 Inconsistency lines.
+
+### Left
+
+- SSaveMenu 0x632040 (the in-game save screen), LoadGameBefore 0x595330 (type 2 saves).
+- Wires: the recompile keeps the map's WIR3 raw; the third heap (+0x7454) is written empty and WIR3
+  is skipped on load.
+- Partly lifted in a load: ODDD (the heap only, doodad animations are not restarted), AMOD (records
+  only, no models), ECHO (board texts are not kept), OBJT (records only, 0x560eb0's board marker),
+  the board elements of the after-load slots, the capture flag 0x5471d0.

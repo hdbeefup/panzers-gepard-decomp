@@ -24,6 +24,7 @@
 //    agent H): while the HUD panel (+0xc68) does not exist, "a unit is
 //    selected" stands for them.
 
+#include "loadgame.h"
 #include <windows.h>
 #include <math.h>
 #include <string.h>
@@ -640,14 +641,14 @@ bool SGameView::OnKeyDown(int key, bool repeat)
         StubOnce("SGameView::OnKeyDown F1 help 0x61ff30 (agent H)");
         break;
     case VK_F6:
-        StubOnce("SGameView::OnKeyDown F6 quicksave (agent F)");
+        PzQuickSave(this);                                        // loadgame.cpp (agent S)
         break;
     case VK_F8:
         if (ViewState == 0 || ViewState == 1)
             StubOnce("SGameView::OnKeyDown F8 0x625d80 panel mode (agent V)");
         break;
     case VK_F9:
-        StubOnce("SGameView::OnKeyDown F9 quickload 0x494c1 (agent F)");
+        PzQuickLoad(this);                                        // 0x494c1 (loadgame.cpp, agent S)
         break;
     case VK_F10:
         OpenInGameMenu();                                         // HD 0x61ffb0 when no dialog is open

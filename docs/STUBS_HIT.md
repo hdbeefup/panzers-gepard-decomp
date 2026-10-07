@@ -240,5 +240,13 @@ contain a STUB_LOG`.
 
 Hit in tc1 and still logged (visual / audio only, no CRC effect): `SWorld::UnitSpeech` queue and
 playback, `SUnit::TakeDamage` combat music, `SSingleUnit::UpdateVisuals` glows and decals,
-`SScene::ReplaceModel / DrawLines / DrawLakes`, rain / snow effects, `SModel::Slot_BC / Slot_CC`,
-`SGameLogic::SaveGameState (0x57e110)`. Still not lifted and not reached by tc1: `SWorld 0x5d68e0`.
+`SScene::ReplaceModel / DrawLines / DrawLakes`, rain / snow effects, `SModel::Slot_BC / Slot_CC`.
+Still not lifted and not reached by tc1: `SWorld 0x5d68e0`.
+
+M4 S (save / load, docs/M4_STATUS.md) replaced `SGameLogic::SaveGameState (0x57e110)`, `SUnit::Save
+(0x5be320)`, `SUnit::Load (0x5bbd30)`, `SPanzersCampaign::LoadGame (0x594f70)`, `SUnit::Slot_14 (0x5bb1c0)`
+and `SUnit::Slot_18 (0x5baf30)` (now InitAfterLoad / LinkAfterLoad), and the F6 / F9 `StubOnce` lines of
+`SGameView::OnKeyDown` (quick save / quick load), and `SMainMenu Load Game submenu (0x62cbc0 /
+0x62f950)` (SLoadMenu lifted). `SGameView::OpenSaveMenu (0x6205f0)` stays logged (SSaveMenu is not
+lifted; Save Game saves as F6). Census `2315 lifted + 1317 SWINE-shared + 183 stubs; 77 lifted bodies
+still contain a STUB_LOG`.

@@ -17,7 +17,7 @@
 
 // Logged stubs for the submenus the main menu opens (src/stubs/stub_panzers.cpp).
 void PzStub_NewGameMenu(SWidget* parent);
-void PzStub_LoadGameMenu(SWidget* parent);
+SWidget* PzCreateLoadMenu(SWidget* parent);   // loadgame_menu.cpp (M4 S)
 bool PzStub_CheckCDKey(const char* key);
 
 // ---------------------------------------------------------------------------
@@ -297,7 +297,7 @@ bool SMainMenu::OnAction(SWidget* source, int action, int param)
     } else if (source == &Buttons[1]) {              // +0xd4 Load Game
         if (LoadGameMenu) { delete LoadGameMenu; LoadGameMenu = nullptr; }
         if (NewGameMenu) { delete NewGameMenu; NewGameMenu = nullptr; }
-        PzStub_LoadGameMenu(Parent);                 // new 0x280 0x62cbc0 + 0x62f950(1)
+        LoadGameMenu = PzCreateLoadMenu(Parent);     // new 0x280 0x62cbc0 + 0x62f950(1) (loadgame_menu.cpp, agent S)
     } else if (source == &Buttons[2]) {              // +0x148 Multiplayer
         SendAction(PZA_MAIN_MULTIPLAYER, 0);
     } else if (source == &Buttons[3]) {              // +0x1bc Tutorial

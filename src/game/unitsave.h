@@ -21,6 +21,35 @@ void SaveSingleVariable(SStream* s, const void* src, int type, const SVarDesc* m
 
 extern const SVarDesc kUnitDefDesc[];   // HD 0x8ddb48 (unitregistry.cpp)
 
+// savedesc.cpp (agent S, M4): the HD descriptor lists.
+extern const SVarDesc kSUnitDesc[];                      // 0x8dc540
+extern const SVarDesc kSSingleUnitDesc[];                // 0x8dc358
+extern const SVarDesc kSFlyingUnitDesc[];                // 0x8daf48
+extern const SVarDesc kSBuildingUnitDesc[];              // 0x8da7f8
+extern const SVarDesc kSProjectileUnitDesc[];            // 0x8dc250
+extern const SVarDesc kSWasterUnitDesc[];                // 0x8dddf0
+extern const SVarDesc kSTrainUnitDesc[];                 // 0x8dc388
+extern const SVarDesc kSPanzersSquadUnitDesc[];          // 0x8dc0b0
+extern const SVarDesc kSPanzersSquadMemberUnitDesc[];    // 0x8dbff0
+extern const SVarDesc kSGunnerDesc[];                    // 0x8dbaf8
+extern const SVarDesc kSDriverDesc[];                    // 0x8dacf0
+extern const SVarDesc kSFlyingDriverDesc[];              // 0x8daa20
+extern const SVarDesc kSProjectileDriverDesc[];          // 0x8daa98
+extern const SVarDesc kSPanzersSquadMemberDriverDesc[];  // 0x8daae0
+extern const SVarDesc kSTargetDesc[];                    // 0x8dd890
+extern const SVarDesc kLogicVarsDesc[];                  // 0x8dba58 (SGameLogic VARS)
+extern const SVarDesc kAIGroupSaveDesc[];                // 0x8dde98 (aigroup.cpp's table, for AIGP)
+
+// The descriptor list of a class record (SUnitClassDesc::HdAddr), or null.
+const SVarDesc* SaveDescForClassRecord(unsigned hdAddr);
+
+struct SUnitClassDesc;
+extern const SUnitClassDesc kUnitClassDesc_8dc358;     // SSingleUnit 0x5ace70
+extern const SUnitClassDesc kUnitClassDesc_8daf48;     // SFlyingUnit 0x55cec0
+extern const SUnitClassDesc kUnitClassDesc_8dc250;     // SProjectileUnit 0x5a3930
+extern const SUnitClassDesc kDriverClassDesc_8daa20;   // SFlyingDriver 0x553200
+extern const SUnitClassDesc kDriverClassDesc_8daa98;   // SProjectileDriver 0x553240
+
 } // namespace pz
 
 #endif // PZ_UNITSAVE_H

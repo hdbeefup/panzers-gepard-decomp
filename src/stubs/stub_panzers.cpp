@@ -97,12 +97,7 @@ void PzStub_NewGameMenu(SWidget* parent)
     (void)parent;
 }
 
-// HD Load Game button: new 0x280 (0x62cbc0), Create 0x62f950(1).
-void PzStub_LoadGameMenu(SWidget* parent)
-{
-    STUB_LOG("SMainMenu Load Game submenu (0x62cbc0 / 0x62f950)");
-    (void)parent;
-}
+// HD Load Game button: lifted (SLoadMenu, src/panzers/loadgame_menu.cpp, M4 S).
 
 // HD SVersion::GetVersionString 0x65c070 (exported) over 0x65bbf0. The HD
 // install shows "Version: 1.25" in the menu (original_menu.png reference run).
@@ -126,13 +121,3 @@ void PzStub_ApplyGraphicsOptions(int shadows, int shadowBuffer, int textureFilte
         Logger.g->Log(0, "STUB: hardware cursor %d not applied (Gepard options are)", (int)hardwareCursor);
 }
 
-// HD SPanzersCampaign::SaveGameBefore (called by LetResultsDone 0x594e70
-// before the next campaign mission: the "Before" save). Agent S's save path.
-namespace pz {
-struct SPanzersCampaign;
-void PzStub_SaveGameBefore(SPanzersCampaign* c)
-{
-    STUB_LOG("SPanzersCampaign::SaveGameBefore (LetResultsDone 0x594e70)");
-    (void)c;
-}
-} // namespace pz

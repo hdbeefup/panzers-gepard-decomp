@@ -108,6 +108,19 @@ void FreeMapRawChunks()
     s_RawChunkCount = 0;
 }
 
+// Recompile only (agent S, M4): the save game writes the map's wires (WIR3)
+// back from the raw copy, as the world does not create them yet.
+const unsigned char* GetMapRawChunk(int tag, int* size)
+{
+    for (int i = 0; i < s_RawChunkCount; ++i)
+        if (s_RawChunks[i].Tag == tag) {
+            *size = s_RawChunks[i].Size;
+            return s_RawChunks[i].Data;
+        }
+    *size = 0;
+    return nullptr;
+}
+
 // ---------------------------------------------------------------------------
 // Terrain buffers (recompile fallback while agent B's STerrain is a stub).
 

@@ -330,14 +330,62 @@ TowedUnits, StoredSpecial.
 | game state 0x57e110 | 19 chunks: `PLY3` `AIGP` `UNIS` `EEFS` `CAM ` (20 bytes 0x5e6a70) `LOCS` `TRIG` (when World+0x7478) `RTRG` `TVAR` `ECHO` `CNTR` (+0x14c, +0x14d, +0x174, +0x178 as ints) `VARS` (logic variables, 0x8dba58) `SEED` (World+0x7518) `ODDD` `WIR3` `MGRP` `MGRP` `AMOD` `WTHR` `OBJT` |
 
 `UNIS` (0x5fb630): int heap size; per slot int live (0/1); a live one is a `UNIT` chunk: int
-`'v100'`, string class, then SUnit::Save: `vars` (the unit's class descriptor list, via vtbl +0x1c),
-`gunn` (int n, each gunner's list, vtbl +0x30), `driv` (int n, each driver's list, vtbl +0x50), and
-`targ` when any target is set (int n, the STarget lists, then target indices per gunner / driver).
+`'v100'`, string class (prototype +0x60), then SUnit::Save 0x5be320: `vars` {the unit's class
+descriptor list, via vtbl +0x1c}, `gunn` {int n, each gunner's list 0x8dbaf8}, `driv` {int n, each
+driver's list, via vtbl +0x50}, and `targ` when any target is set: int n, n STarget lists (0x8dd890),
+int gunner count, int driver count, then the index (-1 = none) of unit +0x1f8, +0x1f4, per gunner
++0x14 / +0x18, per driver +0xc0 / +0xc4 / +0xc8 (each target listed once, in that order).
 In the reference the units take 2,564,826 of the 2.5 MB.
 
-**Status of our autosave**: the campaign part (bytes 0..0x9ef, everything before the game state)
-is byte-identical to the original's for the tc1.rec mission start, except the `SAVE` size. The game
-state (0x57e110 and the per-class descriptor tables of SUnit::Save) is not written yet.
+The descriptor lists (32 tables, 429 entries, `src/game/savedesc.cpp`, read from HD .data, entry
+{name, type, offset, members, element size, element type}): SUnit 0x8dc540 (Special, GlobalState,
+Commands, NearbyUnits*, AI_InvalidTargetUnits, StoredUnits, StoredMembers, GhostFrames as type 11,
+...). A subclass list starts with `SUnit` (or `SSingleUnit`) as a `_mcl` member at offset 0:
+SSingleUnit 0x8dc358, SFlyingUnit 0x8daf48, SBuildingUnit 0x8da7f8, SProjectileUnit 0x8dc250,
+SWasterUnit 0x8dddf0, STrainUnit 0x8dc388, SPanzersSquadUnit 0x8dc0b0, SPanzersSquadMemberUnit
+0x8dbff0. Drivers: SDriver 0x8dacf0 (every driver class but these), SFlyingDriver 0x8daa20,
+SProjectileDriver 0x8daa98, SPanzersSquadMemberDriver 0x8daae0. Logic `VARS` 0x8dba58 (PlaySpeed,
+FrameCount, StartAnim); AIGP 0x8dde98.
+
+The other chunks of 0x57e110 (W = SWorld, L = SGameLogic; a heap is int size, int free head, int
+count, then per slot int Next and, when it is 0x7fffffff, the element):
+
+| Chunk | Writer | Content |
+|---|---|---|
+| `PLY3` | 0x5fb160 | 12 x 9 ints: W+0x170 + i*0x48, dwords 0..3 and 11..15 |
+| `AIGP` | 0x57db20 | heap W+0x4f4 (0x54): the group's variable list 0x8dde98 |
+| `EEFS` | 0x5f9450 | heap W+0x73d0 (0x2c): an `EFFE` chunk {'v100', name, 5 floats} |
+| `CAM ` | 0x5e6a70 | W +0x38, +0x40, +0x44, +0x50, +0x54 (20 raw bytes) |
+| `LOCS` | 0x5f9210 | heap W+0x7480 (0x28): x1, z1, x2, z2, name, color |
+| `TRIG` | 0x5f8a80 | only when W+0x7478 != 0: int n; per trigger flags, name, event (0x5b2750), conditions (0x5b2670), actions (0x5b24e0) with the masks of 0x5b1f30 / 0x5b1d50, as in the map's TRIG |
+| `RTRG` | 0x57d9c0 | L+0x268 (0x34): 5 ints, 3 floats, 2 ints, then the found units {int flag, float, int unit} |
+| `TVAR` | 0x57dd60 | heap W+0x74a8 (0x14): name, value, step |
+| `ECHO` | 0x57e4f0 | int n (L+0x84), the board names of the echo texts |
+| `CNTR` | | L +0x14c, +0x14d (bytes), +0x174, +0x178 as ints |
+| `VARS` | gSaveVariables | L with 0x8dba58 |
+| `SEED` | | W+0x7518 |
+| `ODDD` | 0x5f8cf0 | heap W+0x158 (0x20): a `DODD` chunk {2 ints, 4 floats} |
+| `WIR3` | 0x5fb7d0(s, 1) | heaps W+0x742c (0x2c), W+0x7440 (0x24), W+0x7454 (0x44); the map's WIR3 has the first two only (the editor writes with flag 0) |
+| `MGRP` x2 | 0x57db90 | heap L+0x2dc (0x28): members {int, 3 floats}, float, 3 ints, float, 2 bytes; HD writes the same chunk twice |
+| `AMOD` | 0x57d8c0 | L+0x2fc (0x24): model name, 4 floats, float +0x1c |
+| `WTHR` | 0x5fb770 | 2 x 19 floats (W+0x550, +0x59c, order of 0x5fa830), float +0x548, +0x54c, int +0x544 |
+| `OBJT` | | int n, n x {float, float, int +0xc, int +0x10} (L+0x194, the minimap markers) |
+
+LoadGameState 0x56eb50 reads the chunks in any order (an unknown tag is logged and skipped). It
+unfixes the bridges and removes every unit first; the UNIS reader 0x5f3820 allocates each slot again
+in order, makes the unit of its class (prototype +0x10) and runs SUnit::Load 0x5bbd30 (the gunner and
+driver counts must match), frees the empty slots, then calls every unit's vtbl +0x14 (InitAfterLoad
+0x5bb1c0) and then +0x18 (LinkAfterLoad 0x5baf30). The load-game LoadMap 0x61f840 fixes the bridges
+(0x5e65f0) only after that. Load Game file names are relative to `SaveGames/` (F6 / F9 use
+`quick.save`); the Load Game list (LoadSavedGameNames 0x595fa0) also accepts the versions `v2ps` and
+`v1ps`.
+
+**Status of our save** (M4 S): the Training Camp mission-start autosave (tc1.rec start, German,
+Panzer III F + Riflemen) is 2,572,085 bytes like the original's and differs from it in 184 bytes
+only: the `VoiceVar` (unit +0xdc) of 184 units. Both games draw it with the CRT `rand()`, which
+start-up seeds with the time (`srand(time)`), so it differs between any two runs of the original as
+well. WIR3 is written from the map's raw chunk plus an empty third heap (the recompile does not create
+wires yet).
 
 ### Replay (`-packetrec`)
 

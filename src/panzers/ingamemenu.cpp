@@ -2,6 +2,7 @@
 // In-game menus (ingamemenu.h) and the in-game-menu part of SGameView.
 // OWNER: agent H (docs/M3_INTERFACES.md).
 
+#include "loadgame.h"
 #include <windows.h>
 #include <string.h>
 #include "ingamemenu.h"
@@ -436,6 +437,7 @@ bool PzGameViewMenuAction(SGameView* v, SWidget* source, int action, int param)
     case PZA_IGM_SAVE:
         DeleteInGameMenu(v);
         STUB_LOG("SGameView::OpenSaveMenu (0x6205f0)");
+        PzInGameSave(v);               // recompile: saves as F6 (SaveGames/quick.save; loadgame.cpp, agent S)
         PzOpenInGameMenu(v);           // recompile: the save menu is not lifted, show the menu again
         return true;
     case PZA_IGM_LOAD:

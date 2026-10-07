@@ -23,6 +23,7 @@ struct SPProjectileDriver : SPDriver {                   // vftable 0x7fa91c, 0x
 struct SProjectileDriver : SDriver {                     // vftable 0x7f4b98, 0xec bytes
     SProjectileDriver(SPProjectileDriver* pd, SIUnit* unit);   // 0x551230 (inline)
     ~SProjectileDriver() override;                      // 0x550330
+    void GetClassDescriptor(void** obj, const SUnitClassDesc** desc) override;   // 0x553240 (M4 S, savedesc.cpp)
     void Refresh() override;                            // 0x55a740
 
     int   Fuel;                   // +0x0e8 ticks of rocket propulsion left

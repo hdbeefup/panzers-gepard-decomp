@@ -22,6 +22,10 @@ add_library(panzersgame STATIC
     gameview.h
     gameview.cpp
     gameview_mission.cpp
+    loadgame.h
+    loadgame.cpp
+    loadgame_menu.h
+    loadgame_menu.cpp
     gameview_loading.cpp
     gameview_view.cpp
     gameview_input.cpp

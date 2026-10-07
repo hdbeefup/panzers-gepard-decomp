@@ -30,6 +30,7 @@ struct SPFlyingDriver : SPDriver {                       // vftable 0x7fa8ec, 0x
 struct SFlyingDriver : SDriver {                         // vftable 0x7f4ae8, 0xf4
     SFlyingDriver(SPFlyingDriver* pd, SIUnit* unit);    // 0x5510d0 (inline in the factory)
     ~SFlyingDriver() override;                          // 0x550150
+    void GetClassDescriptor(void** obj, const SUnitClassDesc** desc) override;   // 0x553200 (M4 S, savedesc.cpp)
     bool MoveTowardNextWayPoint(SGhostFrame* frame) override;   // 0x5586a0
     bool FindGlobalPath(int size) override;             // 0x551ef0
     bool FindLocalPath(SGhostFrame* frame) override;    // 0x552410

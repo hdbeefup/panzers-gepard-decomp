@@ -19,6 +19,12 @@ add_library(pzgame STATIC
     packets_rec.cpp
     unitsave.h
     unitsave.cpp
+    # M4 S: save / load
+    savedesc.cpp
+    unit_afterload.cpp
+    gamelogic_save.cpp
+    world_save.cpp
+    campaign_save.cpp
     iunit.h
     idriver.h
     iunitanim.h

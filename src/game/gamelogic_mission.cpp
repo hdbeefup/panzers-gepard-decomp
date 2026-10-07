@@ -313,20 +313,6 @@ void SGameLogic::StartPacketPlayback(const char* file)
     g_Campaign->ReadReplayHeader(PlaybackStream);                 // 0x595780
 }
 
-void SGameLogic::SaveGameState(SStream* s)
-{
-    STUB_LOG("SGameLogic::SaveGameState (0x57e110)");
-    PZ_M3_TRACE("SGameLogic::SaveGameState (0x57e110)");
-    // HD writes 19 chunks (docs/FORMATS.md "Save game"): PLY3 0x5fb160,
-    // AIGP 0x57db20, UNIS 0x5fb630 (every unit: 'UNIT' {'v100', class,
-    // SUnit::Save 0x5be320}), EEFS 0x5fb030, "CAM " (0x5e6a70, 20 bytes),
-    // LOCS 0x5fb140, TRIG 0x5fb430 (when World+0x7478), RTRG 0x57d9c0, TVAR
-    // 0x57dd60, ECHO 0x57e4f0, CNTR {+0x14c, +0x14d, +0x174, +0x178}, VARS
-    // (gSaveVariables, 0x8dba58), SEED {World+0x7518}, ODDD 0x5fb020, WIR3
-    // 0x5fb7d0, MGRP 0x57db90 (twice), AMOD 0x57d8c0, WTHR 0x5fb770, OBJT.
-    // The unit / gunner / driver descriptor tables are not lifted, so the
-    // recompile writes only the campaign part of the file.
-    (void)s;
-}
+// SGameLogic::SaveGameState 0x57e110 moved to gamelogic_save.cpp (agent S, M4).
 
 } // namespace pz

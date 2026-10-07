@@ -23,6 +23,7 @@ namespace pz {
 struct SProjectileUnit : SUnit {
     SProjectileUnit(SPProjectileUnit* proto, int worldIndex);    // 0x5a3810
     ~SProjectileUnit() override;                                 // 0x5a38f0
+    void GetClassDescriptor(void** obj, const SUnitClassDesc** desc) override;   // 0x5a3930 (M4 S, savedesc.cpp)
     void InitNew(int player, const float* pos, float dir, int p4, float hp) override;   // 0x5a3950
     void RefreshDead() override;                                     // 0x5a39b0 dead refresh: removal countdown
     void RefreshTargeting() override;                            // 0x5a3990 FillNearUnits(50, 0)

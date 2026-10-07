@@ -507,6 +507,7 @@ void SGameLogic::RefreshM2()
     }
     if (w)
         w->RefreshBlockMapDirtyRect();                            // 0x604620
+    M4SaveTestHook(this);                                         // recompile-only PZ_M4_SAVE_AT, between two ticks (gamelogic_save.cpp)
     M2NextTick();
 }
 

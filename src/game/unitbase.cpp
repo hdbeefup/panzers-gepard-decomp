@@ -360,8 +360,7 @@ void SUnit::SetGlobalState(int state, int p2)
 {
     GlobalState = PrevGlobalState = DesiredState = _ec = 0;
     _f0 = StateChanging = false;
-    StateChangeTime = 0;
-    _f8 = 0;
+    StateChangeTime = 0;                                      // HD clears +0xe0..+0xf7 only; +0xf8 (MoveState) stays
     GlobalState = state;
     _ec = state;
     if (!Anim)
