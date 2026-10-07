@@ -8,6 +8,7 @@
 add_executable(panzers WIN32
     panzers_main.cpp
     crashhandler.cpp
+    panzers.rc
 )
 
 set(PANZERS_ENGINE_LIBS core 3dengine pz3d pzworld pzgame window common sound platform panzersgame)
