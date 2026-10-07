@@ -95,6 +95,15 @@ add_library(pzgame STATIC
     waster.cpp
     flying.cpp
     flyingdriver.cpp
+    # M4 TR: trains (class 10) on the ROD2 roads
+    rail.h
+    rail.cpp
+    trainunit.h
+    trainunit.cpp
+    traindriver.h
+    traindriver.cpp
+    trainanim.h
+    trainanim.cpp
     parachute.cpp
 )
 target_include_directories(pzgame PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

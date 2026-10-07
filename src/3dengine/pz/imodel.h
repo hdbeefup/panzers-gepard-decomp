@@ -88,7 +88,8 @@ struct SIModel {
     virtual void Slot_98() = 0;                             // +0x98 HD 0x6d7910 (0 arg dwords)
     virtual void Slot_9C() = 0;                             // +0x9c HD 0x6dad50 (2 arg dwords)
     virtual void Slot_A0() = 0;                             // +0xa0 HD 0x6d6ce0 (8 arg dwords)
-    virtual void Slot_A4() = 0;                             // +0xa4 HD 0x6d61c0 (6 arg dwords)
+    virtual SBlockBitmap* BuildNodeBlockBitmapAt(int cellsPerUnit, const char* node, const float* pos,
+                                                 float angle, float tiltX, float tiltZ) = 0; // +0xa4 HD 0x6d61c0 (6 arg dwords) (TR typed) +0xa8 with the model moved to pos / SetRotation(angle, tilt) for the call (trains)
     virtual SBlockBitmap* BuildNodeBlockBitmap(int cellsPerUnit, const char* node) = 0; // +0xa8 HD 0x6d5ca0 (2 arg dwords) new cell bitmap of the node mesh's triangles projected on XZ (logic pose); null when the node is missing ("Block" in SDoodad::UpdatePosition)
     virtual void GetNodePoints(const char* node, SVec3Array* out) = 0; // +0xac HD 0x6d8090 (2 arg dwords) the node mesh vertices in the logic pose (out cleared first; empty without the node) (M3-I)
     virtual SHeightPatch* GetHeightPatch() = 0;             // +0xb0 HD 0x6d6700 (0 arg dwords) "Platform" node heights per terrain vertex; null without the node (M3-I)

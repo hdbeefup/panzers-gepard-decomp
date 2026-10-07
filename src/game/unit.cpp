@@ -58,17 +58,7 @@ void SUnit::Slot_60(int p1)
     (void)p1;
 }
 
-void SUnit::Slot_6C()
-{
-    STUB_LOG("SUnit::Slot_6C (0x5c2390)");
-    PZ_M2_TRACE("SUnit::Slot_6C (0x5c2390)");
-}
-
-void SUnit::Slot_74()
-{
-    STUB_LOG("SUnit::Slot_74 (0x5b5c10)");
-    PZ_M2_TRACE("SUnit::Slot_74 (0x5b5c10)");
-}
+// SUnit::Tow 0x5c2390 and SUnit::GhostFramesAddTop 0x5b5c10: trainunit.cpp.
 
 // PANZERS 0x55ce70 (typed by M3-C3, the slot owner)
 float* SUnit::GetEntrance(float* out3)

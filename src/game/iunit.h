@@ -77,9 +77,10 @@ struct SIUnit {
     virtual void Slot_60(int p1) = 0;                             // +0x60 HD 0x5468c0 (1 arg dwords) (M3-C5: empty in SUnit)
     virtual bool UnloadUnit(int unit) = 0;                       // +0x64 HD 0x5c51d0 (1 arg dwords) (name guessed, M3-C2) a stored unit (or -1: all, +0x68) gets out next to the vehicle / building; crew seats of the group handed on
     virtual void UnloadAll() = 0;                                // +0x68 HD 0x5c6000 (0 arg dwords) (name guessed, M3-C2) +0x64 for every stored unit, last first
-    virtual void Slot_6C() = 0;                                  // +0x6c HD 0x5c2390 (1 arg dwords)
+    virtual void Tow(int unit) = 0;                              // +0x6c HD 0x5c2390 (1 arg dwords) (TR: name guessed) hooks unit (heap index) behind this one (+0x2d8); trains.cpp
     virtual void Remove(bool p1) = 0;                            // +0x70 HD 0x5c2df0 (1 arg dwords) [menu: periodic<1/s] (name guessed) once per removed unit
-    virtual void Slot_74() = 0;                                  // +0x74 HD 0x5b5c10 (9 arg dwords) symbol: SUnit::GhostFrames_AddTop
+    virtual void GhostFramesAddTop(float x, float y, float z, float dir, float dist, SIUnit* towed,
+                                   float* outPos, float* outDir, float* outDist) = 0; // +0x74 HD 0x5b5c10 (9 arg dwords) symbol: SUnit::GhostFrames_AddTop (TR typed): where `towed` stands behind a tower at pos / dir (rail length dist, trains); trainunit.cpp
     virtual float* GetEntrance(float* out3) = 0;                 // +0x78 HD 0x55ce70 (1 arg dwords) (name guessed, M3-C3) the point a unit walks to to enter: +0x8c (x, y, z); buildings 0x548200 the door; returns out3
     virtual float GetEntranceDir() = 0;                          // +0x7c HD 0x55ce60 (0 arg dwords) (name guessed, M3-C3) +0xb0; buildings 0x5481f0
     virtual bool HasWoundedMember() = 0;                         // +0x80 HD 0x54a240 (0 arg dwords) [menu: >=1/s via SPanzersSquadUnit 0x59d670] (name guessed) squads: any member with +0x114 below the threshold

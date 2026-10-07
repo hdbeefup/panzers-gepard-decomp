@@ -304,7 +304,7 @@ struct SPFlyingAnimation : SPUnitAnimation {           // 0x34, vftable 0x7fd79c
 };
 
 struct SPTrainAnimation : SPVehicleAnimation {         // 0x3c, vftable 0x7fa9ac
-    SIUnitAnimation* CreateAnimation(SIUnit* unit) override; // 0x5c7990 (not lifted)
+    SIUnitAnimation* CreateAnimation(SIUnit* unit) override; // 0x5c7990 (trainanim.cpp)
 };
 
 struct SPBoatAnimation : SPVehicleAnimation {          // 0x3c, vftable 0x7fa9c4

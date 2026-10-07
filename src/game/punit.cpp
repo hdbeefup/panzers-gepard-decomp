@@ -15,6 +15,7 @@
 #include "idriver.h"
 #include "unitanim.h"
 #include "singleunit.h"
+#include "trainunit.h"
 #include "squadunit.h"
 #include "buildingunit.h"
 #include "worldapi.h"
@@ -575,7 +576,7 @@ SIUnit* SPFlyingUnit::CreateUnit(int worldIndex)
 // PANZERS 0x5a4b30
 SPTrainUnit::SPTrainUnit()
 {
-    memset(_13c, 0, sizeof(_13c));
+    // +0x13c..+0x148 zeroed by SPSingleUnit() (ChildUnits, DemolishType).
 }
 
 // PANZERS 0x5a6580
@@ -597,12 +598,11 @@ void SPTrainUnit::LoadHeader(SUPropStruct* unit)
     StorageType = ct->GetEnum("StorageType");
 }
 
+// PANZERS 0x5a5d70
 SIUnit* SPTrainUnit::CreateUnit(int worldIndex)
 {
-    STUB_LOG("SPTrainUnit::CreateUnit (0x5a5d70) STrainUnit");
     PZ_M2_TRACE("SPTrainUnit::CreateUnit (0x5a5d70)");
-    (void)worldIndex;
-    return nullptr;
+    return new STrainUnit(this, worldIndex);                  // new 0x3b4, 0x5b0e70 (trainunit.cpp)
 }
 
 // ---------------------------------------------------------------------------

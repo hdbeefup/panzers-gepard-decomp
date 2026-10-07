@@ -98,9 +98,10 @@ struct SUnit : SIUnit {
     void Slot_60(int p1) override;                                // 0x5468c0
     bool UnloadUnit(int unit) override;                          // 0x5c51d0
     void UnloadAll() override;                                   // 0x5c6000
-    void Slot_6C() override;
+    void Tow(int unit) override;                                 // 0x5c2390 (trainunit.cpp)
     void Remove(bool p1) override;                               // 0x5c2df0
-    void Slot_74() override;
+    void GhostFramesAddTop(float x, float y, float z, float dir, float dist, SIUnit* towed,
+                           float* outPos, float* outDir, float* outDist) override;   // 0x5b5c10 (trainunit.cpp)
     float* GetEntrance(float* out3) override;                    // 0x55ce70
     float GetEntranceDir() override;                             // 0x55ce60
     bool HasWoundedMember() override;                            // 0x54a240

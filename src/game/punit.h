@@ -273,12 +273,13 @@ struct SPBuildingUnit : SPUnit {
     SUnitArray<SPBuildingProduct> Products; // +0x154 (0x5a5a00)
 };
 
-struct SPTrainUnit : SPUnit {
+// HD SPTrainUnit derives from SPUnit and zeroes +0x13c..+0x148 itself; the
+// layout is SPSingleUnit's (no child units, DemolishType 0) and STrainUnit is
+// an SSingleUnit, so the recompile derives it from SPSingleUnit (TR).
+struct SPTrainUnit : SPSingleUnit {
     SPTrainUnit();                                               // 0x5a4b30
     void LoadHeader(SUPropStruct* unit) override;                // 0x5a6580
     SIUnit* CreateUnit(int worldIndex) override;                 // 0x5a5d70
-
-    int      _13c[4];                       // +0x13c
 };
 
 PZ_HD_SIZE(SPSingleUnit, kHdSizeSPSingleUnit);

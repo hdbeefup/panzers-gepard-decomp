@@ -93,7 +93,8 @@ struct SModel : SIModel, SAttachable {
     void Slot_98() override;
     void Slot_9C() override;
     void Slot_A0() override;
-    void Slot_A4() override;
+    SBlockBitmap* BuildNodeBlockBitmapAt(int cellsPerUnit, const char* node, const float* pos,
+                                         float angle, float tiltX, float tiltZ) override;   // 0x6d61c0
     SBlockBitmap* BuildNodeBlockBitmap(int cellsPerUnit, const char* node) override;
     void GetNodePoints(const char* node, SVec3Array* out) override;   // +0xac 0x6d8090
     SHeightPatch* GetHeightPatch() override;                     // +0xb0 0x6d6700

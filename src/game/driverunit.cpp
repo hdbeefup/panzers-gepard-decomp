@@ -591,10 +591,11 @@ static void Env_WorldUnitMoved(int unit, float speed)
 #define Env_UnitOnDriverStucked SUnit::EnvOnDriverStucked         // 0x5bcd20
 #define Env_UnitIsPosInRange SUnit::EnvIsPosInRange               // 0x5b6fd0
 #define Env_UnitGetAimer SUnit::EnvGetAimer                       // 0x5b9ce0
-static void Env_UnitTowedFollow(SIUnit*, float, float, float, float, float, SIUnit*, float*,
-                                float*, float*)
+// unit +0x74 GhostFrames_AddTop (SUnit 0x5b5c10, STrainUnit 0x5b0f00; TR).
+static void Env_UnitTowedFollow(SIUnit* unit, float x, float y, float z, float dir, float dist,
+                                SIUnit* towed, float* outPos, float* outDir, float* outDist)
 {
-    DrvPanic("SUnit::GhostFrames_AddTop (unit +0x74) for a towed unit: not lifted (no towed units in the menu)");
+    unit->GhostFramesAddTop(x, y, z, dir, dist, towed, outPos, outDir, outDist);
 }
 // The squad side (squadrefresh.cpp).
 #define Env_SquadUnitMoveSpeed SquadEnv_MoveSpeed                 // 0x59b990

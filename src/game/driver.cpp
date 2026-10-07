@@ -9,6 +9,7 @@
 #include "driver.h"
 #include "projectile_driver.h"
 #include "flyingdriver.h"
+#include "traindriver.h"
 #include "driverunit.h"
 #include "drivermath.h"
 #include "manoeuvre.h"
@@ -1244,8 +1245,9 @@ SIPDriver* CreatePDriver(int driverType)
     case 6: return new SPProjectileDriver();             // new 0x4c (M3-C C1, projectile.cpp)
     case 3: return new SPFlyingDriver();                        // M3-C C3 (flying.cpp)
     case 12: return new SPPanzersParachuteDriver();             // M3-C C3 (parachute.cpp)
-    case 7: case 8: case 9: case 13: {
-        // SPSquad/SquadMember/ChildUnit/Train:
+    case 13: return new SPTrainDriver();                        // TR (traindriver.cpp)
+    case 7: case 8: case 9: {
+        // SPSquad/SquadMember/ChildUnit:
         // not used by the menu.
         SPDriver* p = new SPDriver();
         p->Type = driverType;

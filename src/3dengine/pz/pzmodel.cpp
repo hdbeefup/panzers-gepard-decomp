@@ -792,7 +792,41 @@ void SModel::SetFlags(unsigned flags)
 void SModel::Slot_98() { STUB_LOG("SModel::Slot_98 (0x6d7910)"); }
 void SModel::Slot_9C() { STUB_LOG("SModel::Slot_9C (0x6dad50)"); }
 void SModel::Slot_A0() { STUB_LOG("SModel::Slot_A0 (0x6d6ce0)"); }
-void SModel::Slot_A4() { STUB_LOG("SModel::Slot_A4 (0x6d61c0)"); }
+
+// PANZERS 0x6d61c0
+// The node bitmap of BuildNodeBlockBitmap with the model put at pos /
+// angle / tilt for the call (no interpolation); the pose (+0x88..+0xc4)
+// and the flags are restored afterwards.
+SBlockBitmap* SModel::BuildNodeBlockBitmapAt(int cellsPerUnit, const char* node, const float* pos,
+                                             float angle, float tiltX, float tiltZ)
+{
+    float savePos[3], saveScl, saveQuat[4], savePrevPos[3], savePrevScl, savePrevQuat[4];
+    memcpy(savePos, Pos, sizeof(savePos));
+    saveScl = Scl;
+    memcpy(saveQuat, Quat, sizeof(saveQuat));
+    memcpy(savePrevPos, PrevPos, sizeof(savePrevPos));
+    savePrevScl = PrevScl;
+    memcpy(savePrevQuat, PrevQuat, sizeof(savePrevQuat));
+    unsigned saveFlags = Flags;
+    Flags = saveFlags & ~7u;
+    PrevDirty = true;
+    SetPosition(pos[0], pos[1], pos[2]);                          // +0x18
+    SetRotation(angle, tiltX, tiltZ);                             // +0x1c
+    ExtraFrame = Scene->FrameCount;                               // scene +0xa0
+    if (PrevDirty) {
+        PrevDirty = false;
+        ComputeNodes(ExtraFrame, nullptr, true);                  // 0x6dc7b0(frame, 0, 1)
+    }
+    SBlockBitmap* bm = BuildNodeBlockBitmap(cellsPerUnit, node);  // +0xa8
+    Flags = saveFlags;
+    memcpy(Pos, savePos, sizeof(savePos));
+    Scl = saveScl;
+    memcpy(Quat, saveQuat, sizeof(saveQuat));
+    memcpy(PrevPos, savePrevPos, sizeof(savePrevPos));
+    PrevScl = savePrevScl;
+    memcpy(PrevQuat, savePrevQuat, sizeof(savePrevQuat));
+    return bm;
+}
 
 // PANZERS 0x661a50
 // SBlockBitmap ctor (the caller does operator new(0x1c)): w x h cells at

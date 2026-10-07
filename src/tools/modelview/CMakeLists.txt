@@ -41,6 +41,7 @@ add_executable(animview WIN32
     ${ANIMVIEW_GAME_DIR}/unitanim_vehicle.cpp
     ${ANIMVIEW_GAME_DIR}/unitanim_model.cpp
     ${ANIMVIEW_GAME_DIR}/unitanim_props.cpp
+    ${ANIMVIEW_GAME_DIR}/trainanim.cpp
     ${ANIMVIEW_GAME_DIR}/m2trace.cpp
 )
 target_include_directories(animview PRIVATE ${PANZERS_SRC_DIR}/window ${PANZERS_SRC_DIR}/sound

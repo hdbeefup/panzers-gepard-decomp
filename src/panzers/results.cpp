@@ -159,6 +159,8 @@ void PzForcedMissionEnd(int* result, bool* out)
         *result = forced;
         pz::g_Campaign->SetMissionResult(forced);                  // as the trigger would (test only)
     }
+    if (getenv("PZ_M3_FORCE_END_ONCE"))                            // TR: end the first mission only (reach mission 2)
+        forced = 0;
 }
 
 void PzDeleteStatisticMenu(SGameView* v)

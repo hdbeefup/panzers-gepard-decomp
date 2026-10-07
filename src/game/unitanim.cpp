@@ -550,12 +550,7 @@ void SPFlyingAnimation::LoadProps(SIPUnit* punit, const SAnimProps& p)
 
 // SPFlyingAnimation::CreateAnimation 0x5c77c0: flying.cpp (M3-C C3).
 
-SIUnitAnimation* SPTrainAnimation::CreateAnimation(SIUnit* unit)
-{
-    STUB_LOG("SPTrainAnimation::CreateAnimation (0x5c7990)");
-    (void)unit;
-    return nullptr;
-}
+// SPTrainAnimation::CreateAnimation 0x5c7990: trainanim.cpp (TR).
 
 SIUnitAnimation* SPBoatAnimation::CreateAnimation(SIUnit* unit)
 {

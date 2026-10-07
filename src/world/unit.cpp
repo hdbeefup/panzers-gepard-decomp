@@ -141,7 +141,7 @@ int SWorld::CreateUnit(SUnitDef* def)
                 Logger.g->Warning("SWorld::CreateUnit: Cannot create towed unit '%s'", SStr(def->TowedUnits[i].ClassName));
             continue;
         }
-        GetUnit(idx)->Slot_6C();                                  // vtbl +0x6c (tow; not lifted)
+        GetUnit(idx)->Tow(c);                                     // vtbl +0x6c (0x5c2390)
     }
     CampaignUnitCreated(idx, def->Player);                        // campaign statistics (DAT_00929a0c; M3 agent F)
     return idx;

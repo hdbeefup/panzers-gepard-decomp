@@ -578,8 +578,13 @@ void SUnit::SetPosition(float x, float z, int dirBits, int yrelBits)
         // towed, &pos, &dir, &+0x300)), goes back on it and is teleported
         // there with its own +0x24.
         SUnit* t = WorldUnit(Towed);
-        (void)t;
-        STUB_LOG("SUnit::SetPosition (0x5c1980) towed unit (+0x74)");
+        t->SetOnBlockMap(false);
+        GhostFramesAddTop(Pos[0], Pos[1], Pos[2], Dir, _300, t, t->Pos, &t->Dir, &t->_300);   // +0x74 (TR)
+        t->SetOnBlockMap(true);
+        int tdir, tyrel;
+        memcpy(&tdir, &t->Dir, 4);
+        memcpy(&tyrel, &t->Yrel, 4);
+        t->SetPosition(t->Pos[0], t->Pos[2], tdir, tyrel);    // +0x24
     }
     if (_7c && (_104 & 1) != 0) {
         SUnit* parent = WorldUnit(Parent);

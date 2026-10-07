@@ -771,6 +771,54 @@ void SWorld::LoadRoads(SStream* s)
     }
 }
 
+// PANZERS 0x601c10 (path-length part, agent TR)
+// The control points' path length (+0x18) that the trains run on: each
+// segment i .. i + 1 is sampled at t = k / (n + 1), k < n, n = round(chord /
+// Step) (at least 1), on the Hermite curve of the points with the tangents
+// scaled by the chord; the length is the sum of the distances between
+// consecutive samples, and a point gets the length reached before its own
+// segment. HD writes no length for the last point (its writer was not
+// found; 0 would pin every train to the road's end): the recompile gives it
+// the length plus the chord from the last sample. PathPoints (path finder)
+// are still not built.
+static void BuildRoadLengths(SMapRoad* r)
+{
+    int n = r->PointCount;
+    float L = 0.0f;
+    float prev[2] = { 0.0f, 0.0f };
+    bool havePrev = false;
+    for (int i = 0; i < n - 1; ++i) {
+        SRoadControlPoint& a = r->Points[i];
+        SRoadControlPoint& b = r->Points[i + 1];
+        float ax = a.X, az = a.Z, bx = b.X, bz = b.Z;
+        float len = (float)sqrt((double)((bz - az) * (bz - az) + (bx - ax) * (bx - ax)));
+        int samples = (int)floor((double)(len / r->Step) + 0.5);  // ROUND (fistp)
+        if (samples == 0)
+            samples = 1;
+        a.Length = L;
+        float div = (float)(samples + 1);
+        for (int k = 0; k < samples; ++k) {
+            float t = (float)k / div;
+            float t2 = t * t, t3 = t2 * t;
+            float h10 = (t3 - t2 * 2.0f) + t;
+            float h01 = t2 * 3.0f - t3 * 2.0f;
+            float h00 = (t3 * 2.0f - t2 * 3.0f) + 1.0f;
+            float x = b.DirX * len * (t3 - t2) + ax * h00 + bx * h01 + len * a.DirX * h10;
+            float z = b.DirZ * len * (t3 - t2) + az * h00 + bz * h01 + len * a.DirZ * h10;
+            if (havePrev)
+                L = (float)sqrt((double)((prev[0] - x) * (prev[0] - x) + (prev[1] - z) * (prev[1] - z))) + L;
+            prev[0] = x;
+            prev[1] = z;
+            havePrev = true;
+        }
+    }
+    if (n > 1) {
+        SRoadControlPoint& last = r->Points[n - 1];
+        last.Length = L + (float)sqrt((double)((prev[0] - last.X) * (prev[0] - last.X) +
+                                               (prev[1] - last.Z) * (prev[1] - last.Z)));
+    }
+}
+
 void SMapRoad::Load(SStream* s)
 {
     Texture = -1;
@@ -800,6 +848,7 @@ void SMapRoad::Load(SStream* s)
     }
     Road = -1;
     Texture = -1;
+    BuildRoadLengths(this);                                       // 0x601c10 path lengths (TR)
     Build(Flags, true);                                           // 0x601c10(flags, 1)
 }
 

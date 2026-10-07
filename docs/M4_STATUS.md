@@ -329,3 +329,57 @@ truck, T5 started). The screens match the original's `o_g1` / `o_g2`.
   board alpha fade of 0x578b00.
 - The tutorial was replayed to objective 3 (frame 2011); the later objectives (house, AT rifles, the
   captured gun, the towed howitzer, the forest, the bomber) are not verified.
+
+- ~~Trains (class 10) in ger-02.~~ See "Trains" below.
+
+## Trains (agent TR, branch `m4-trains`, 2026-10-07)
+
+HD has no separate rail network: a train stands on a ROD2 road (World+0x73fc, `SMapRoad`) and is
+measured by the control points' path length (+0x18). The locomotive drives along the road; the
+carriages and platforms are its towed chain (the map's towed units, `SUnit::Tow`), each placed the
+hook + hole distance behind on the same road.
+
+| What | HD | Where |
+|---|---|---|
+| `SPTrainUnit::CreateUnit` (was a stub returning null: the ger-02 panic) | 0x5a5d70 | `punit.cpp` |
+| `STrainUnit` (0x3b4, an SSingleUnit; +0x3ac road, +0x3b0 "Block" footprint): ctor, dtor, Uninit, Init, InitNew, InitRail, +0x14, SetPosition (snaps to the track), CalcTowedUnitPosAndDir (+0x74), EC_Follow (empty), MarkCurrentBlockMap (+0x198), +0x19c, MarkBlockMap, TestBlockMap (model "Block" bitmap at a pose), SetUnitSize (footprint diagonal) | 0x5b0e70, 0x5b0ed0, 0x5b15e0, 0x5b1650, 0x5b1680, 0x5b1be0, 0x5b16d0, 0x5b1980, 0x5b0f00, 0x5b1620, 0x5b16f0, 0x5b1400, 0x5b17c0, 0x5b1420, 0x5b1b70 | `trainunit.*` |
+| `SUnit::Tow` (+0x6c, was `Slot_6C` stub; now called by SWorld::CreateUnit for towed units), tow speed, trigger event 7 "starts towing", `SUnit::GhostFrames_AddTop` (+0x74, was `Slot_74` stub); SUnit::SetPosition now moves the towed unit; the driver env's towed-follow calls +0x74 | 0x5c2390, 0x5c1f00, 0x571660, 0x5b5c10 | `trainunit.cpp`, `driverunit.cpp`, `unitbase.cpp` |
+| `STrainDriver` / `SPTrainDriver` (DriverType 13): Load, factory, SetTarget (only on the train's road; free track for AI players), MoveTowardNextWayPoint (path length += speed), FindGlobalPath, FindLocalPath | 0x556560, 0x551340, 0x5503c0, 0x557ec0, 0x559230, 0x551fa0, 0x552b50 | `traindriver.*` |
+| `STrainAnimation` (0xc8, an SVehicleAnimation): factory, dtor, InitModel ("vonat" sequence, flags 0x17), UpdateModel (terrain tilt, sequence advanced by speed) | 0x5c7990, 0x5c7490, 0x5c9350, 0x5cce80 | `trainanim.*` |
+| Track queries: project on a road, nearest road (8 units), `SWorld::GetPositionOnRoad` (Hermite), Hermite point / tangent, point-segment distance | 0x5e7ae0, 0x5e8750, 0x5e98e0, 0x5f54f0, 0x5f55d0, 0x5e4e90 | `rail.*` |
+| Block map by bitmap: occupancy +-1 (World+0x74f0), occupied test, block-bit test | 0x5f45f0, 0x5d9cf0, 0x5dc6b0 | `rail.cpp` |
+| `SModel` +0xa4: the node block bitmap at a given pose (was `Slot_A4` stub) | 0x6d61c0 | `pz/pzmodel.cpp` |
+
+Interface changes (typed slots): SIUnit +0x6c `Tow(int)`, +0x74 `GhostFramesAddTop(x, y, z, dir,
+dist, towed, outPos, outDir, outDist)`, SIModel +0xa4 `BuildNodeBlockBitmapAt`. `SPTrainUnit` now
+derives from `SPSingleUnit` (same layout; HD zeroes +0x13c..+0x148 itself). Test switch:
+`PZ_M3_FORCE_END_ONCE=1` (with `PZ_M3_FORCE_END`) ends only the first mission, so mission 2 plays.
+
+Also lifted: the path-length part of the road build 0x601c10 (`mapload.cpp` BuildRoadLengths:
+Hermite samples per segment, n = round(chord / Step)). Without it every length was 0 and every train
+snapped to its road's start. HD writes no length for the last control point (no writer found), so
+the recompile adds the last chord there. PathPoints (the path finder's samples) are still not built.
+
+Verified (`scratchpad\m4tr\shots\g10_m1.png`, our build only, `h\ger2.ps1`): New Game -> German ->
+Normal -> ger-01 (`PZ_M3_FORCE_END=11 PZ_M3_FORCE_END_ONCE=1`) -> results -> Continue -> ger-02
+(MenuToLoad 2: no briefing) loads and plays 151 s without a crash or panic, then exits cleanly
+(WM_CLOSE). Both trains snap onto their tracks: road 10 (platform and carriages, lengths 162 / 238 /
+242 / 246) and road 11 (the locomotive at 100.7, carriages 95.0 / 90.6 / 86.2 / 81.8 / 77.5, the
+towing gaps). In the first two minutes no trigger orders the locomotive, so it stands still (driver 0
+active, speed 0). The carriages are drawn on the rails along the track. `PZ_TR_TEST=1` logs the
+trains every 200 frames, shows them through the fog of war and moves the camera to the first
+locomotive (a test hook in `STrainUnit::RefreshMisc`; HD has no override there).
+Menu CRC (75 s): 0 of 1,180 frames differ. tc1 replay (`PZ_M3_REPLAY_PAUSED=1`): frames 0..3900 equal (3,901 compared), 0 "Inconsistency" lines.
+
+Census: 2280 -> 2313 lifted, 1317 SWINE-shared, 186 -> 181 stubs (m2 57 -> 52: Slot_6C, Slot_74,
+SModel Slot_A4, SPTrainUnit::CreateUnit, SPTrainAnimation::CreateAnimation).
+
+Left:
+- Train movement is not seen in a run yet: no order reaches the locomotive in the first two minutes
+  of ger-02. The driver path (SetTarget on the same road, the ghost moving by path length, carriages
+  following through +0x74) is lifted but untested in play.
+- `STrainUnit` +0x1c (class descriptor 0x8dc388 "SSingleUnit", for the save) is not overridden.
+- The board of SSingleUnit (0x5ae560, +0x14) is still the SUnit stub.
+- SUnit::GhostFrames_AddTop 0x5b5c10: the towed unit's position comes from the decompiler's view
+  of a garbled stack (y - towed y assumed); trucks towing guns are untested.
+- PathPoints of the roads (0x601c10 first part) for the path finder.
