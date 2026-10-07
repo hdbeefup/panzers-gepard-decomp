@@ -132,7 +132,7 @@ void PzHoverCursor(SGameView* view, int x, int y)
     PzViewSetCursor(view, cursor, RelationColor(unit));
 }
 
-// PANZERS 0x620d7c (0x620bc0 case 4: the target cursor 0x14 and its colour)
+// PANZERS 0x620bc0 (piece: case 4 at 0x620d7c, the target cursor 0x14 and its colour)
 void PzTargetCursor(SGameView* view, int unit)
 {
     PzViewSetCursor(view, 0x14, unit < 0 ? 0xffffffffu : RelationColor(unit));

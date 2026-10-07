@@ -27,6 +27,8 @@
 #include "stream.h"
 #include "properties.h"
 #include "logger.h"
+#include "iconcert.h"
+extern SIConcert* Concert;   // HD 0x8f1c5c
 #include "stub_log.h"
 
 namespace pz {
@@ -51,6 +53,69 @@ static void ReadWorldString(SStream* s, SString* out)
     out->buf = new char[len + 1];
     s->Read(out->buf, len);
     out->buf[len] = 0;
+}
+
+// PANZERS 0x5f0e30
+// One ambient sound source: 'AMBI' chunk, version 'v100', the file name,
+// x, y (above the ground), z, the minimum distance; the sound is cached
+// (Concert +0x24 positional).
+static void LoadAmbientSound(SWorld::SAmbientSound* a, SStream* s)
+{
+    if (s->ReadChunkHeader() != 0x49424d41)                       // 'AMBI'
+        throw "Expected ambient chunk";
+    if (s->ReadInt() != 0x30303176)                               // 'v100'
+        throw "Unsupported ambient version";
+    ReadWorldString(s, &a->Name);                                 // 0x56e7d0
+    a->X = s->ReadFloat();
+    a->Y = s->ReadFloat();
+    a->Z = s->ReadFloat();
+    a->MinDistance = s->ReadFloat();
+    a->Cache = Concert ? Concert->PrecacheSound(a->Name.buf ? a->Name.buf : "", true) : -1;   // Concert +0x24(name, 1)
+    s->ReadChunkValidate(0);                                      // 0x65d460
+}
+
+// PANZERS 0x5f02a0
+// SHeap<SAmbientSound>::Load: the old sources go (0x5dd3e0), then size,
+// free head, count and per slot its link (a live slot loads its record).
+void SWorld::LoadAmbientSounds(SStream* s)
+{
+    ClearAmbientSounds();                                         // 0x5dd3e0
+    SHeap<SAmbientSound>& h = AmbientSounds();
+    unsigned n = (unsigned)s->ReadInt();
+    if (n > 0x1000000)
+        throw "Invalid array size";
+    h.Size = (int)n;
+    if (h.Max < (int)n) {
+        h.Max = (int)n;
+        h.Array = (SHeapElem<SAmbientSound>*)realloc(h.Array, n * sizeof(SHeapElem<SAmbientSound>));
+    }
+    if (h.Array && h.Max > 0)
+        memset(h.Array, 0, (size_t)h.Max * sizeof(SHeapElem<SAmbientSound>));
+    h.Free = s->ReadInt();
+    h.Count = s->ReadInt();
+    for (int i = 0; i < h.Size; ++i) {
+        h.Array[i].Next = s->ReadInt();
+        if (h.Array[i].Next == kHeapLive)
+            LoadAmbientSound(&h.Array[i].Data, s);
+    }
+}
+
+// PANZERS 0x5dd3e0
+// SHeap<SAmbientSound>::Clear: every live source's loop stops (Concert
+// +0x3c) and its name is freed.
+void SWorld::ClearAmbientSounds()
+{
+    SHeap<SAmbientSound>& h = AmbientSounds();
+    for (int i = 0; i < h.Size; ++i) {
+        if (h.Array[i].Next != kHeapLive)
+            continue;
+        if (Concert)
+            Concert->RemoveSound(h.Array[i].Data.Sound);
+        FreeSString(&h.Array[i].Data.Name);
+    }
+    h.Size = 0;
+    h.Free = -1;
+    h.Count = 0;
 }
 
 static float ReadF(SStream* s)
@@ -1122,8 +1187,8 @@ void SWorld::LoadEntities(SStream* s)
         case 0x50474941:     // AIGP (0x56e2c0, then 0x55ccc0/0x601060 per group)
             AIGroupsLoad(this, s);                                // aigroup.cpp (M3-C)
             break;
-        case 0x53424d41:     // AMBS (0x5f02a0)
-            KeepRawChunk(s, tag, "ambient sounds");
+        case 0x53424d41:     // AMBS
+            LoadAmbientSounds(s);                                 // 0x5f02a0
             break;
         case 0x53444e55:     // UNDS
             SetLoadingStep(3);                                    // 0x5fedb0(3)

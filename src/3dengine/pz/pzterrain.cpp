@@ -1021,6 +1021,7 @@ void STerrain::RenderLate(SViewport* vp)
     RenderFlora(vp);
 }
 
+// PANZERS 0x6f33c0 (piece: the flora part)
 // HD 0x6f33c0 flora part (reimplemented order: HD walks parcels and vertices
 // back to front by the camera yaw octant; here row by row. Placement is the
 // HD one: vertex with blend byte 0xff, jitter table by (z & 63, x & 63),

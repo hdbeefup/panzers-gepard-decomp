@@ -213,6 +213,21 @@ struct SWorld {
         unsigned char _19[3];
     };
     SHeap<SDoodadAnim>& DoodadAnims() { return *(SHeap<SDoodadAnim>*)((unsigned char*)this + 0x158); }
+    // World+0x658: the ambient sound sources of the map (AMBS, element 0x28).
+    struct SAmbientSound {
+        SString Name;        // +0x00 the sound file
+        float X;             // +0x08
+        float Y;             // +0x0c height above the ground
+        float Z;             // +0x10
+        float MinDistance;   // +0x14 (x 1.2 when played)
+        int   Cache;         // +0x18 Concert +0x24(name, 1)
+        int   Sound;         // +0x1c the playing loop (Concert +0x38), -1 / 0 none
+    };
+    SHeap<SAmbientSound>& AmbientSounds() { return *(SHeap<SAmbientSound>*)((unsigned char*)this + 0x658); }
+    void LoadAmbientSounds(SStream* s);                        // 0x5f02a0 AMBS
+    void ClearAmbientSounds();                                 // 0x5dd3e0
+    void RemoveAmbientSound(int i);                            // 0x5f72c0
+    void StopAmbientSounds();                                  // 0x5f5140 (disable_ambient_sounds)
     int  AllocDoodadAnim();                                    // 0x5d8b90 SHeap<0x1c>::Alloc on +0x158
     void UnitMoved(int unit, float wantedSpeed);               // 0x5e4870 (drivers, after each move)
     void CrushDoodad(int doodad, float x, float y, float z);   // 0x5e3c80 (unit position by value)

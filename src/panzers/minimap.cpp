@@ -29,7 +29,7 @@
 #include "iscene.h"
 #include "blockmap.h"
 
-// PANZERS 0x808ff0: 1/172, the minimap is 0xac x 0xac pixels.
+// HD 0x808ff0 (data): 1/172, the minimap is 0xac x 0xac pixels.
 static const double kMinimapScale = 1.0 / 172.0;
 
 SMinimap::SMinimap() : _58(0), Frame(-1), Dragging(false) { ToolTipFeatureEnabled = false; }
@@ -245,7 +245,7 @@ static bool MmSameSide(int a, int b)
     return a == b;
 }
 
-// PANZERS 0x565f1d (SGameLogic vision tick 0x565e10, the minimap part)
+// PANZERS 0x565e10 (piece: SGameLogic vision tick, the minimap part from 0x565f1d)
 // After the local player's vision map is rebuilt: the fogged copy is the map
 // with every pixel the player cannot see halved (>> 1 & 0x7f7f7f, opaque);
 // then the texture is updated. Maps up to 0x60 tiles: the HD loop assumes

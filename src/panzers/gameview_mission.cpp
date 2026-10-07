@@ -28,6 +28,8 @@
 #include "results.h"
 #include "skirmish_state.h"   // M5-SK
 
+void PzGameViewEndCheck(SGameView* view);
+
 // PANZERS 0x6201c0
 // HD order: loading backdrop 0x61f460(0); the map name; MissionResult = 0;
 // "Loading map: %s"; new SWorld; the loading icon; SWorld::LoadMap,
@@ -36,8 +38,6 @@
 // mission SGameLogic; the army prototypes; -script / -cutscene; then either
 // mission start at once (no section, -packetplay, no market) or the "Click
 // to continue" screen.
-void PzGameViewEndCheck(SGameView* view);
-
 void SGameView::LoadMap()
 {
     PZ_M3_TRACE("SGameView::LoadMap (0x6201c0)");

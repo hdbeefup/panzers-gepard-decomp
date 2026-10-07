@@ -33,6 +33,7 @@
 static const char* Gv(const char* id) { return GetText("panzers/GameView.cpp", id); }
 
 #include "settings.h"
+#include "timer.h"
 
 // SSettings +0xcc OwnIcon / +0xd0 AlliedIcon / +0xd4 EnemyIcon (HD getters
 // 0x64e060 / 0x64d900 / 0x64def0), for the unit board elements
@@ -300,7 +301,7 @@ void SUnitButton::SetUnit(int unit, bool flag)
 
 // PANZERS 0x618a10
 SHeroUnitButton::SHeroUnitButton()
-    : PhotoFont(-1), HpBar(-1), RedBox(-1), _80(0), Photo(-1), _88(0), _8c(0), Hero(-1) {}
+    : PhotoFont(-1), HpBar(-1), RedBox(-1), _80(0), Photo(-1), _88(0.0f), _8c(0.0f), Hero(-1) {}
 
 // PANZERS 0x619490
 SHeroUnitButton::~SHeroUnitButton() {}
@@ -327,6 +328,109 @@ void SHeroUnitButton::Create(int font, int glyph)
     Board->ResizeFrame(HpBar, Width - 6, 5);
     Hero = -1;                                                     // +0x90
     _80 = 0;
+}
+
+// PANZERS 0x625b60
+// The red box over the photo: hidden at 0, else red with the alpha byte of
+// -(int)(level * -255) (the HD shift wraps for levels above 1).
+void SHeroUnitButton::SetBlink(float level)
+{
+    if (level != 0.0f) {
+        Board->SetBoxColor(RedBox, 0xff0000u - ((unsigned)(int)(level * -255.0f) << 24));   // board +0x3c, 0x8043b0
+        Board->ShowFrame(RedBox, true);
+        return;
+    }
+    Board->ShowFrame(RedBox, false);
+}
+
+// PANZERS 0x625c40
+// The HP bar under the photo: green, yellow below 0.6, red below 0.3; the
+// width (Width - 6) * hp.
+void SHeroUnitButton::SetHp(float hp)
+{
+    unsigned color;
+    if ((double)hp < 0.6)                                          // 0x7f4550
+        color = (double)hp < 0.3 ? 0xffff0000u : 0xffffff00u;      // 0x7f4548
+    else
+        color = 0xff00c000u;
+    Board->SetBoxColor(HpBar, color);                              // board +0x3c
+    Board->ResizeFrame(HpBar, (int)((float)(Width - 6) * hp), 5);  // board +0x14
+}
+
+// Inline twice in 0x626690: while +0x80 counts down after an HP loss the red
+// box pulses, (sin(t * 7) * 0.07 + 1) * 1.5 with t the timer seconds
+// (0x661800, 0x7f5a48, 0x78d640, 0x7fb6a8, 0x7eed98, 0x7fe0c8); then 0.
+static float HeroBlinkLevel(SHeroUnitButton* b)
+{
+    if (b->_80 < 1)
+        return 0.0f;
+    --b->_80;
+    double t = (double)Timer.GetTickValue() / 1000.0 * 7.0;
+    return (float)((sin(t) * 0.07 + 1.0) * 1.5);
+}
+
+// PANZERS 0x626690
+// Per frame from Update 0x628430 with a hero of the local player: the photo
+// (hero font, prototype +0x34), the HP bar of the crew's first member (or
+// of the hero itself on foot, unless +0x150), and the red box that pulses
+// for 100 frames once the hero's vehicle (+0x8c) or its crew (+0x88) lost HP.
+void SHeroUnitButton::SetHero(int unit)
+{
+    if (Hero == unit) {
+        if (unit == -1) {
+            Hero = unit;
+            goto photo;
+        }
+        if (HeapUnit(Hero)->Parent >= 0) {
+            if (_8c != -1.0f) {                                    // 0x7f5a98
+                if (_8c <= HeapUnit(HeapUnit(Hero)->Parent)->HP) {
+                    SetBlink(HeroBlinkLevel(this));
+                    goto photo;
+                }
+                _80 = 100;
+            }
+            _8c = HeapUnit(HeapUnit(Hero)->Parent)->HP;
+            goto photo;
+        }
+        if (HeapUnit(Hero)->Members.Size < 1) {
+            if (!HeapUnit(Hero)->Wrecked)                          // +0x150
+                SetHp(HeapUnit(Hero)->HP);
+            goto photo;
+        }
+        _8c = -1.0f;
+        if (_88 <= HeapUnit(HeapUnit(Hero)->Members.Array[0].Unit)->HP) {
+            SetBlink(HeroBlinkLevel(this));
+        } else {
+            _80 = 100;
+            _88 = HeapUnit(HeapUnit(Hero)->Members.Array[0].Unit)->HP;
+        }
+    } else {
+        if (unit == -1) {
+            Hero = unit;
+            goto photo;
+        }
+        Hero = unit;
+        if (HeapUnit(unit)->Parent < 0) {
+            if (HeapUnit(unit)->Members.Size > 0) {
+                _8c = -1.0f;
+                _88 = HeapUnit(HeapUnit(Hero)->Members.Array[0].Unit)->HP;
+            }
+        } else {
+            _8c = HeapUnit(HeapUnit(unit)->Parent)->HP;
+            pz::SUnit* veh = HeapUnit(HeapUnit(Hero)->Parent);
+            if (veh->Members.Size > 0)
+                _88 = HeapUnit(veh->Members.Array[0].Unit)->HP;
+        }
+        Board->ShowFrame(RedBox, false);                           // board +0x18(+0x7c, 0)
+        if (HeapUnit(Hero)->Members.Size < 1)
+            goto photo;
+    }
+    SetHp(HeapUnit(HeapUnit(Hero)->Members.Array[0].Unit)->HP);
+photo:
+    if (Hero >= 0) {
+        PzSetSpriteGlyph(Photo, PhotoFont, HeapUnit(Hero)->Proto->HeroPicture);   // board +0x24
+        Board->ShowFrame(Photo, true);
+    }
 }
 
 // ===========================================================================
@@ -437,6 +541,18 @@ void SGroupIcon::Create(int font, int n)
         Board->GetFrameSize(Frame1, &w, &h);
         Resize(w, h);                                              // vtbl +0x10
     }
+}
+
+// PANZERS 0x626200
+void SGroupIcon::Redraw()
+{
+    if (BackFrame < 0)
+        return;
+    PzSetSpriteGlyph(Frame1, Font, Selected ? Glyph[1] : Glyph[0]);   // board +0x24
+    PzSetSpriteGlyph(Frame2, Font, Selected ? Glyph[3] : Glyph[2]);
+    int w = 0, h = 0;
+    Board->GetFrameSize(Frame1, &w, &h);                           // board +0x20
+    Resize(w, h);                                                  // vtbl +0x10
 }
 
 // ===========================================================================
@@ -786,6 +902,61 @@ void PzHudSetPanelMode(SGameView* v, int mode)
     Board->ShowFrame(h->PanelFrame, show);
 }
 
+// PANZERS 0x5f5970
+// SWorld: has[g] = 1 (g = 1..9) when a live unit is in group g (+0x10c);
+// has[0] = the group (0 = no group) holding every selected unit (+0x104
+// bit 0) and no unselected one, if exactly one group has selected units;
+// else 0.
+static void WorldGroupState(pz::SWorld* w, int has[10])
+{
+    int unsel[10], sel[10];
+    for (int i = 0; i < 10; ++i)
+        has[i] = unsel[i] = sel[i] = 0;
+    for (int i = 0; i < w->Units.Size; ++i) {
+        if (!w->Units.IsLive(i))
+            continue;
+        pz::SUnit* u = w->Units.Array[i].Unit;
+        int g = u->_10c;
+        if (0 < g && g < 10)
+            has[g] = 1;
+        // HD indexes its counters with any g < 10; groups are 0..9.
+        if (g < 10 && g >= 0) {
+            if ((u->_104 & 1) == 0)
+                ++unsel[g];
+            else
+                ++sel[g];
+        }
+    }
+    int found = -1;
+    for (int g = 0; g < 10; ++g) {
+        if (sel[g] == 0)
+            continue;
+        if (unsel[g] != 0 || found != -1)
+            return;
+        found = g;
+    }
+    if (found != -1)
+        has[0] = found;
+}
+
+// HD 0x56b3e0 (the selection summary of Update) starts with the heroes: the
+// first five live units (heap order) of the local player whose prototype
+// has a hero picture (+0x34 >= 0). The rest of 0x56b3e0 (the selection's
+// command flags) is not lifted.
+static void HudHeroList(pz::SWorld* w, int heroes[5])
+{
+    for (int i = 0; i < 5; ++i)
+        heroes[i] = -1;
+    int n = 0;
+    for (int i = 0; i < w->Units.Size; ++i) {
+        if (!w->Units.IsLive(i))
+            continue;
+        pz::SUnit* u = w->Units.Array[i].Unit;
+        if (u->Proto->HeroPicture >= 0 && w->LocalPlayer == u->Player && n < 5)
+            heroes[n++] = u->WorldIndex;                           // +0x74
+    }
+}
+
 // The HUD part of SGameView::Update 0x628430 that the recompile has so far.
 // HD: air support buttons from the local player's record (World +0x16c,
 // stride 0x48: +0x19c artillery, +0x1a0 recon, +0x1a4 fighter, +0x1a8
@@ -812,6 +983,34 @@ void PzHudUpdate(SGameView* v)
             buttons[i]->SetVisible(on);
         sprintf(buf, "%d", support[i]);
         Board->SetText(h->SupportCount[i], g_PzFont[PZF_SANS14], 0, buf);
+    }
+    // The groups (0x628ed8): the top-left button shows glyph 0x15 while one
+    // whole group is selected (0x14 otherwise); in the game panel mode the
+    // icons of the groups that have units, the selected one highlighted.
+    int groups[10];
+    WorldGroupState(pz::g_World, groups);                          // 0x5f5970(World +0x3e40)
+    int tg = groups[0] == 0 ? 0x14 : 0x15;
+    h->PanelToggle.SetGlyphs(h->InterfaceFont, tg, tg, -1, -1);    // +0xc68, 0x537d10
+    if (v->ViewState == 0) {                                       // +0x3e80
+        h->PanelToggle.SetVisible(true);                           // vtbl +0x6c
+        for (int i = 0; i < 9; ++i) {
+            h->Groups[i].SetVisible(groups[i + 1] != 0);
+            bool sel = i == groups[0] - 1;
+            if (h->Groups[i].Selected != sel) {                    // +0x74
+                h->Groups[i].Selected = sel;
+                h->Groups[i].Redraw();                             // 0x626200
+            }
+        }
+    }
+    // The hero photos (0x629497): up to five heroes of the local player.
+    int heroes[5];
+    HudHeroList(pz::g_World, heroes);                              // 0x56b3e0, the hero part
+    if (v->ViewState == 0) {
+        for (int i = 0; i < 5; ++i) {
+            if (heroes[i] != -1)
+                h->Heroes[i].SetHero(heroes[i]);                   // 0x626690
+            h->Heroes[i].SetVisible(heroes[i] != -1);              // vtbl +0x6c
+        }
     }
     // Clock.
     pz::SGameLogic* gl = pz::g_GameLogic;

@@ -84,12 +84,16 @@ void SBuildingUnit::Slot_14()
     free(pts);
 }
 
+void SquadBoardAfterLoad(SPanzersSquadUnit* s);                  // unitboard.cpp (0x59cf80 board part)
+
 // PANZERS 0x59cf80
+// After load: the unit size, SUnit 0x5bb1c0, then the squad's board elements
+// again (+0x380, +0x360.., +0x370..; HD does not release old ones).
 void SPanzersSquadUnit::Slot_14()
 {
     SetUnitSize();                                                // +0x1c4 (0x5a0f30)
     SUnit::Slot_14();                                             // 0x5bb1c0
-    // HD: the squad's board elements (+0x380, +0x360.., +0x370..) again.
+    SquadBoardAfterLoad(this);
 }
 
 // PANZERS 0x598980

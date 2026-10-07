@@ -395,15 +395,9 @@ void PzExecuteScriptStatement(SGameLogic* gl, const char* text, bool preprocess)
             g_World->SetWeather(wi, 0);                           // 0x5fdc80(i, 0) and 0x6088f0
         break;
     }
-    case 0x2c: {                                                  // disable_ambient_sounds (0x5f5140)
-        // HD also removes the sounds of the ambient sound sources (+0x658,
-        // Concert +0x3c) and turns the +0x73e8 sources off (0x6015d0); the
-        // recompile's StartEffects keeps only the two flags.
-        unsigned char* w = (unsigned char*)g_World;
-        w[0x73e4] = 0;
-        w[0x64c] = 0;
+    case 0x2c:                                                    // disable_ambient_sounds
+        g_World->StopAmbientSounds();                             // 0x5f5140
         break;
-    }
     case 0x2d:                                                    // enable_ambient_sounds
         g_World->StartEffects();                                  // 0x5f5b50
         break;

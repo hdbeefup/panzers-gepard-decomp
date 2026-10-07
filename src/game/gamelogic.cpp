@@ -434,8 +434,9 @@ int SGameLogic::Refresh()
     return 0;
 }
 
-// HD 0x576d80, single-player path (DAT_008f1a74 == 0); the M1 subset in
-// world.cpp carries the marker.
+// PANZERS 0x576d80
+// SGameLogic::Refresh, single-player path (DAT_008f1a74 == 0); the M1
+// subset in world.cpp is a piece of it.
 // HD checks the FPU control word first (0x7f, logs "SGameLogic::Refresh:
 // Invalid FPU control word (0x%04X)."). The multiplayer frame sync, the
 // "has left/lost the game" checks, AI groups 0x5f5c70 (every 20th frame),

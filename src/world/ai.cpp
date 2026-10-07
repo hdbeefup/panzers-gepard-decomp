@@ -13,21 +13,81 @@
 #include "m3common.h"
 #include "logger.h"
 #include "stub_log.h"
+#include "iconcert.h"
+extern SIConcert* Concert;   // HD 0x8f1c5c
 
 namespace pz {
 
 // PANZERS 0x5f5b50
-// Mission start: every ambient sound (+0x658 heap, 0x28 each, 0x5edeb0:
-// Concert +0x38 3D loop at the position, +0x40 / +0x4c) and every water
-// effect (+0x73e8 heap, 0xa0 each, 0x6015d0 with +0x73e4) starts; then
-// +0x64c = 1. The map loader keeps AMBS raw and does not fill either heap,
-// so only the flags are set here.
+// PANZERS 0x5edeb0
+// One ambient source starts: a 3D loop of its cached sound (Concert +0x38,
+// group 0) at (x, ground height + y, z) with 1.2 x its minimum distance;
+// then the position (+0x40) and the distance (+0x4c) once more.
+static void StartAmbientSound(SWorld* w, SWorld::SAmbientSound* a)
+{
+    const float k = 1.2f;                                         // 0x7f1b5c
+    float y = w->GetTerrainHeight(a->X, a->Z) + a->Y;             // 0x5e7730
+    a->Sound = Concert ? Concert->CreateSound3DById(a->Cache, 0, a->MinDistance * k, a->X, y, a->Z) : -1;   // +0x38
+    y = w->GetTerrainHeight(a->X, a->Z) + a->Y;
+    if (a->Sound > -1) {
+        Concert->SetSoundPosition(a->Sound, a->X, y, a->Z);       // +0x40
+        Concert->SetSoundMinDistance(a->Sound, a->MinDistance * k);   // +0x4c
+    }
+}
+
+// PANZERS 0x5f5b50
+// Mission start: every ambient sound source of the map starts (0x5edeb0);
+// then the water effects (+0x73e8 heap, 0xa0 each, 0x6015d0 with +0x73e4,
+// not filled by the recompile's loader: RVR2 is kept raw) and +0x64c = 1.
 void SWorld::StartEffects()
 {
     PZ_M3_TRACE("SWorld::StartEffects (0x5f5b50)");
+    SHeap<SAmbientSound>& h = AmbientSounds();
+    for (int i = 0; i < h.Size; ++i)
+        if (h.Array[i].Next == kHeapLive)
+            StartAmbientSound(this, &h.Array[i].Data);
     unsigned char* w = (unsigned char*)this;
     w[0x73e4] = 1;
     w[0x64c] = 1;
+}
+
+// PANZERS 0x5f5140
+// disable_ambient_sounds: every ambient loop stops (Concert +0x3c, the
+// handle back to -1); then the water effects go off (+0x73e4 = 0, 0x6015d0:
+// none in the recompile) and +0x64c = 0.
+void SWorld::StopAmbientSounds()
+{
+    SHeap<SAmbientSound>& h = AmbientSounds();
+    for (int i = 0; i < h.Size; ++i) {
+        if (h.Array[i].Next != kHeapLive)
+            continue;
+        SAmbientSound& a = h.Array[i].Data;
+        if (a.Sound > -1) {
+            if (Concert)
+                Concert->RemoveSound(a.Sound);
+            a.Sound = -1;
+        }
+    }
+    unsigned char* w = (unsigned char*)this;
+    w[0x73e4] = 0;
+    w[0x64c] = 0;
+}
+
+// PANZERS 0x5f72c0
+// SHeap<SAmbientSound>::Remove: the loop stops (Concert +0x3c), the name
+// is freed, the slot goes to the free list.
+void SWorld::RemoveAmbientSound(int i)
+{
+    SHeap<SAmbientSound>& h = AmbientSounds();
+    if (!h.IsLive(i))
+        Logger.g->Panic("SHeap<%s>::Remove: invalid index (%d)", "SWorld::SAmbientSound", i);
+    h.Array[i].Next = h.Free;
+    SAmbientSound& a = h.Array[i].Data;
+    if (Concert)
+        Concert->RemoveSound(a.Sound);
+    FreeSString(&a.Name);
+    h.Free = i;
+    --h.Count;
 }
 
 // SGameWorld::InitCameraSpline 0x609760: worldcamera.cpp (agent V).

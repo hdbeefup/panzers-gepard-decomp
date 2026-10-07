@@ -41,6 +41,7 @@ static float Side(const SRoadControlPoint& p, const float* pos)
     return pos[2] * p.DirZ + pos[0] * p.DirX + -(p.Z * p.DirZ + p.X * p.DirX);
 }
 
+// PANZERS 0x5e8750 (piece: the per-road scan, inline in 0x5e8750 and 0x5e7ae0)
 // The candidates of one road: index 0 = before the first point, i + 1 = the
 // segment i .. i + 1, PointCount = past the last point.
 static void ScanRoad(SMapRoad& r, const float* pos, float* best, int* bestIdx, bool* hit)
@@ -88,6 +89,7 @@ static void ScanRoad(SMapRoad& r, const float* pos, float* best, int* bestIdx, b
     }
 }
 
+// PANZERS 0x5e7ae0 (piece: the candidate distance, inline in 0x5e7ae0 and 0x5e8750)
 // The path length at candidate idx: the foot of the perpendicular from pos
 // on the chord, as the ratio |A - foot| / (|A - pos| + |B - pos|) clamped to
 // -1 .. 1, between the two points' lengths. False on a degenerate chord.

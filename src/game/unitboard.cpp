@@ -554,6 +554,35 @@ void SPanzersSquadUnit::CreateBoardElements()
     }
 }
 
+// PANZERS 0x59cf80 (piece: the board part after load, 0x59cf9a..0x59d12a)
+// As in Init, with the name text (+0x380) set to the prototype's name
+// (+0x340 +0x60, board +0x34 with font 0, size 1) before it is hidden.
+void SquadBoardAfterLoad(SPanzersSquadUnit* s)
+{
+    if (!::Board)
+        return;
+    int font = g_World->BoardIconSet;                            // World +0x110
+    s->_380 = BCreate(FT_TEXT);                                  // board +0x08(2, 0, 0, 0, 0, 0)
+    ::Board->SetText(s->_380, 0, 1, s->P->Name.buf ? s->P->Name.buf : "");   // board +0x34
+    BShow(s->_380, false);
+    s->Board[0] = BCreate(FT_SPRITE);                            // +0x360 insignia
+    if (!PzIsMultiplayer())
+        BGlyph(s->Board[0], g_World->Insignia, 0);               // World +0x124
+    else
+        BGlyph(s->Board[0], g_World->MultiInsignia, 0);          // World +0x128
+    BShow(s->Board[0], false);
+    s->Board[1] = BCreate(FT_SPRITE);                            // +0x364
+    BGlyph(s->Board[1], font, 0x30);
+    BShow(s->Board[1], false);
+    s->Board[2] = BCreate(FT_TEXT);                              // +0x368
+    s->Board[3] = BCreate(FT_SPRITE);                            // +0x36c
+    for (int i = 0; i < 4; ++i) {
+        s->Board[4 + i] = BCreate(FT_SPRITE);                    // +0x370 rank stars
+        BShow(s->Board[4 + i], false);
+        BGlyph(s->Board[4 + i], font, 0x24);
+    }
+}
+
 // PANZERS 0x599c70
 void SPanzersSquadUnit::Uninit()
 {

@@ -47,6 +47,7 @@ SSingleUnit::~SSingleUnit()
 {
 }
 
+// PANZERS 0x5ad150 (piece: inline in Init 0x5ad150 and InitNew 0x5ad9f0)
 // The part of SSingleUnit::Init 0x5ad150 / 0x5ad9f0 after the base Init:
 // the built-in driver unit (+0x208), the child units (+0x1fc), then the
 // armoured-vehicle rule (no active driver, gunners off until a crew gets

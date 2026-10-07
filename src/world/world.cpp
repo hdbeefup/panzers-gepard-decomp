@@ -206,6 +206,9 @@ SWorld::~SWorld()
     for (int i = 0; i < Units.Size; ++i)
         if (Units.IsLive(i))
             RemoveUnit(i);                                        // 0x5f8060
+    for (int i = 0; i < AmbientSounds().Size; ++i)                // 0x5d5674
+        if (AmbientSounds().IsLive(i))
+            RemoveAmbientSound(i);                                // 0x5f72c0
     for (int i = Decals.Size - 1; i >= 0; --i)
         RemoveDecal(i);                                           // 0x5f7170
     ClearEffects();                                               // HD removes each (0x5f75c0)
@@ -411,7 +414,7 @@ void SWorld::RebuildTerrain()
             Terrain->UpdateRoadJunction(Junctions.Array[i].Data.Junction);   // terrain +0x98
 }
 
-// PANZERS 0x576d80 (M1 subset)
+// PANZERS 0x576d80 (piece: the M1 model subset; SGameLogic::RefreshM2 is the HD body)
 // The model part of SGameLogic::Refresh, once per 20 Hz logic tick: every
 // unit (World+0x4d4; HD unit vtbl +0x2c -> the unit animation's UpdateModel)
 // and every doodad model (World+0x140, model vtbl +0x3c).

@@ -212,11 +212,11 @@ SPProperty* BuildEffectsSchema()
                             new SPPropertyFloat("Alpha", T, 0.0f, 1.0f, 1.0f)})}),
                     new SPPropertyStruct("04_DECALEFFECT", T, true, {
                         new SPPropertyEnum("BlendType", T, 1, {{"Alpha", 0}, {"Add", 1}}),
-                        new SPPropertyArray("Textures", "Textúrák :-)", 1, 8, 1,
-                            new SPPropertyString("Texture", "Textúra", "shaderlight.tga")),
+                        new SPPropertyArray("Textures", "Text\xfar\xe1k :-)", 1, 8, 1,
+                            new SPPropertyString("Texture", "Text\xfara", "shaderlight.tga")),
                         new SPPropertyBool("ForceBright", T, false),
                         new SPPropertyFloat("Duration", T, 0.0f, FLT_MAX, 1.0f),
-                        new SPPropertyBool("RealTime", "Ha ez true, akkor pause-ban sem áll meg az effekt.", false),
+                        new SPPropertyBool("RealTime", "Ha ez true, akkor pause-ban sem \xe1ll meg az effekt.", false),
                         new SPPropertyTrack("Alpha", T,
                             new SPPropertyStruct("Options", T, true, {
                                 new SPPropertyBool("Loop", T, false),
@@ -234,7 +234,7 @@ SPProperty* BuildEffectsSchema()
                                     new SPPropertyFloat("X", T, 0.0f, 1.0f, 0.0f),
                                     new SPPropertyFloat("Y", T, 0.01f, 1e+02f, 1.0f)}))),
                         new SPPropertyBool("Unstoppable", T, false),
-                        new SPPropertyBool("RandomRotate", "A keletkezésnél random elforgatja a decal-eket.", false)}),
+                        new SPPropertyBool("RandomRotate", "A keletkez\xe9sn\xe9l random elforgatja a decal-eket.", false)}),
                     new SPPropertyStruct("05_SOUNDEFFECT", T, true, {
                         new SPPropertyStruct("Birth", T, true, {
                             new SPPropertyEnum("SoundGroup", "Specifies the type of the sound.", 0, {{"Ambient", 0}, {"Engine", 1}}),
@@ -242,9 +242,9 @@ SPProperty* BuildEffectsSchema()
                             new SPPropertyString("SoundFile", T, "ambient/from swine test only/szel54.mp3"),
                             new SPPropertyString("SoundFile2", T, ""),
                             new SPPropertyString("SoundFile3", T, ""),
-                            new SPPropertyBool("Positional", "Megadja, hogy a hangeffekt pozicionális-e (ha nem, akkor azonos hangerõvel szól az egész pályán)", false),
-                            new SPPropertyFloat("Distance_Min", "Ha a megadott távolságon belül van a kamera, akkor a hangerõ maximális, távolodva egyre halkabb.", 0.01f, 1e+02f, 1e+01f),
-                            new SPPropertyTrack("Volume", "A hang maximális hangereje (csak loopolt és nem-poziconális effekteknél).",
+                            new SPPropertyBool("Positional", "Megadja, hogy a hangeffekt pozicion\xe1lis-e (ha nem, akkor azonos hanger\xf5vel sz\xf3l az eg\xe9sz p\xe1ly\xe1n)", false),
+                            new SPPropertyFloat("Distance_Min", "Ha a megadott t\xe1vols\xe1gon bel\xfcl van a kamera, akkor a hanger\xf5 maxim\xe1lis, t\xe1volodva egyre halkabb.", 0.01f, 1e+02f, 1e+01f),
+                            new SPPropertyTrack("Volume", "A hang maxim\xe1lis hangereje (csak loopolt \xe9s nem-pozicon\xe1lis effektekn\xe9l).",
                                 new SPPropertyStruct("Options", nullptr, true, {
                                     new SPPropertyBool("Loop", nullptr, false),
                                     new SPPropertyFloat("Max. Y", nullptr, 0.1f, FLT_MAX, 1.0f)}),
@@ -252,8 +252,8 @@ SPProperty* BuildEffectsSchema()
                                     new SPPropertyStruct("Key", nullptr, false, {
                                         new SPPropertyFloat("X", nullptr, 0.0f, 1.0f, 0.0f),
                                         new SPPropertyFloat("Y", T, 0.0f, 1.0f, 1.0f)}))),
-                            new SPPropertyFloat("Duration", "A hangeffekt idõtartama", 0.01f, FLT_MAX, 1.0f),
-                            new SPPropertyInt("RNDFrequency", "Lejátszási frekvencia +/- %-os megváltoztatása (0%= nincs változás)", 0, 100, 0)})}),
+                            new SPPropertyFloat("Duration", "A hangeffekt id\xf5tartama", 0.01f, FLT_MAX, 1.0f),
+                            new SPPropertyInt("RNDFrequency", "Lej\xe1tsz\xe1si frekvencia +/- %-os megv\xe1ltoztat\xe1sa (0%= nincs v\xe1ltoz\xe1s)", 0, 100, 0)})}),
                     new SPPropertyStruct("06_ATMOSPHERE", T, true, {
                         new SPPropertyStruct("Ambient Light", T, false, {
                             new SPPropertyBool("Active", T, false),
@@ -321,9 +321,9 @@ SPProperty* BuildEffectsSchema()
                     new SPPropertyStruct("09_SHOCKWAVE", T, true, {}),
                     new SPPropertyStruct("10_CAMERASHAKE", T, true, {
                         new SPPropertyStruct("Birth", T, true, {
-                            new SPPropertyBool("Positional", "Megadja, hogy a camera shake pozicionális-e (ha nem, akkor azonos erõvel hat az egész pályán)", false),
-                            new SPPropertyFloat("Strength", "A rezgés kitérése méterben (poziconális effektnél 10m-es távolságban).", 0.01f, FLT_MAX, 1.0f),
-                            new SPPropertyTrack("Amplitude", "A rezgés relatív kitérése",
+                            new SPPropertyBool("Positional", "Megadja, hogy a camera shake pozicion\xe1lis-e (ha nem, akkor azonos er\xf5vel hat az eg\xe9sz p\xe1ly\xe1n)", false),
+                            new SPPropertyFloat("Strength", "A rezg\xe9s kit\xe9r\xe9se m\xe9terben (pozicon\xe1lis effektn\xe9l 10m-es t\xe1vols\xe1gban).", 0.01f, FLT_MAX, 1.0f),
+                            new SPPropertyTrack("Amplitude", "A rezg\xe9s relat\xedv kit\xe9r\xe9se",
                                 new SPPropertyStruct("Options", nullptr, true, {
                                     new SPPropertyBool("Loop", nullptr, false),
                                     new SPPropertyFloat("Max. Y", nullptr, 0.1f, FLT_MAX, 1.0f)}),
@@ -331,7 +331,7 @@ SPProperty* BuildEffectsSchema()
                                     new SPPropertyStruct("Key", nullptr, false, {
                                         new SPPropertyFloat("X", nullptr, 0.0f, 1.0f, 0.0f),
                                         new SPPropertyFloat("Y", T, 0.0f, 1.0f, 1.0f)}))),
-                            new SPPropertyFloat("Duration", "Az effekt idõtartama", 0.01f, FLT_MAX, 1.0f)})}),
+                            new SPPropertyFloat("Duration", "Az effekt id\xf5tartama", 0.01f, FLT_MAX, 1.0f)})}),
                     new SPPropertyStruct("11_SANDSTORM", T, true, {
                         new SPPropertyStruct("Birth", T, true, {
                             new SPPropertyFloat("Duration", T, 0.01f, FLT_MAX, 1.0f),

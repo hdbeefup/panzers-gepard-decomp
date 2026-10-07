@@ -21,8 +21,12 @@
 #include "aigroup.h"
 #include "unit.h"
 #include "campaign.h"
+#include "iboard.h"
+extern SIBoard* Board;   // HD DAT_008f1c60
 
 namespace pz {
+
+void RemoveObjectiveMarkers(SGameLogic* gl, int objective, int target);   // 0x579420 (triggers.cpp)
 
 static inline int RI(const void* b, int off) { return *(const int*)((const unsigned char*)b + off); }
 static inline float RF(const void* b, int off) { return *(const float*)((const unsigned char*)b + off); }
@@ -351,8 +355,9 @@ void SGameLogic::LoadGameState(SStream* s, bool camera)
     w->Units.Size = 0;
     w->Units.Free = -1;
     w->Units.Count = 0;
-    // HD 0x579420(-1, -1), the loading frame of the renderer and the
-    // window's +0x44(0x929a54): not mapped.
+    RemoveObjectiveMarkers(this, -1, -1);                         // 0x579420(-1, -1)
+    // HD: the loading frame of the renderer and the window's +0x44
+    // (0x929a54): not mapped.
     while (!s->ReadChunkIsEnd()) {
         int tag = s->ReadChunkHeader();
         switch (tag) {
@@ -457,8 +462,13 @@ void M4SaveTestHook(SGameLogic* g)
     fclose(fp);
 }
 
-// PANZERS 0x560eb0 (recompile: the record only; HD also makes the board
-// marker). +0x194 SDArray of 0x14 {x, z, marker, a, b}.
+// PANZERS 0x560eb0
+// +0x194 SDArray of 0x14 {x, z, marker, a, b} (0x560ae0 adds one). An
+// objective point (x >= 0) gets a sprite on the minimap frame (+0x17c) with
+// the glyph of +0x1a0 / +0x1a4 (LoadMap: the interface font, 0x13c); the
+// minimap update (minimap.cpp) moves it. An objective area is given by its
+// corners at -x: corner b of the magenta frame (board +0xb8, 0xff00ffff),
+// in minimap pixels of the map bitmap (+0x18c: width, height).
 void SGameLogic::AddMinimapObjective(float x, float z, int a, int b)
 {
     int* arr = (int*)((unsigned char*)this + 0x194);
@@ -468,13 +478,28 @@ void SGameLogic::AddMinimapObjective(float x, float z, int a, int b)
         arr[0] = (int)(size_t)realloc((void*)(size_t)arr[0], (size_t)m * 0x14);
         arr[2] = m;
     }
+    arr[1] = n + 1;
     unsigned char* e = (unsigned char*)(size_t)arr[0] + n * 0x14;
     *(float*)e = x;
     *(float*)(e + 4) = z;
-    *(int*)(e + 8) = -1;
+    if (0.0 <= x) {
+        int f = Board ? Board->CreateFrame(FT_SPRITE, MinimapFrame, 0, 0, 0, true) : -1;   // board +0x08(1, +0x17c, 0, 0, 0, 1)
+        *(int*)(e + 8) = f;
+        if (Board)
+            Board->SetSpriteGlyph(f, BoardArea[0], BoardArea[1]);   // board +0x24(f, +0x1a0, +0x1a4)
+    } else {
+        *(int*)(e + 8) = -1;
+        // HD reads the bitmap size without a test; the recompile's menu
+        // world has no minimap bitmap.
+        const int* size = *(const int* const*)((const unsigned char*)this + 0x18c);
+        if (Board && size && g_World) {
+            double u = (double)(((float)-x - 48.0f) / (float)(g_World->TerrainW - 0x60)) - 0.5;   // 0x7f5ac0, 0x7f7f90, 0x7ea760
+            double v = ((double)((z - 48.0f) / (float)(g_World->TerrainH - 0x60)) - 0.5) * (double)size[1];
+            Board->SetMinimapMarkCorner(b, (float)(u * (double)size[0]), (float)-v, 0xff00ffff);   // board +0xb8
+        }
+    }
     *(int*)(e + 0xc) = a;
     *(int*)(e + 0x10) = b;
-    arr[1] = n + 1;
 }
 
 } // namespace pz

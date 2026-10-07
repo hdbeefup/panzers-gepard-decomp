@@ -88,10 +88,10 @@ struct SHeroUnitButton : pz::SButton {
     int  PhotoFont;                  // +0x74
     int  HpBar;                      // +0x78 box 0xff00c000
     int  RedBox;                     // +0x7c box 0x60ff0000
-    int  _80;                        // +0x80
+    int  _80;                        // +0x80 red-box pulse frames left (100 after an HP loss)
     int  Photo;                      // +0x84 sprite
-    int  _88;
-    int  _8c;
+    float _88;                       // +0x88 last HP of the crew's first member (0x626690)
+    float _8c;                       // +0x8c last HP of the hero's vehicle, -1.0 when on foot
     int  Hero;                       // +0x90 (-1)
 
     SHeroUnitButton();                                               // 0x618a10
@@ -99,6 +99,9 @@ struct SHeroUnitButton : pz::SButton {
     void OnMouseOver() override;                                     // +0x34 0x6251b0
 
     void Create(int font, int glyph);                                // 0x61e1e0
+    void SetBlink(float level);                                      // 0x625b60 the red box (+0x7c)
+    void SetHp(float hp);                                            // 0x625c40 the HP bar (+0x78)
+    void SetHero(int unit);                                          // 0x626690 per frame from Update 0x628430
 };
 
 // HD SCommandButton (0x90 bytes): a button with a three-state icon.
@@ -132,6 +135,7 @@ struct SGroupIcon : SDXWidget {
 
     SGroupIcon();                                                    // 0x6189e0
     void Create(int font, int n);                                    // (inline in 0x619c90)
+    void Redraw();                                                   // 0x626200
 };
 
 struct SMinimap : SDXWidget {

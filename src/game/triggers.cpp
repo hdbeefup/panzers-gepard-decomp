@@ -32,6 +32,8 @@
 #include "core_common.h"
 #include "stream.h"
 #include "aigroup.h"
+#include "iboard.h"
+extern SIBoard* Board;   // HD DAT_008f1c60
 
 void PzPlayMusicTrack(const char* track);   // src/panzers/results.cpp: Concert +0x80(0), +0x6c, +0x70, +0x78(0)
 void PzPlayTriggerMusic(const char* track); // src/panzers/results.cpp: Concert +0x6c, +0x70, +0x78(0) (action 0x3f)
@@ -1024,10 +1026,10 @@ void UnitSetPlayer(SUnit* u, int player)
 // Removes the objective markers (+0x194 SDArray, 0x14 each: {x, z, board
 // frame, objective +0x0c, target +0x10}) of one objective (-1: any) and one
 // target (-1: any): a marker on the map (x >= 0) drops its board frame
-// (board +0x0c), one off the map the minimap's marker (board +0xbc); then
-// the record goes (0x579070, SDArray::Remove). The recompile makes no board
-// frame for a marker (AddMinimapObjective keeps -1), so only the records go.
-static void RemoveObjectiveMarkers(SGameLogic* gl, int objective, int target)
+// (board +0x0c), one off the map the minimap's marked area (board +0xbc,
+// ClearMinimapMarkCorners); then the record goes (0x579070,
+// SDArray::Remove). The markers come from AddMinimapObjective 0x560eb0.
+void RemoveObjectiveMarkers(SGameLogic* gl, int objective, int target)
 {
     int* arr = (int*)((unsigned char*)gl + 0x194);                // {data, size, max}
     int i = 0;
@@ -1038,7 +1040,12 @@ static void RemoveObjectiveMarkers(SGameLogic* gl, int objective, int target)
             ++i;
             continue;
         }
-        // HD: x >= 0 -> board +0x0c(frame); else board +0xbc (minimap marker).
+        if (Board) {
+            if (0.0f <= *(float*)e)
+                Board->DestroyFrame(*(int*)(e + 8));              // board +0x0c
+            else
+                Board->ClearMinimapMarkCorners();                 // board +0xbc
+        }
         int n = --arr[1];                                         // 0x579070
         if (n - i > 0)
             memmove(e, e + 0x14, (size_t)(n - i) * 0x14);
