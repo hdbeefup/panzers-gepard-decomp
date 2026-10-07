@@ -42,6 +42,7 @@
 #include "bink.h"   // P2-C: src/panzers/bink.*
 #include "mods.h"
 #include "mod_widescreen.h"
+#include "gameview.h"
 static SBinkVideo s_Intro;   // handles mirrored into SSuperWindowData::Bink/BinkBuffer
 #endif
 
@@ -640,7 +641,17 @@ void SSuperWindow::OnSize(int w, int h)
 #if PANZERS_MOD_WIDESCREEN
     ModWidescreenOnSize(this);
 #endif
-    // HD: MultiView -> 0x64b9e0; else GameView -> 0x625d80 (in-game HUD).
+    // HD: the multiplayer view (+0x110) gets 0x64b9e0 (not in the
+    // recompile); otherwise the game view (+0xe4) re-applies its panel mode,
+    // which places the three subports (3D view, top bar, bottom panel) for
+    // the new client size. Without it the 3D view kept the old size after a
+    // maximize (M5-VX).
+    if (MultiView)
+        return;
+    if (GameView) {
+        SGameView* gv = static_cast<SGameView*>(GameView);
+        gv->SetPanelMode(gv->GetPanelMode());                      // 0x61f450, 0x625d80
+    }
 }
 
 // PANZERS 0x657850
