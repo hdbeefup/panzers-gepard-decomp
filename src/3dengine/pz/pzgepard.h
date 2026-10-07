@@ -98,6 +98,7 @@ void GepardSetTextureFilter(int texture, unsigned flags);          // 0x680bf0
 void GepardSelectRenderTarget(int index);                          // 0x6803e0 SGepard::SelectViewport
 void GepardUnselectRenderTarget();                                 // 0x6814b0 SGepard::UnselectViewport
 void GepardClearRenderTarget(unsigned color, float z, unsigned stencil); // 0x689f10 on the selected one
+SHdBitmap* GepardReadRenderTarget(int index, int format);            // 0x6c0e50 lock + 0x669be0 copy + 0x6c1030 unlock (lockable targets, flags 1)
 
 struct SPzGepard : SIGepardHD {
     SPzGepard();

@@ -31,7 +31,7 @@ struct SViewport : SIViewport {
     void GetCamera(float* x, float* y, float* z, float* yaw, float* pitch) override;
     void SetProjection(float fovRadians, float nearZ, float farZ) override;
     void Slot_2C() override;
-    void Slot_30() override;
+    void SetOrthoProjection(float scaleX, float scaleY, float nearZ, float farZ) override;
     void ScreenToRay(float* out6, int x, int y) override;
     void GetSelectionPlanes(float* out16, int x1, int y1, int x2, int y2) override;
     void ProjectToScreen(const float* pos, float size, float* x, float* y, float* screenSize, float* z, int* fogAlpha) override;

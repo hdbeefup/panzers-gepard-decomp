@@ -549,11 +549,25 @@ void SViewport::Slot_2C()
     PZ_TRACE("SViewport::Slot_2C (0x68cf00)");
 }
 
-// HD SViewport vtbl +0x30 -> 0x68ce50 (4 arg dwords)
-void SViewport::Slot_30()
+// PANZERS 0x68ce50
+// Orthographic projection (fov +0xcc = 0): m00 = sx, m11 = sy,
+// m22 = 1/(f-n) (0x7f1b58 = 1.0), m32 = -n/(f-n), m33 = 1.
+void SViewport::SetOrthoProjection(float scaleX, float scaleY, float nearZ, float farZ)
 {
-    STUB_LOG("SViewport::Slot_30 (0x68ce50)");
-    PZ_TRACE("SViewport::Slot_30 (0x68ce50)");
+    PZ_TRACE("SViewport::SetOrthoProjection (0x68ce50)");
+    Camera.FarZ = farZ;
+    Camera.NearZ = nearZ;
+    Camera.Fov = 0.0f;
+    float q = 1.0f / (farZ - nearZ);
+    memset(Proj, 0, sizeof(Proj));
+    Proj[0] = scaleX;
+    Proj[5] = scaleY;
+    Proj[10] = q;
+    Proj[15] = 1.0f;
+    Proj[14] = -(q * nearZ);
+    ProjectionSet = true;
+    ApplyTransforms();      // 0x68d160
+    UpdateScreenMatrix();   // 0x68c070
 }
 
 // PANZERS 0x689c20

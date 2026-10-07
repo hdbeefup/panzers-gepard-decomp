@@ -905,22 +905,96 @@ void SScene::DrawRivers(SViewport* vp)
 }
 
 // PANZERS 0x6b7760
-// The full-frame variant (minimap / screenshot targets). Not on the menu path.
-void SScene::RenderScene()
+// The whole scene into the selected offscreen viewport (HD: the current
+// viewport 0x67bf40; the minimap render 0x6b0000): lights, ambient, fog,
+// every terrain parcel visible (0x6f8610), the models updated (0x6bbcb0
+// (vp, 0)), the shadow buffer (0x6aac20), clear to the fog colour, then
+// terrain, its shadow pass, the models (0x6b02a0(vp, 1)), lakes and rivers.
+// HD's device-lost branch (0x8876086x -> ResetDevice) is left to SWINE.
+void SScene::RenderScene(SViewport* vp)
 {
-    STUB_LOG("SScene::RenderScene (0x6b7760)");
     PZ_TRACE("SScene::RenderScene (0x6b7760)");
+    IDirect3DDevice9* dev = HD().Device;
+    if (!dev || dev->TestCooperativeLevel() != D3D_OK)
+        return;
+    ApplyHdDeviceDefaults(dev);
+    InvalidateRenderPassCache();
+    vp->ApplyTransforms();
+    SetLights();                                      // 0x680620
+    GepardSetAmbient(Ambient);                        // 0x680510
+    SetPassFog(FogStart, FogEnd, FogColor);           // 0x688ac0
+    if (Terrain)
+        Terrain->MarkAllVisible();                    // 0x6f8610
+    UpdateModels(vp, false);                          // 0x6bbcb0(vp, 0)
+    GenerateShadowBuffer(vp);                         // 0x6aac20
+    vp->ApplyTransforms();                            // recompile: 0x6aac20 restored the state block
+    GepardClearRenderTarget(FogColor, 1.0f, 0);       // 0x689f10
+    if (FAILED(dev->BeginScene())) {
+        Logger.g->Log(0, "%s", "SScene::RenderScene\\IDirect3DDevice::BeginScene failed");
+        return;
+    }
+    ApplyHdDeviceDefaults(dev);
+    InvalidateRenderPassCache();
+    if (Terrain) {
+        Terrain->Render(vp);                          // 0x6f2aa0
+        if (GepardOption(2) != 0 && ShadowViewport >= 0)
+            Terrain->RenderShadowPass();              // 0x6f46e0
+    }
+    DeferredCount = 0;
+    DrawModels(vp, 1);                                // 0x6b02a0(vp, 1)
+    STUB_LOG("SScene::DrawLakes (0x6ad740)");       // LAKS
+    DrawRivers(vp);                                   // 0x6b0920
+    if (FAILED(dev->EndScene()))
+        Logger.g->Log(0, "%s", "SScene::RenderScene\\IDirect3DDevice::EndScene failed");
+    ++FrameCount;
 }
 
 // ---- generated slot stubs (HD vtable order) ----
 
-// HD SScene vtbl +0x0c -> 0x6b0000 (3 arg dwords)
+// PANZERS 0x6b0000
+// The minimap image of a map without a MINI chunk (SGameLogic ctor
+// 0x55e440): a w2 x h2 lockable A8R8G8B8 offscreen viewport (0x678c70(w, h,
+// 0x15, 1)), an orthographic view of the playable area (2 / (W - 0x60),
+// 2 / (H - 0x60), near 1, far 600; the whole map when it has no 48-tile
+// border) from (W / 2, 30, H / 2) looking straight down (pitch pi / 2), the
+// scene rendered with option 0x11 off and the fog start 1000 further away,
+// read back as an SBitmap of format 2 (0x6c0e50, 0x669be0) with every alpha
+// set to 0xff (0x66f0b0). Returns the bitmap (SBitmap*) or 0.
 int SScene::Slot_0C_CreateMinimapTarget(int p1, int w2, int h2)
 {
-    STUB_LOG("SScene::Slot_0C_CreateMinimapTarget (0x6b0000)");
-    PZ_TRACE("SScene::Slot_0C_CreateMinimapTarget (0x6b0000)");
-    (void)p1; (void)w2; (void)h2;
-    return 0;
+    PZ_TRACE("SScene::CreateMinimapImage (0x6b0000)");
+    (void)p1;
+    int rtIndex = GepardCreateRenderTarget(w2, h2, D3DFMT_A8R8G8B8, 1);   // 0x678c70(w, h, 0x15, 1)
+    if (rtIndex < 0)
+        return 0;
+    SViewport vp;                                     // the offscreen viewport's camera
+    vp.Mode = 3;
+    vp.Selected = true;
+    vp.Left = vp.Top = 0;
+    vp.Width = w2;
+    vp.Height = h2;
+    GepardSelectRenderTarget(rtIndex);                // 0x6803e0
+    if (TerrainW < 0x61 || TerrainH < 0x61)
+        vp.SetOrthoProjection((float)(2.0 / (double)TerrainW), (float)(2.0 / (double)TerrainH), 1.0f, 600.0f);
+    else
+        vp.SetOrthoProjection((float)(2.0 / (double)(TerrainW - 0x60)), (float)(2.0 / (double)(TerrainH - 0x60)),
+                              1.0f, 600.0f);           // vp +0x30 (0x7ea768 = 2.0)
+    vp.SetCamera((float)(TerrainW / 2), 30.0f, (float)(TerrainH / 2), 0.0f, 1.5707964f);   // vp +0x20
+    SPzGepard* g = static_cast<SPzGepard*>(PzGepard());
+    int opt11 = g->GetOption(0x11);                   // Gepard +0x14 / +0x10
+    g->SetOption(0x11, 0);
+    FogStart += 1000.0f;                              // 0x7f1b94
+    RenderScene(&vp);                                 // 0x6b7760
+    FogStart -= 1000.0f;
+    g->SetOption(0x11, opt11 != 0);
+    GepardUnselectRenderTarget();                     // 0x6814b0
+    SHdBitmap* b = GepardReadRenderTarget(rtIndex, 2);   // 0x6c0e50 + 0x669be0(.., 2) + 0x6c1030
+    if (b)
+        for (int y = 0; y < b->Height; ++y)           // 0x66f0b0
+            for (int x = 0; x < b->Width; ++x)
+                b->Data[b->Start + b->Pitch * y + x * 4 + 3] = 0xff;
+    GepardDestroyRenderTarget(rtIndex);               // Gepard +0x40
+    return (int)(size_t)b;
 }
 
 // HD SScene vtbl +0x10 -> 0x6ac7d0 (2 arg dwords)

@@ -48,7 +48,7 @@ struct SIViewport {
     virtual void GetCamera(float* x, float* y, float* z, float* yaw, float* pitch) = 0; // +0x24 HD 0x68be30 (5 arg dwords) (name guessed)
     virtual void SetProjection(float fovRadians, float nearZ, float farZ) = 0; // +0x28 HD 0x68cfd0 (3 arg dwords) 1/tan(fov/2); world passes 60 deg
     virtual void Slot_2C() = 0;                             // +0x2c HD 0x68cf00 (6 arg dwords)
-    virtual void Slot_30() = 0;                             // +0x30 HD 0x68ce50 (4 arg dwords)
+    virtual void SetOrthoProjection(float scaleX, float scaleY, float nearZ, float farZ) = 0; // +0x30 HD 0x68ce50 (4 arg dwords) orthographic: m00 sx, m11 sy, m22 1/(f-n), m32 -n/(f-n); the minimap render 0x6b0000 (name guessed)
     virtual void ScreenToRay(float* out6, int x, int y) = 0; // +0x34 HD 0x689c20 (3 arg dwords) eye (out[0..2]) and the direction to the screen point on the near plane (out[3..5]); picking
     virtual void GetSelectionPlanes(float* out16, int x1, int y1, int x2, int y2) = 0; // +0x38 HD 0x6898b0 (5 arg dwords) the 4 side planes (a, b, c, d) of the screen box's pyramid from the eye; box selection
     virtual void ProjectToScreen(const float* pos, float size, float* x, float* y, float* screenSize, float* z, int* fogAlpha) = 0; // +0x3c HD 0x68dda0 (7 arg dwords) world point -> screen (x, y, z), size scaled by 1/w; screenSize -1 behind the camera; fogAlpha = fog visibility << 24

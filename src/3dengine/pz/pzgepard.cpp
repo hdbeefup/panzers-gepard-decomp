@@ -217,9 +217,17 @@ static const int kMaxRenderTargets = 8;
 static SHdRenderTarget s_Rt[kMaxRenderTargets];
 static const int kRtTextureBase = 0x40000000;   // texture handle base + index * 2 (+1: depth)
 static int s_RtSelected = -1;
-static IDirect3DSurface9* s_SavedColor = nullptr;
-static IDirect3DSurface9* s_SavedDepth = nullptr;
-static D3DVIEWPORT9 s_SavedViewport;
+// The SGepard viewport stack (0x6803e0 pushes, 0x6814b0 pops): the minimap
+// render 0x6b0000 selects its viewport and RenderScene 0x6b7760 selects the
+// shadow buffer's inside it.
+struct SRtSaved {
+    int                Prev;
+    IDirect3DSurface9* Color;
+    IDirect3DSurface9* Depth;
+    D3DVIEWPORT9       Viewport;
+};
+static SRtSaved s_RtStack[4];
+static int s_RtDepth = 0;
 
 static void ReleaseRenderTarget(SHdRenderTarget& rt)
 {
@@ -399,12 +407,14 @@ void GepardSetTextureFilter(int texture, unsigned flags)
 void GepardSelectRenderTarget(int index)
 {
     IDirect3DDevice9* dev = HD().Device;
-    if (!dev || index < 0 || index >= kMaxRenderTargets || !s_Rt[index].Used || s_RtSelected >= 0)
+    if (!dev || index < 0 || index >= kMaxRenderTargets || !s_Rt[index].Used || s_RtDepth >= 4)
         return;
     SHdRenderTarget& rt = s_Rt[index];
-    dev->GetRenderTarget(0, &s_SavedColor);
-    dev->GetDepthStencilSurface(&s_SavedDepth);
-    dev->GetViewport(&s_SavedViewport);
+    SRtSaved& sv = s_RtStack[s_RtDepth++];
+    sv.Prev = s_RtSelected;
+    dev->GetRenderTarget(0, &sv.Color);
+    dev->GetDepthStencilSurface(&sv.Depth);
+    dev->GetViewport(&sv.Viewport);
     if (FAILED(dev->SetRenderTarget(0, rt.Color)))
         Logger.g->Log(0, "SViewport::Select: SetRenderTarget failed");
     if (FAILED(dev->SetDepthStencilSurface(rt.Depth)))
@@ -418,20 +428,55 @@ void GepardSelectRenderTarget(int index)
 void GepardUnselectRenderTarget()
 {
     IDirect3DDevice9* dev = HD().Device;
-    if (s_RtSelected < 0) {
+    if (s_RtSelected < 0 || s_RtDepth <= 0) {
         Logger.g->Log(0, "SGepard::UnselectViewport: called without SelectViewport");
         return;
     }
-    s_RtSelected = -1;
-    if (!dev)
-        return;
-    dev->SetRenderTarget(0, s_SavedColor);
-    dev->SetDepthStencilSurface(s_SavedDepth);
-    dev->SetViewport(&s_SavedViewport);
-    if (s_SavedColor) s_SavedColor->Release();
-    if (s_SavedDepth) s_SavedDepth->Release();
-    s_SavedColor = nullptr;
-    s_SavedDepth = nullptr;
+    SRtSaved& sv = s_RtStack[--s_RtDepth];
+    s_RtSelected = sv.Prev;
+    if (dev) {
+        dev->SetRenderTarget(0, sv.Color);
+        dev->SetDepthStencilSurface(sv.Depth);
+        dev->SetViewport(&sv.Viewport);
+    }
+    if (sv.Color) sv.Color->Release();
+    if (sv.Depth) sv.Depth->Release();
+    sv.Color = nullptr;
+    sv.Depth = nullptr;
+}
+
+// PANZERS 0x6c0e50
+// SSurfaceBitmap: the render target's colour surface locked as a bitmap
+// (A8R8G8B8 = SBitmap format 2), copied by 0x669be0(bmp, format) and
+// unlocked by 0x6c1030. Targets made with flags 1 (no texture) are lockable
+// (0x689710 CreateRenderTarget, Lockable TRUE). 32-bit formats only: the
+// copy keeps the pixels as they are.
+SHdBitmap* GepardReadRenderTarget(int index, int format)
+{
+    if (index < 0 || index >= kMaxRenderTargets || !s_Rt[index].Used || !s_Rt[index].Color)
+        return nullptr;
+    SHdRenderTarget& rt = s_Rt[index];
+    if (rt.Format != D3DFMT_A8R8G8B8 && rt.Format != D3DFMT_X8R8G8B8)
+        return nullptr;
+    D3DLOCKED_RECT lr;
+    HRESULT hr = rt.Color->LockRect(&lr, nullptr, D3DLOCK_READONLY);
+    if (FAILED(hr)) {
+        Logger.g->Log(0, "%s: %08x", "SSurfaceBitmap::SSurfaceBitmap: LockRect", (unsigned)hr);
+        return nullptr;
+    }
+    SHdBitmap* b = (SHdBitmap*)calloc(1, sizeof(SHdBitmap));    // new 0x20 + 0x669be0
+    b->Width = rt.Width;
+    b->Height = rt.Height;
+    b->Format = format;
+    HdBitmapInitPixelFormat(b);                                   // 0x66e990
+    b->Start = 0;
+    b->Pitch = b->Bpp * b->Width;
+    b->Size = b->Pitch * b->Height;
+    b->Data = (unsigned char*)malloc(b->Size > 0 ? b->Size : 1);
+    for (int y = 0; y < b->Height; ++y)
+        memcpy(b->Data + y * b->Pitch, (const unsigned char*)lr.pBits + y * lr.Pitch, (size_t)b->Width * 4);
+    rt.Color->UnlockRect();                                       // 0x6c1030
+    return b;
 }
 
 // PANZERS 0x689f10 (on the selected offscreen viewport)

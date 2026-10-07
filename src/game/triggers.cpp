@@ -19,6 +19,7 @@
 #include "pzunitregistry.h"
 #include "blockmaprefresh.h"
 #include "unit.h"
+#include "gunner.h"
 #include "unitextern.h"
 #include "logger.h"
 #include "stub_log.h"
@@ -28,6 +29,8 @@
 #include "gettext.h"
 #include "core_common.h"
 #include "stream.h"
+
+void PzPlayMusicTrack(const char* track);   // src/panzers/results.cpp: Concert +0x80(0), +0x6c, +0x70, +0x78(0)
 
 namespace pz {
 
@@ -587,9 +590,26 @@ void SGameLogic::CheckConditions(SRunningTrigger* rt)
                         sum = UV::Iface(FoundUnit(&rt->Found, j))->GetHealth() + sum;
                 value = rt->Found.Count == 0 ? 0 : (int)lrintf((sum * 100.0f) / (float)rt->Found.Count);
             } else if (v == 0x40000008) {
-                // the mean ammunition of gunner 0 of the found units
-                STUB_LOG("SGameLogic::CheckConditions variable 0x40000008 (0x580600)");
-                value = 0;
+                // 0x580a5e: the mean ammunition of gunner 0 of the found
+                // units with a gunner whose prototype has ammunition
+                // (+0x2c GetPGunner()->Ammo +0x48 != 0): AmmoLeft (+0x20)
+                // plus 1 / Ammo when a round is loaded (+0x5c), in percent
+                // (0x7ee558 = 100.0, fistp); 0 when no unit counts.
+                float sum = 0.0f;
+                int n = 0;
+                for (int j = 0; j < rt->Found.Count; ++j) {
+                    SUnit* u = WorldUnit(FoundUnit(&rt->Found, j));
+                    if (u->Gunners.Size == 0)                     // +0x4c
+                        continue;
+                    SGunner* g = u->Gunners.Array[0];             // 0x55cc40(0)
+                    if (g->GetPGunner()->Ammo == 0)
+                        continue;
+                    sum = g->AmmoLeft + sum;
+                    if (g->Loaded)
+                        sum = 1.0f / (float)g->GetPGunner()->Ammo + sum;   // 0x7f1b58 = 1.0
+                    ++n;
+                }
+                value = n == 0 ? 0 : (int)lrintf((sum * 100.0f) / (float)n);
             } else if (v >= 0x40000014 && v <= 0x40000027) {
                 value = g_World->GetTriggerVariableValue(v, true);    // World vtbl +4 (v, 1)
             } else {
@@ -997,12 +1017,30 @@ void UnitSetPlayer(SUnit* u, int player)
 }
 
 // PANZERS 0x579420
-// Removes the objective markers (+0x194 list, 0x14 each: {float, ?, board
-// frame, objective, target}) of one objective. The recompile draws no
-// markers yet (the objectives screen lists the texts only).
+// Removes the objective markers (+0x194 SDArray, 0x14 each: {x, z, board
+// frame, objective +0x0c, target +0x10}) of one objective (-1: any) and one
+// target (-1: any): a marker on the map (x >= 0) drops its board frame
+// (board +0x0c), one off the map the minimap's marker (board +0xbc); then
+// the record goes (0x579070, SDArray::Remove). The recompile makes no board
+// frame for a marker (AddMinimapObjective keeps -1), so only the records go.
 static void RemoveObjectiveMarkers(SGameLogic* gl, int objective, int target)
 {
-    (void)gl; (void)objective; (void)target;
+    int* arr = (int*)((unsigned char*)gl + 0x194);                // {data, size, max}
+    int i = 0;
+    while (i < arr[1]) {
+        unsigned char* e = (unsigned char*)(size_t)arr[0] + i * 0x14;
+        if ((objective != -1 && *(int*)(e + 0xc) != objective) ||
+            (target != -1 && *(int*)(e + 0x10) != target)) {
+            ++i;
+            continue;
+        }
+        // HD: x >= 0 -> board +0x0c(frame); else board +0xbc (minimap marker).
+        int n = --arr[1];                                         // 0x579070
+        if (n - i > 0)
+            memmove(e, e + 0x14, (size_t)(n - i) * 0x14);
+        memset((unsigned char*)(size_t)arr[0] + n * 0x14, 0, 0x14);
+        // HD keeps its index after a removal (the next record moved into it).
+    }
 }
 
 // RunTriggers case 0x23: objective Num (1-based) completed.
@@ -1019,11 +1057,11 @@ static void ActionObjectiveCompleted(SGameLogic* gl, const STriggerAction* a)
     if (o.State != 2) {
         if (!o.Main)                                              // +0x05: side objectives give prestige
             g_Campaign->Prestige += o.Secret ? 0x28 : 0x3c;       // 0x592b10 (+0x38)
-        // sound +0x80(0), +0x6c, +0x70("music/Objective.mp3"), +0x78(0)
-        STUB_LOG("SGameLogic::RunTriggers objective music music/Objective.mp3 not played");
+        // 0x57ba97: Concert +0x80(0), +0x6c, +0x70("music/Objective.mp3" 0x7f7810), +0x78(0)
+        ::PzPlayMusicTrack("music/Objective.mp3");
     }
     o.State = 2;
-    RemoveObjectiveMarkers(gl, -1, a->Num - 1);                   // 0x579420(-1, n)
+    RemoveObjectiveMarkers(gl, a->Num - 1, -1);                   // 0x57baf8: 0x579420(objective n - 1, any target)
     int i = 0;
     for (; i < g_Campaign->ObjectiveCount; ++i) {
         const SCampaignObjective& m = g_Campaign->Objectives[i];

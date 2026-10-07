@@ -83,6 +83,13 @@ static void PlayEndMusic(const char* track)
     }
 }
 
+// The same Concert sequence for the game's other one-shot tracks (RunTriggers
+// action 0x23 "music/Objective.mp3", 0x57ba97); called from src/game.
+void PzPlayMusicTrack(const char* track)
+{
+    PlayEndMusic(track);
+}
+
 static bool s_ForceStatistics = false;   // PZ_M3_FORCE_END 11 / 12 (test switch)
 
 // HD 0x628430 (the UI of the single-player end check, 0x62bc65..0x62c233;

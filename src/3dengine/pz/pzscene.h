@@ -198,7 +198,7 @@ struct SScene : SIScene {
     void PrepareViewport(SViewport* vp);   // 0x6bbc40 before BeginScene (visibility)
     void UpdateViewport(SViewport* vp);    // 0x6a24c0 before BeginScene
     void RenderViewport(SViewport* vp);    // 0x6acaf0 after BeginScene: lights, camera, terrain, roads, models, pixie
-    void RenderScene();                    // 0x6b7760
+    void RenderScene(SViewport* vp);       // 0x6b7760 (HD: the current viewport 0x67bf40)
 
     // Other non-virtual HD members.
     void UpdateModels(SViewport* vp, bool all);     // 0x6bbcb0

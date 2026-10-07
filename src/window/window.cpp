@@ -317,15 +317,15 @@ bool SWindow::IsMouseCursorRestricted()
   return this->MouseCursorRestricted;
 }
 
-//----- (00497200) --------------------------------------------------------
-
+// PANZERS 0x544c40
+// DestroyWindow(hWnd) whatever the modal widget. (SWINE 0x497200 only set
+// shouldClose while a modal widget was up; the Panzers main loop 0x544db0
+// never reads it, so WM_CLOSE under the tutorial end box or any other modal
+// box left the game running.)
 void SWindow::OnClose()
 
 {
-  if ( this->ModalTarget )
-    this->shouldClose = 1;
-  else
-    DestroyWindow(this->hWnd);
+  DestroyWindow(this->hWnd);
 }
 
 //----- (00497220) --------------------------------------------------------

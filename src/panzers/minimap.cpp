@@ -26,6 +26,8 @@
 #include "hdbitmap.h"
 #include "igepardhd.h"
 #include "iviewport.h"
+#include "iscene.h"
+#include "blockmap.h"
 
 // PANZERS 0x808ff0: 1/172, the minimap is 0xac x 0xac pixels.
 static const double kMinimapScale = 1.0 / 172.0;
@@ -142,6 +144,52 @@ void UploadFogged(pz::SGameLogic* gl)
     (void)gl;
 }
 
+// PANZERS 0x55e440 (the no-MINI branch, 0x55e5b5..0x55e7a0)
+// A map without a MINI chunk: the bitmap is rendered by the scene (+0x0c,
+// 0x6b0000) at 2 * round(86 * w / |(w, h)|) x 2 * round(86 * h / |(w, h)|)
+// (w, h = the playable tiles, W - 0x60 when the map has the 48-tile border;
+// the diagonal is 172 = the minimap size, 0x7f7f94 = 86.0); then every
+// quarter-tile cell of the playable area whose static block map has no 0x2000
+// bit (0x5da050(x, z, 1, 0x2000) false) is painted 0xffffffff. HD panics on
+// a pixel outside the bitmap ("SGameLogic::SGameLogic: Invalid coordinates").
+SHdBitmap* RenderMinimapImage()
+{
+    pz::SWorld* w = pz::g_World;
+    if (!pz::g_Scene)
+        return nullptr;
+    int tw = w->TerrainW, th = w->TerrainH;                        // World +0xdc, +0xe0
+    if (tw >= 0x61 && th >= 0x61) {
+        tw -= 0x60;
+        th -= 0x60;
+    }
+    float fw = (float)((double)tw * 0.5);                          // 0x7ea760
+    float fh = (float)((double)th * 0.5);
+    double len = sqrt((double)(fh * fh + fw * fw));
+    int ih = (int)lrint((float)((double)fh * (1.0 / len)) * 86.0f);   // ROUND, 0x7eed98 / 0x7f7f94
+    int iw = (int)lrint((float)((double)fw * (1.0 / len)) * 86.0f);
+    SHdBitmap* b = (SHdBitmap*)(size_t)pz::g_Scene->Slot_0C_CreateMinimapTarget(0, iw * 2, ih * 2);
+    if (!b)
+        return nullptr;
+    int W = w->TerrainW, H = w->TerrainH;
+    if (W > 0x60 && H > 0x60) {
+        for (int z = 0xc0; z < H * 4 - 0xc0; ++z) {
+            for (int x = 0xc0; x < W * 4 - 0xc0; ++x) {
+                if (pz::BlockMap_CheckStaticInternal(w, x, z, 1, 0x2000))
+                    continue;
+                int px = (int)lrint((((float)x * 0.25f - 48.0f) / (float)(W - 0x60)) * (float)b->Width);   // 0x7f4538, 0x7f7f90
+                int pz_ = (int)lrint((((float)z * 0.25f - 48.0f) / (float)(H - 0x60)) * (float)b->Height);
+                int py = (b->Height - pz_) - 1;
+                if (px < 0 || px >= b->Width || py < 0 || py >= b->Height) {
+                    Logger.g->Panic("SGameLogic::SGameLogic: Invalid coordinates %d %d", px, py);
+                    continue;
+                }
+                *(unsigned*)(b->Data + b->Start + b->Bpp * px + b->Pitch * py) = 0xffffffff;
+            }
+        }
+    }
+    return b;
+}
+
 } // namespace
 
 // PANZERS 0x55e440 (the minimap part of the SGameLogic ctor)
@@ -160,12 +208,24 @@ void PzMinimapCreate(pz::SGameLogic* gl)
     GlInt(gl, 0x180) = s_Mm.Font;
     const SHdBitmap* src = (const SHdBitmap*)pz::g_World->Minimap;  // World +0x74bc (MINI chunk)
     if (!src) {
-        Logger.g->Log(0, "minimap: no MINI chunk; the scene render 0x6b0000 is not lifted");
-        return;
+        s_Mm.Map = RenderMinimapImage();                           // 0x55e440 no-MINI branch (the tutorial)
+        if (!s_Mm.Map) {
+            Logger.g->Log(0, "minimap: no MINI chunk and the scene render 0x6b0000 failed");
+            return;
+        }
+    } else {
+        s_Mm.Map = CopyBitmap(src);                                // 0x669be0(src, src +8)
     }
-    s_Mm.Map = CopyBitmap(src);                                    // 0x669be0(src, src +8)
     if (!s_Mm.Map)
         return;
+    if (const char* dump = getenv("PZ_MINIMAP_DUMP")) {          // test hook: the map image as raw BGRA
+        if (FILE* f = fopen(dump, "wb")) {
+            fwrite(&s_Mm.Map->Width, 4, 2, f);
+            for (int y = 0; y < s_Mm.Map->Height; ++y)
+                fwrite(s_Mm.Map->Data + s_Mm.Map->Start + y * s_Mm.Map->Pitch, 1, (size_t)s_Mm.Map->Width * 4, f);
+            fclose(f);
+        }
+    }
     s_Mm.Fogged = CopyBitmap(s_Mm.Map);                            // 0x669be0(+0x18c, +0x18c +8)
     Logger.g->Log(0, "minimap: frame %d, font %d (texture %d), map %dx%d format %d", frame, s_Mm.Font,
                   Board->GetFontTexture(s_Mm.Font), s_Mm.Map->Width, s_Mm.Map->Height, s_Mm.Map->Format);

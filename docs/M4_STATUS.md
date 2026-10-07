@@ -1,5 +1,58 @@
 # M4 status
 
+## Small fixes (agent FX, branch `m4-fixes`, 2026-10-07)
+
+- **The Tutorial's minimap was black**: `maps/tutorial.map` has no MINI chunk (training.map has
+  one, 124 x 116 format 2). For such maps the SGameLogic ctor 0x55e440 renders the image: scene
+  +0x0c **0x6b0000** makes a lockable A8R8G8B8 offscreen viewport (0x678c70(w, h, 0x15, 1)) of
+  2 * round(86 * w / |(w, h)|) x 2 * round(86 * h / |(w, h)|) (playable tiles; 82 x 150 for the
+  tutorial), an orthographic projection (SViewport +0x30 **0x68ce50**, 2 / (W - 0x60), near 1, far
+  600) from (W / 2, 30, H / 2) looking down, renders the scene with option 0x11 off and the fog start
+  +1000 (**SScene::RenderScene 0x6b7760**), reads it back (SSurfaceBitmap **0x6c0e50**, 0x669be0
+  format 2, 0x6c1030) with alpha 0xff (0x66f0b0); then 0x55e440 paints every quarter-tile cell
+  without static block bit 0x2000 (0x5da050) white. The recompile's viewport select / unselect
+  (0x6803e0 / 0x6814b0) now nest, as HD's viewport stack does: RenderScene selects the shadow
+  buffer inside the minimap viewport. The image (`PZ_MINIMAP_DUMP=<file>` writes it raw) shows the
+  road, the fields and the woods as in the original's `o_g1.png`.
+- **The window did not close after a `-packetplay` replay ended**: the end of the recording sets
+  the mission result (0x57391d), and in a tutorial-mode mission (Training Camp, Tutorial) the view
+  shows the modal "Victory" end box (0x628430, SMessageBox modal: SetModalWidget 0x544fe0). WM_CLOSE
+  then went to the SWINE-shared `SWindow::OnClose` (SWINE 0x497200), which only sets `shouldClose`
+  while a modal widget is up; the Panzers main loop (0x544db0) never reads it, so the game ran on.
+  HD's `SWindow::OnClose` **0x544c40** is a plain `DestroyWindow(hWnd)` (its only DestroyWindow
+  call); the recompile now does the same. Not a replay problem: closing the window under any modal
+  box behaved the same.
+- **Objective completed (action 0x23)**: the objective music is played (0x57ba97: Concert +0x80(0),
+  +0x6c, +0x70("music/Objective.mp3"), +0x78(0), the sequence of the end music), and the markers are
+  removed with HD's argument order: 0x57baf8 calls **0x579420**(objective n - 1, target -1); the
+  recompile passed (-1, n - 1), i.e. removed the markers whose *target* index was n - 1. 0x579420
+  is lifted on the +0x194 records (match objective +0x0c and target +0x10, -1 = any; 0x579070
+  SDArray::Remove); the board frames HD drops there (board +0x0c / +0xbc) are not made by the
+  recompile. The markers are added by action 0x21 (0x57b746: "new objective" message, objective
+  +0x04 cleared, 0x560eb0 per target of the objective), which is **not lifted** (no 0x21 / 0x22 in
+  the tutorial).
+- **Tutorial objectives, checked against the trigger data** (TRIG of maps/tutorial.map, 126
+  triggers): action 0x23 occurs once, in T122 ("26. Cél teljesítve": after variable 1 = 25 and
+  variable 2 = 1) for objective 1, the only objective of `[Tutorial]` (`Objective 1 Main = 1`). A
+  main objective: no prestige, the music, state 2, no markers to remove (no 0x21), and every main
+  objective done -> victory. The tutorial's steps are trigger variable 1 (actions 0x03) and the
+  echo / speech texts, not campaign objectives. Step 23 (T102) waits on **0x40000008 > 97** (the
+  refilled LeFH 18): it could never pass with the stub (value 0); see below.
+- **Campaign objective bonus prestige**: already added, by action 0x23. HD's only writer of
+  campaign +0x38 through AddPrestige **0x592b10** is RunTriggers at 0x57ba92 (`push 0x28` secret /
+  `push 0x3c` optional, main objectives none), which T's 0x23 does (+0x38 += 0x28 / 0x3c). The
+  statistics screen recomputes the same numbers for display only; LetResultsDone carries Prestige
+  into the next mission's StartPrestige. Nothing else to add.
+- **Condition variable 0x40000008** (CheckConditions 0x580600, 0x580a5e): the mean ammunition of
+  gunner 0 of the found units that have a gunner whose prototype has ammunition (GetPGunner +0x48
+  != 0): AmmoLeft (+0x20) plus 1 / Ammo when a round is loaded (+0x5c), * 100 (0x7ee558), rounded
+  by fistp; 0 when no unit counts. Lifted (was a STUB_LOG).
+
+Regressions (final build): menu CRC 0 of 1,180 frames differ; tc1 replay frames 0..3900 equal
+(WM_CLOSE -> exit in 0.2 s); tut1 replay frames 0..2011 equal (exit in 0.6 s). Census: 2377 + 1317
++ 183 -> 2382 lifted + 1316 SWINE-shared (SWindow::OnClose now HD's) + 179 stubs; 79 lifted bodies
+with a STUB_LOG.
+
 ## Campaign shell (agent K, branch `m4-campaign`, 2026-10-07)
 
 With `-m3`, **New Game** goes through the original's campaign screens into campaign mission 1
@@ -48,8 +101,8 @@ briefing parts, map status), and the Panzers HD functions above were lifted from
 
 Left:
 - `BackupCampaignUnits`: the multiplayer part (SMulti names, the `armies/*.army` save) is left out.
-  The objective bonus prestige of the statistics menu (60 / 40 per objective) is shown but not added
-  to the campaign (no HD writer found yet).
+  (The objective bonus prestige is added by trigger action 0x23 through 0x592b10: see "Small
+  fixes".)
 - `SPanzersCampaign::SaveGameBefore` (agent S): logged stub in `src/stubs/stub_panzers.cpp`.
 - Scenario (`LoadScenarioMenu` 0x63b2d0) and Skirmish (0x534d1) buttons: logged stubs.
 - Results: Upload Result / the save menu (SSaveMenu 0x633820) are not lifted; the multiplayer and
@@ -218,7 +271,7 @@ never moved).
 | 0x16 | unload all (order 0x2b, -1) | 0x564870 |
 | 0x17 | camera to a location | 0x5f4f60 |
 | 0x1b | give the found units to a player | `SUnit::SetPlayer` 0x5c1630 |
-| 0x23 | objective completed (messages, prestige, state 2, victory when every main objective is done) | case body + 0x579420 (markers: none drawn) |
+| 0x23 | objective completed (messages, prestige, state 2, victory when every main objective is done) | case body + 0x579420 (markers: records only; music lifted by agent FX) |
 | 0x24 | health of the found units and their members, percent | case body |
 | 0x27 / 0x28 | behaviour (order 0x21) / global state (order 0x28) | 0x564870 |
 | 0x2a | stop (order 8) | 0x564440 |
@@ -234,7 +287,7 @@ never moved).
 | 0x49 | found units +0x140 / +0x14c off | case body |
 
 Condition 3, special variable 0x40000004 (mean health in percent of the found units) lifted
-(0x580600; T6 of the tutorial); 0x40000008 (ammunition) is still a STUB_LOG. Every condition and event
+(0x580600; T6 of the tutorial); 0x40000008 (ammunition) is lifted too (agent FX). Every condition and event
 type the tutorial uses (conditions 2, 3, 5, 6, 7, 9; events 0..6, 8, 9) is present.
 
 **Objectives**: action 0x23 sets the objective state that the objectives screen
@@ -260,7 +313,7 @@ truck, T5 started). The screens match the original's `o_g1` / `o_g2`.
 - Training Camp replay tc1 (`-nointro -m3 -packetplay Replays\tc1.rec`, `PZ_M2_CRC=1
   PZ_M3_REPLAY_PAUSED=1`) against m3ref\tc1_crc_bf_full.txt: frames 0..3900 all equal (3,901 frames).
   When WM_CLOSE arrives at the end of this replay, the process has to be killed after 8 s. master
-  fe92a6a behaves the same, so this is not new.
+  fe92a6a behaves the same, so this is not new. (Fixed by agent FX: SWindow::OnClose 0x544c40.)
 - Census: 2275 lifted + 1317 SWINE-shared + 193 stubs; 81 lifted bodies with a STUB_LOG (master:
   2238 + 1317 + 189; 79).
 
@@ -269,10 +322,10 @@ truck, T5 started). The screens match the original's `o_g1` / `o_g2`.
 - The cut-scene subtitles and sound (0x56fd70 / 0x5826c0); the .4d cut-scenes (0x56f0d0) and the
   map cut-scenes of action 0x38. The colour box is sized to cover any window, not to the
   viewport (viewport +0x10 is untyped).
-- The objective music; the minimap of the tutorial is black in our build (Training Camp's is not),
-  which was not investigated.
+- (The black tutorial minimap, the objective music, 0x579420 and condition variable 0x40000008
+  are done: see "Small fixes" above.)
 - campaign.cpp LoadObjectives text from LocalProps (agent K, above).
-- Condition variable 0x40000008, the objective markers (0x579420 list) and
-  the board alpha fade of 0x578b00.
+- Action 0x21 / 0x22 (the objective markers: 0x560eb0 board frames and minimap markers) and the
+  board alpha fade of 0x578b00.
 - The tutorial was replayed to objective 3 (frame 2011); the later objectives (house, AT rifles, the
   captured gun, the towed howitzer, the forest, the bomber) are not verified.
