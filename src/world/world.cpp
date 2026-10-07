@@ -21,6 +21,7 @@
 #include "pz/iterrain.h"
 #include "pz/hdmath.h"
 #include "pz/imodel.h"
+#include "pz/weathersound.h"
 #include "iboard.h"
 #include "iconcert.h"
 #include "properties.h"
@@ -145,9 +146,10 @@ SWorld::SWorld(int p1)
     RainFx = -1;
     *(int*)((unsigned char*)this + 0x648) = -1;
     SnowFx = -1;
-    // HD: Concert +0x24("sounds/ambient/eso/eso60stereo - eros.mp3", 0) ->
-    // +0x63c, +0x640 = -1. Ambient sound is not part of M1 (SWINE concert).
-    *(int*)((unsigned char*)this + 0x63c) = -1;
+    // The rain sound (Concert +0x24 precache, not positional) and its
+    // playing sound (+0x640).
+    *(int*)((unsigned char*)this + 0x63c) = WeatherPrecacheSound("sounds/ambient/eso/eso60stereo - eros.mp3");
+    *(int*)((unsigned char*)this + 0x640) = -1;
     *(int*)((unsigned char*)this + 0x640) = -1;
     // Board +0x74 "menu/selection_hq.tga" (0x38 glyphs), "menu/insignils_hq.tga",
     // "menu/multiplayer_insignils_hq.tga" and the four drag-box frames
@@ -223,9 +225,23 @@ SWorld::~SWorld()
     }
     if (g_Pixie) {
         g_Pixie->ReleaseEffectPrototype(WireTearFx);              // pixie +0x20 (+0x7428)
-        g_Pixie->ReleaseEffectPrototype(SnowFx);                  // +0x644 (no snow effect playing)
+        // HD: a playing snow / rain effect is destroyed (+0x3c) and
+        // stopped (+0x34) before its prototype goes.
+        int& snowEffect = *(int*)((unsigned char*)this + 0x648);
+        int& rainEffect = *(int*)((unsigned char*)this + 0x638);
+        if (SnowFx >= 0 && snowEffect >= 0) {
+            g_Pixie->DestroyEffect(snowEffect);                   // pixie +0x3c
+            g_Pixie->StopEffect(snowEffect);                      // pixie +0x34
+        }
+        g_Pixie->ReleaseEffectPrototype(SnowFx);                  // +0x644
+        if (RainFx >= 0 && rainEffect >= 0) {
+            g_Pixie->DestroyEffect(rainEffect);
+            g_Pixie->StopEffect(rainEffect);
+        }
         g_Pixie->ReleaseEffectPrototype(RainFx);                  // +0x634
     }
+    if (*(int*)((unsigned char*)this + 0x640) >= 0)
+        WeatherRemoveSound(*(int*)((unsigned char*)this + 0x640));   // Concert +0x3c
     if (Terrain) {
         g_Scene->DestroyTerrain();                                // scene +0x68
         Terrain = nullptr;
@@ -526,25 +542,123 @@ struct SWeatherLights {
 static_assert(sizeof(SWeatherLights) == 0x4c, "weather light block 0x4c");
 
 // PANZERS 0x6088f0
-// Applies the weather lights to the scene. (Rain/snow effects: the menu has
-// neither, and pixie +0x2c is a pending slot.)
+// Applies the weather (every logic tick, from SetWeather and the script's
+// setweather): during a timed blend (+0x54c seconds) the applied block is
+// start + (target - start) * t, the sun angles the short way round, and t
+// advances by 1 / (seconds * 20) per call; then the scene lights and fog,
+// and the rain / snow effects: a weather Rain / Snow of 1 or more starts
+// Rain.fx / Snowfall.fx (pixie +0x2c at the origin, facing up) and sets
+// it as their intensity (pixie +0x54), below 1 it stops them (+0x34). Both
+// only while +0x64c is set (SWorld::StartEffects 0x5f5b50, cleared by the
+// script's disable_ambient_sounds).
+// The rain also plays the ambient sound +0x63c in a loop (Concert +0x30 ->
+// +0x640) at volume Rain / 400, at most 1 (Concert +0x48). HD bug, kept: the
+// stop test reads +0x638 after clearing it, so the sound is never removed
+// when the rain stops (it keeps its last volume until the world goes).
 static void ApplyWeatherLights(SWorld* w)
 {
     unsigned char* base = (unsigned char*)w;
+    SWeatherLights* start = (SWeatherLights*)(base + 0x550);
     SWeatherLights* target = (SWeatherLights*)(base + 0x59c);
     SWeatherLights* out = (SWeatherLights*)(base + 0x5e8);
     if (w->WeatherBlendTime <= 0.0f) {
         *out = *target;
     } else {
-        // Timed blend between weathers (+0x550 start): not used by the menu.
-        *out = *target;
-        w->WeatherBlendTime = 0.0f;
-        w->WeatherBlend = 0.0f;
+        float t = w->WeatherBlend;
+        for (int c = 0; c < 3; ++c) {
+            out->Ambient[c] = (target->Ambient[c] - start->Ambient[c]) * t + start->Ambient[c];
+            out->Sun[c] = (target->Sun[c] - start->Sun[c]) * t + start->Sun[c];
+            out->Fog[c] = (target->Fog[c] - start->Fog[c]) * t + start->Fog[c];
+        }
+        out->Ambient[3] = 0.0f;
+        out->Sun[3] = 0.0f;
+        out->Fog[3] = 0.0f;
+        const double pi = 3.1415927410125732, twoPi = 6.2831854820251465;   // 0x7f4560, 0x7f4570
+        double a1 = (double)start->SunAngle1;
+        double d1 = a1 - (double)target->SunAngle1;
+        if (d1 > pi)
+            a1 -= twoPi;
+        else if (d1 < -pi)
+            a1 += twoPi;
+        out->SunAngle1 = (float)((1.0 - (double)t) * a1 + (double)target->SunAngle1 * (double)t);
+        double a2 = (double)start->SunAngle2;
+        double d2 = a2 - (double)target->SunAngle2;
+        if (d2 > pi)
+            a2 -= twoPi;
+        else if (d2 < -pi)
+            a2 += twoPi;
+        out->SunAngle2 = (float)((1.0 - (double)t) * a2 + (double)target->SunAngle2 * (double)t);
+        out->FogStart = (target->FogStart - start->FogStart) * t + start->FogStart;
+        out->FogEnd = (target->FogEnd - start->FogEnd) * t + start->FogEnd;
+        out->FogDensity = (target->FogDensity - start->FogDensity) * t + start->FogDensity;
+        out->Rain = (target->Rain - start->Rain) * t + start->Rain;
+        out->Snow = (target->Snow - start->Snow) * t + start->Snow;
+        t = 1.0f / (w->WeatherBlendTime * 20.0f) + t;                 // 0x7f1b58, 0x7f35d8
+        w->WeatherBlend = t;
+        if (1.0f <= t) {
+            w->WeatherBlendTime = 0.0f;
+            w->WeatherBlend = 0.0f;
+        }
     }
     PzGepard()->SetOption(0x10, 1);                               // Gepard +0x10(0x10, 1)
     g_Scene->SetAmbientLight(out->Ambient);                       // scene +0x3c
     g_Scene->SetSunLight(out->Sun, out->SunAngle1, out->SunAngle2);   // scene +0x44
     g_Scene->SetFog(out->Fog[0], out->Fog[1], out->Fog[2], out->FogStart, out->FogEnd, out->FogDensity);   // scene +0x4c
+
+    int& rainEffect = *(int*)(base + 0x638);
+    int& snowEffect = *(int*)(base + 0x648);
+    bool effectsOn = base[0x64c] != 0;
+    int& rainSound = *(int*)(base + 0x640);
+    if (!effectsOn || out->Rain < 1.0f) {
+        if (rainEffect >= 0) {
+            if (g_Pixie)
+                g_Pixie->StopEffect(rainEffect);                      // pixie +0x34
+            rainEffect = -1;
+        }
+        if (rainEffect >= 0) {                                    // (HD bug: never true)
+            WeatherRemoveSound(rainSound);                        // Concert +0x3c
+            rainSound = -1;
+        }
+    } else if (g_Pixie) {
+        if (rainEffect < 0) {
+            const float pos[3] = { 0.0f, 0.0f, 0.0f };
+            const float dir[3] = { 0.0f, 1.0f, 0.0f };
+            rainEffect = g_Pixie->CreateEffect(g_Scene, w->RainFx, pos, dir);   // pixie +0x2c
+        }
+        int bits;
+        memcpy(&bits, &out->Rain, 4);
+        g_Pixie->SetEffectParam18(rainEffect, bits);              // pixie +0x54 (intensity)
+        if (rainSound < 0)
+            rainSound = WeatherCreateLoopSound(*(int*)(base + 0x63c));   // Concert +0x30(+0x63c, 1, 0, 0, 1)
+        float vol = out->Rain / 400.0f;                           // 0x7fd70c
+        if (1.0f <= vol)
+            vol = 1.0f;
+        WeatherSetSoundVolume(rainSound, vol);                    // Concert +0x48
+    }
+    if (effectsOn && 1.0f <= out->Snow) {
+        if (g_Pixie) {
+            if (snowEffect < 0) {
+                const float pos[3] = { 0.0f, 0.0f, 0.0f };
+                const float dir[3] = { 0.0f, 1.0f, 0.0f };
+                snowEffect = g_Pixie->CreateEffect(g_Scene, w->SnowFx, pos, dir);
+            }
+            int bits;
+            memcpy(&bits, &out->Snow, 4);
+            g_Pixie->SetEffectParam18(snowEffect, bits);
+        }
+        return;
+    }
+    if (snowEffect >= 0) {
+        if (g_Pixie)
+            g_Pixie->StopEffect(snowEffect);
+        snowEffect = -1;
+    }
+}
+
+// The per-tick call of SGameLogic::Refresh (0x576d80 -> 0x6088f0).
+void SWorld::ApplyWeather()
+{
+    ApplyWeatherLights(this);
 }
 
 // PANZERS 0x5fdc80

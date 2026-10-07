@@ -1006,8 +1006,7 @@ void SWalkerAnimation::InitModel(SIModel* model)
     HdStrFree(&t);
     unsigned r = UnitAnimNextSeed();
     Timer = 0x3c - (int)((double)((r >> 16) & 0x7fff) * -3.0517578125e-05 * 60.0);
-    // HD: model +0xcc(WProto->ShadowTexture), the blob shadow decal. The
-    // slot is a stub in pzmodel.cpp (Slot_CC), not called.
+    Model()->SetShadowTexture(WProto->ShadowTexture);             // +0xcc: the blob shadow
     Model()->SetFlags(5);                                         // +0x94: interpolate pose, accumulate time
     int guns = PUnitField<unsigned char>(PUnitOf(Unit), kPUnitGunCount);
     if (guns != 0) {
@@ -1130,7 +1129,7 @@ static void WalkerStartDie(SWalkerAnimation* a)
     else
         t += 100;
     UnitStartDeathEffects(u);
-    // HD: model +0xcc(-1) drops the blob shadow (Slot_CC, not called).
+    m->SetShadowTexture(-1);                                      // +0xcc(-1): drops the blob shadow
     m->AdvanceAnimation(kTick);
 }
 

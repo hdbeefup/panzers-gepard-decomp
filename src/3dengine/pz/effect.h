@@ -32,6 +32,7 @@
 #include "ipixie.h"
 #include "imodel.h"
 #include "propertystruct.h"
+#include "mesh.h"   // SRenderPass (the weather effects keep one)
 
 namespace pz {
 
@@ -622,6 +623,152 @@ struct SCameraShake : SEffect {                                       // 0x70, c
     bool  Stopped;           // +0x50
     float Time;              // +0x54
     float Phase[6];          // +0x58 rand() * 2 pi each
+};
+
+// ---------------------------------------------------------------------------
+// Weather effect types (weatherfx.cpp, agent M6-WX). The world's weather
+// (SWorld 0x6088f0) plays "Effects/Atmosphere/Rain.fx" / "Snowfall.fx" as
+// persistent effects and sets their intensity through SPixie +0x54
+// (instance +0x14). Both keep 4 x 4 tiles of 400 particles over an 8 x 8
+// area and draw a tile on every visible terrain parcel near the camera.
+// ---------------------------------------------------------------------------
+
+// EffectType 2 "02_RAIN".
+struct SPRain : SPEffect {                                            // 0x48, ctor 0x6ea820, vftable 0x88417c
+    SPRain();
+    ~SPRain();                                                        // 0x6eaa80 (0x6eab70 deleting)
+    bool Init(SPropertyStruct* ts, const char* name) override;        // +0x0c 0x6eac50
+    SEffect* CreateInstance(SIScene* scene, float param) override;    // +0x14 0x6eabd0
+
+    STrackFloat NumTrack;    // +0x14 "RainDropNum" (drops per tile over Duration)
+    int   Texture;           // +0x24 "effects/media/<Texture>", -1
+    int   Variations;        // +0x28
+    unsigned Color;          // +0x2c (not drawn)
+    int   VB;                // +0x30 dynamic VB, FVF 0x102 (XYZ|TEX1), -1
+    float Duration;          // +0x34
+    float InvVariations;     // +0x38 1 / Variations
+    float Alpha;             // +0x3c (not drawn)
+    float VertSpeed;         // +0x40
+    float VertSpeedRnd;      // +0x44
+};
+
+struct SRain : SEffect {                                              // 0x42c, ctor 0x6ea860, vftable 0x884198
+    SRain(SIScene* scene, SPRain* proto);
+    ~SRain();                                                         // +0x00 0x6eab20 (0x6eaba0 deleting)
+    void Slot_14(int p) override;                                     // +0x14 0x6eb5b0 intensity (float bits)
+    bool Process() override;                                          // +0x1c 0x6eaeb0
+    void Render(SIViewport* vp) override;                             // +0x20 0x6eb170
+    void Stop() override { Stopped = true; }                          // +0x2c 0x6eb5d0
+
+    float* Drops[16];        // +0x44 per tile 400 x {x, y, z, fall speed} (0x1900 bytes)
+    unsigned TileFrame[16];  // +0x84 last processed frame
+    int   TileCount[16];     // +0xc4 live drops
+    SIScene* Scene;          // +0x104
+    SPRain* P;               // +0x108
+    bool  Stopped;           // +0x10c
+    int   Cursor;            // +0x110
+    bool  UseTrack;          // +0x114 (1) the intensity follows NumTrack until +0x14
+    float Time;              // +0x118
+    float Intensity;         // +0x11c drops per tile
+    int   Alive;             // +0x120
+    SRenderPass Pass;        // +0x124 (0x308)
+};
+
+// EffectType 3 "03_SNOWFALL".
+struct SPSnowfall : SPEffect {                                        // 0x48, ctor 0x6eb5e0, vftable 0x8842ac
+    SPSnowfall();
+    ~SPSnowfall();                                                    // 0x6eb940 (0x6eba40 deleting)
+    bool Init(SPropertyStruct* ts, const char* name) override;        // +0x0c 0x6ebb20
+    SEffect* CreateInstance(SIScene* scene, float param) override;    // +0x14 0x6ebaa0
+
+    STrackFloat NumTrack;    // +0x14 "SnowFlakeNum"
+    int   Texture;           // +0x24
+    int   Variations;        // +0x28
+    unsigned Color;          // +0x2c (not drawn)
+    int   VB;                // +0x30 dynamic VB, FVF 0x1c4 (XYZRHW|DIFFUSE|SPECULAR|TEX1), -1
+    float Duration;          // +0x34
+    float InvVariations;     // +0x38
+    float Alpha;             // +0x3c (not drawn)
+    float VertSpeed;         // +0x40
+    float VertSpeedRnd;      // +0x44
+};
+
+// One flake (0x2c).
+struct SSnowFlake {
+    float Pos[3];            // +0x00 x, y (above the terrain), z in the tile
+    float Fall;              // +0x0c
+    float Swing[2];          // +0x10 x / z sway amplitude 0.2 .. 0.4
+    float Phase[2];          // +0x18
+    float PhaseSpeed[2];     // +0x20 2 .. 4 rad/s
+    int   Variation;         // +0x28 0..3 (texture strip column)
+};
+
+struct SSnowfall : SEffect {                                          // 0x7ac, ctor 0x6eb620, vftable 0x8842c8
+    SSnowfall(SIScene* scene, SPSnowfall* proto);
+    ~SSnowfall();                                                     // +0x00 0x6eb9e0 (0x6eba70 deleting)
+    void Slot_14(int p) override;                                     // +0x14 0x6ec570
+    bool Process() override;                                          // +0x1c 0x6ebd90
+    void Render(SIViewport* vp) override;                             // +0x20 0x6ec0c0
+    void Stop() override { Stopped = true; }                          // +0x2c 0x6ec590
+
+    // HD keeps [4][32] tables (+0x44 flakes, +0x244 frames) and uses
+    // columns 0..3 only; the counts (+0x444) are [16].
+    SSnowFlake* Flakes[16];
+    unsigned TileFrame[16];
+    int   TileCount[16];
+    SIScene* Scene;          // +0x484
+    SPSnowfall* P;           // +0x488
+    bool  Stopped;           // +0x48c
+    int   Cursor;            // +0x490
+    bool  UseTrack;          // +0x494
+    float Time;              // +0x498
+    float Intensity;         // +0x49c
+    int   Alive;             // +0x4a0
+    SRenderPass Pass;        // +0x4a4
+};
+
+// EffectType 1 "01_FLARE": a lens glow drawn by SPixie::Render after the
+// effects (weatherfx.cpp, agent M6-WX). Every instance is also in the pixie
+// flare heap (+0x3c) and fades with an occlusion query.
+struct SPFlare : SPEffect {                                           // 0x38, ctor 0x6df880, vftable 0x883ccc
+    SPFlare();
+    ~SPFlare();                                                       // 0x6dfa00 (deleting)
+    bool Init(SPropertyStruct* ts, const char* name) override;        // +0x0c 0x6dfc60
+    SEffect* CreateInstance(SIScene* scene, float param) override;    // +0x14 0x6dfb30
+
+    int   Texture;           // +0x14 -1
+    int   Variations;        // +0x18
+    unsigned Color;          // +0x1c
+    float InvVariations;     // +0x20
+    float Alpha;             // +0x24
+    float AlphaExp;          // +0x28
+    float Scale;             // +0x2c
+    float ScaleExp;          // +0x30
+    bool  Directional;       // +0x34
+};
+
+struct SFlare : SEffect {                                             // 0x36c, ctor 0x6df7a0, vftable 0x883ce8
+    SFlare(SPFlare* proto, int flareIndex);
+    ~SFlare();                                                        // +0x00 0x6df8b0 (0x6df9d0 deleting)
+    bool Process() override;                                          // +0x1c 0x6dfea0
+    void Stop() override;                                             // +0x2c 0x6e08a0 deletes the flare
+    // SFlare's own slots, called by SPixie::Render 0x69ea50.
+    float* BeginBatch(SIViewport* vp, int texture);                   // +0x34 0x6e00c0
+    void Draw(SIViewport* vp, const float* camera, float* vb);        // +0x38 0x6e0150
+    void EndBatch(SIViewport* vp, int texture);                       // +0x3c 0x6e0100
+    void IssueOcclusionQuery(SIViewport* vp);                         // +0x40 0x6dfeb0
+    void ReleaseQuery();                                              // +0x44 0x6dfc40
+    void CreateQuery();                                               // +0x48 0x6dfc10
+
+    int   FlareIndex;        // +0x44 pixie flare heap index
+    int   Variation;         // +0x48
+    SPFlare* P;              // +0x50
+    bool  Pending;           // +0x35 (HD keeps it in the SEffect padding): Active this frame, not drawn yet
+    SRenderPass Pass;        // +0x54
+    int   ExpectedPixels;    // +0x35c (2 * screen size)^2, 1 when off screen (not read)
+    int   QueryState;        // +0x360 0 idle, 2 issue next, 1 issued
+    float Visibility;        // +0x364 visible pixels / 45, at most 1 (1)
+    void* Query;             // +0x368 IDirect3DQuery9 (D3DQUERYTYPE_OCCLUSION), null when unsupported
 };
 
 // HD 0x6ee4d0: add a camera shake offset to the root viewport's eye offset

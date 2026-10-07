@@ -534,9 +534,15 @@ int SPixie::InitEffectPrototype(int proto, const char* name, SPropertyStruct* da
     case 0:
         e = new SPParticles();          // new 0x1a0, 0x6e08b0
         break;
-    case 1:  STUB_LOG("SPFlare (EffectType 1, 0x6df880)"); break;
-    case 2:  STUB_LOG("SPRain (EffectType 2, 0x6ea820)"); break;
-    case 3:  STUB_LOG("SPSnowfall (EffectType 3, 0x6eb5e0)"); break;
+    case 1:
+        e = new SPFlare();              // new 0x38, 0x6df880 (M6-WX, weatherfx.cpp)
+        break;
+    case 2:
+        e = new SPRain();               // new 0x48, 0x6ea820 (M6-WX, weatherfx.cpp)
+        break;
+    case 3:
+        e = new SPSnowfall();           // new 0x48, 0x6eb5e0
+        break;
     case 4:
         e = new SPDecalEffect();        // new 0x68, 0x6ea0f0
         break;
@@ -590,9 +596,40 @@ void SPixie::Render(SIScene* scene, SIViewport* vp)
                 Effects[i]->Render(vp, layer);
         }
     }
-    // HD then reads the camera (vp +0x24) and draws the lens flares (heap
-    // +0x3c, SFlare +0x34/+0x38/+0x3c/+0x40). Flares are not ported; the
-    // heap stays empty.
+    // The lens flares (heap +0x3c), batched by texture: the first pending
+    // flare opens a batch (+0x34), every pending flare of that texture adds
+    // its quad (+0x38) and is done, the batch is drawn (+0x3c); until none
+    // is pending. Then every flare issues its occlusion query (+0x40).
+    float cam[3] = { 0.0f, 0.0f, 0.0f };
+    float yaw, pitch;
+    vp->GetCamera(&cam[0], &cam[1], &cam[2], &yaw, &pitch);     // vp +0x24
+    int first = -1;
+    for (;;) {
+        int tex = -1;
+        float* vb = nullptr;
+        for (int i = 0; i < Flares.Size(); ++i) {
+            if (!Flares.Valid(i) || !Flares[i] || !Flares[i]->Pending)
+                continue;
+            SFlare* f = Flares[i];
+            if (tex == -1) {
+                first = i;
+                tex = f->P->Texture;
+                vb = f->BeginBatch(vp, tex);
+            }
+            if (tex == f->P->Texture) {
+                f->Draw(vp, cam, vb);
+                f->Pending = false;
+            }
+        }
+        if (tex < 0)
+            break;
+        if (first < 0)
+            Logger.g->Panic("Flare:%d", first);
+        Flares[first]->EndBatch(vp, tex);
+    }
+    for (int i = 0; i < Flares.Size(); ++i)
+        if (Flares.Valid(i) && Flares[i])
+            Flares[i]->IssueOcclusionQuery(vp);
     EffectEndRender();
 }
 

@@ -694,15 +694,14 @@ void SScene::RenderViewport(SViewport* vp)
         if (GepardOption(2) != 0 && ShadowViewport >= 0)
             Terrain->RenderShadowPass();              // 0x6f46e0
     }
-    if (Terrain && !Terrain->GetCompactMode()) {
-        STUB_LOG("SScene::DrawSea (0x6b04d0)");
-    }
+    if (Terrain && !Terrain->GetCompactMode())
+        DrawOutlines(vp);                             // 0x6b04d0
     DrawSkybox(vp, FogColorAlpha);                    // 0x6b7920 (KSYB; none in menu.map)
     DeferredCount = 0;                                // 0x6a20f0(0) on +0x2a0
     DrawModels(vp, 0);                                // 0x6b02a0
     if (Terrain)
         DrawGroundTrails(vp);                         // 0x6ad0e0
-    STUB_LOG("SScene::DrawLines (0x6acf20)");       // +0x270 point pairs (0x20 each); none in the menu
+    DrawLines(vp);                                    // 0x6acf20 (+0x270)
     if (Terrain)
         Terrain->RenderLate(vp);                      // 0x6f33c0
     STUB_LOG("SScene::DrawLakes (0x6ad740)");       // LAKS: 0 in menu.map
@@ -730,8 +729,7 @@ void SScene::ReleaseShadowBuffer()
 {
     for (int i = FreeModels.Next(-1); i >= 0; i = FreeModels.Next(i)) {
         SModel* m = FreeModels[i];
-        if (m->ShadowDecal2 >= 0)
-            m->ShadowDecal2 = -1;   // terrain +0x64 (decals are not placed by the menu)
+        m->DropShadowDecal();       // 0x6da0c0
     }
     if (ShadowViewport >= 0)
         PzGepard()->DestroyViewport(ShadowViewport);

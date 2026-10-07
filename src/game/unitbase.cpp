@@ -548,7 +548,7 @@ void SUnit::Place(float x, float z, float dir)
     Unplaced = 0;
     InVehicleAnim = 0;
     if (Model && Anim)
-        Model->Slot_CC();                                     // +0xcc(anim +0x3c GetShadowTexture) (slot not named)
+        Model->SetShadowTexture(Anim->GetShadowTexture());   // +0xcc(anim +0x3c)
     Pos[0] = x;
     Pos[2] = z;
     Dir = dir;

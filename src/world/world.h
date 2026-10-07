@@ -162,6 +162,7 @@ struct SWorld {
     void ClearWeathers(int newSize);                           // 0x5dd010
     void SetDefaultWeather(int index);                         // 0x5fdaf0
     void SetWeather(int index, int blend);                     // 0x5fdc80
+    void ApplyWeather();                                       // 0x6088f0 (lights, fog, blend, rain / snow)
     void LoadPlayers(SStream* s);                              // 0x5f2ed0 PLY3
     void LoadCamera(const float* cam);                         // 0x5fd7c0 CAM
     void LoadLocations(SStream* s);                            // 0x5f0690 LOCS (agent L, trigger.cpp)

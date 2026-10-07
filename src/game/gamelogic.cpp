@@ -470,7 +470,8 @@ void SGameLogic::RefreshM2()
     }
     for (int n = 0; n < Running; ++n) {
         Tick_57dfe0();
-        // HD 0x6088f0: weather (M1-lifted inside SWorld; driven by the scene).
+        if (w)
+            w->ApplyWeather();                                    // 0x6088f0: weather blend, rain / snow
         if (w)
             w->Units.Frame = (unsigned)Frame;                     // World+0x4ec = frame
         if (Frame % 20 == 0)

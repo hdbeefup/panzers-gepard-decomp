@@ -22,7 +22,7 @@
 namespace pz {
 
 struct SIViewport;
-struct SFlare;   // HD SFlare (lens flares, EffectType 1): not ported
+struct SFlare;   // HD SFlare (lens flares, EffectType 1; effect.h)
 
 // HD deferred play request (0x28, list at SPixie+0x64), drained by UpdateFrame.
 struct SPixieDeferredPlay {

@@ -73,6 +73,7 @@ template struct SPtrHeap<SPEffect>;
 template struct SPtrHeap<SEffect>;
 template struct SPtrHeap<SPEffectSet>;
 template struct SPtrHeap<SEffectSet>;
+template struct SPtrHeap<SFlare>;   // SPixie +0x3c (M6-WX)
 
 // ===========================================================================
 // SPEffect

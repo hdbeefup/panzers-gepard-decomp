@@ -1330,6 +1330,10 @@ bool SWorld::LoadMap(SStream* stream, bool p2, int p3, int p4)
             if (Logger.g)
                 Logger.g->Log(0, "PZ3D world: WTHR %d weather(s), current %d \"%s\"", Weathers.Size, w,
                               (w >= 0 && w < Weathers.Size) ? SStr(Weathers.Array[w].Name) : "");
+            for (int i = 0; Logger.g && i < Weathers.Size; ++i)       // recompile log (M6-WX)
+                if (Weathers.Array[i].Lite[17] || Weathers.Array[i].Lite[18])
+                    Logger.g->Log(0, "PZ3D world: weather %d \"%s\" rain %d snow %d", i,
+                                  SStr(Weathers.Array[i].Name), Weathers.Array[i].Lite[17], Weathers.Array[i].Lite[18]);
             break;
         }
         case 0x4a444f52:     // RODJ (0x5f0b60, then 0x5f7fa0 per junction)

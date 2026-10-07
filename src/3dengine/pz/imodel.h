@@ -100,7 +100,7 @@ struct SIModel {
     virtual void SetHighlight(int mode) = 0;                // +0xc0 HD 0x6dad40 (1 arg dword) +0xf8 (SDoodad +0x28)
     virtual void Slot_C4() = 0;                             // +0xc4 HD 0x6d7ef0 (0 arg dwords)
     virtual void Slot_C8() = 0;                             // +0xc8 HD 0x6d7920 (2 arg dwords)
-    virtual void Slot_CC() = 0;                             // +0xcc HD 0x6dad80 (1 arg dword)
+    virtual void SetShadowTexture(int texture) = 0;         // +0xcc HD 0x6dad80 (1 arg dword) blob shadow texture (-1 none; drops the terrain decal)
     virtual bool HitTestPoint(const float* p) = 0;          // +0xd0 HD 0x6db7c0 (1 arg dword) a world point inside any collision node (POLY / BSP_) of the logic pose (M3-I)
     virtual void Slot_D4() = 0;                             // +0xd4 HD 0x6db960 (1 arg dword)
     virtual bool HitTestSegment(const float* a, const float* b) = 0; // +0xd8 HD 0x6db550 (2 arg dwords) the world segment a-b crosses a BSP_ collision node (line of fire, eye heights; M3-I)

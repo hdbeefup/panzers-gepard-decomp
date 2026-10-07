@@ -104,7 +104,7 @@ struct SModel : SIModel, SAttachable {
     void SetHighlight(int mode) override;
     void Slot_C4() override;
     void Slot_C8() override;
-    void Slot_CC() override;
+    void SetShadowTexture(int texture) override;
     bool HitTestPoint(const float* p) override;                  // +0xd0 0x6db7c0
     void Slot_D4() override;
     bool HitTestSegment(const float* a, const float* b) override; // +0xd8 0x6db550
@@ -133,6 +133,7 @@ struct SModel : SIModel, SAttachable {
     void RenderShadow(SViewport* vp);                            // 0x6d9570
     void ComputeNodes(int frame, const float* attach, bool prev); // 0x6dc7b0
     void UpdateFade();                                           // 0x6dc4f0
+    void DropShadowDecal();                                      // 0x6da0c0
     void AttachChild(int node, SIAttachable* child);             // 0x6d5940
     void DetachChild(int node, SIAttachable* child);             // 0x6d7340
     SAnimState Advance(const SAnimState& s, float dt) const;     // 0x6dae20
@@ -169,8 +170,8 @@ struct SModel : SIModel, SAttachable {
     bool           DrawnDeferred;     // +0xe9
     bool           FlagBit8;          // +0xea shadow drawn this frame (Update: Flags & 0x100 = casts none)
     unsigned char  _eb;
-    int            ShadowDecal;       // +0xec terrain decal (Slot_CC texture), -1
-    int            ShadowDecal2;      // +0xf0 -1
+    int            ShadowDecal;       // +0xec blob shadow texture (SetShadowTexture 0x6dad80), -1
+    int            ShadowDecal2;      // +0xf0 its terrain effect decal (Update 0x6dba80), -1
     bool           Flag;              // +0xf4 CreateModel flag
     unsigned char  _f5[3];
     int            Highlight;         // +0xf8 (Slot_C0): 1..3 fog tint, bit 2 half alpha

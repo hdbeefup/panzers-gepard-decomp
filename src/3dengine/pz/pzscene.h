@@ -76,6 +76,14 @@ struct SSmokeTrailPoints {     // HD SDArray (new 0xc)
     int Max;
 };
 
+// Rectangle outline (HD SHeap value 0x14, entry 0x18, scene +0x1cc): a
+// line strip around (X0, Z0) - (X1, Z1) on the terrain grid (0x6b04d0).
+struct SOutlineRect {
+    unsigned Color;   // +0x00
+    int X0, Z0;       // +0x04
+    int X1, Z1;       // +0x0c
+};
+
 // Smoke trail (HD SHeap value 0x38, entry 0x3c, scene +0x1e0).
 struct SSmokeTrail {
     SSmokeTrailPoints* Points;          // +0x00
@@ -205,6 +213,8 @@ struct SScene : SIScene {
     void SortModelsIntoCells();                     // 0x6ac210
     void DrawModels(SViewport* vp, int p2);         // 0x6b02a0
     void DrawRivers(SViewport* vp);                 // 0x6b0920
+    void DrawOutlines(SViewport* vp);               // 0x6b04d0 (pzscene_wx.cpp)
+    void DrawLines(SViewport* vp);                  // 0x6acf20 (pzscene_wx.cpp)
     void DrawGroundTrails(SViewport* vp);           // 0x6ad0e0
     void DestroySmokeTrail(int trail);              // 0x6aa9e0 (SParticles dtor, DestroyAllSmokeTrails)
     void DrawSmokeTrails(SViewport* vp);            // 0x6b7b30
@@ -271,7 +281,7 @@ struct SScene : SIScene {
     int           CellsX;            // +0x1c0
     int           CellsZ;            // +0x1c4
     STerrain*     Terrain;           // +0x1c8 (+0x64 CreateTerrain)
-    unsigned char _1cc[0x1e0 - 0x1cc];   // heap +0x1cc (not on the M3 path)
+    SHeap<SOutlineRect> Outlines;        // +0x1cc rectangle outlines (drawn by 0x6b04d0)
     SHeap<SSmokeTrail> SmokeTrails;      // +0x1e0 (+0x7c..+0x88, drawn by 0x6b7b30)
     int           SmokeTrailVB;      // +0x1f4 dynamic VB format 0x142 (-1: not made yet)
     SHeap<SGroundTrail> GroundTrails;    // +0x1f8 track marks (+0x8c..+0x98, drawn by 0x6ad0e0)

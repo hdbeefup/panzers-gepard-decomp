@@ -24,6 +24,7 @@ add_library(pz3d STATIC
     pzscene.h
     pzscene.cpp
     pzscene_m3.cpp
+    pzscene_wx.cpp
     pzmodel.h
     pzmodel.cpp
     # agent A: .4d prototypes, CANM animations, tracks, meshes
@@ -52,6 +53,7 @@ add_library(pz3d STATIC
     particles.cpp
     # agent M3-E: decal, sound, lite, trail and camera-shake effects
     effecttypes.cpp
+    weatherfx.cpp
 )
 target_include_directories(pz3d PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(pz3d PRIVATE ${PANZERS_SRC_DIR}/stubs)

@@ -18,6 +18,7 @@
 #include "pzterrain.h"
 #include "ipixie.h"
 #include "mesh.h"
+#include "parcel.h"   // TerrainAddRefTexture (0x677f20)
 #include "tracks.h"
 #include "logger.h"
 #include "stub_log.h"
@@ -317,8 +318,23 @@ void SModel::SetPrototype(SPModel* proto, SPModel* proto2)
     }
 }
 
+// PANZERS 0x6da0c0
+void SModel::DropShadowDecal()
+{
+    if (ShadowDecal2 >= 0) {
+        if (Scene && Scene->Terrain)
+            Scene->Terrain->DestroyEffectDecal(ShadowDecal2);   // terrain +0x64
+        ShadowDecal2 = -1;
+    }
+}
+
 SModel::~SModel()
 {
+    // HD 0x6d50c0 also drops the blob shadow decal and texture.
+    DropShadowDecal();
+    if (ShadowDecal >= 0)
+        PzGepard()->ReleaseTexture(ShadowDecal);                 // Gepard +0x48
+    ShadowDecal = -1;
     if (Scene)
         Scene->RemoveModel(this);
     for (int i = 0; Proto && i < Proto->NodeCount; ++i) {
@@ -487,7 +503,8 @@ void SModel::SetVisible(bool show, bool fade)
             if (MainHeap == 1)
                 Scene->ModelsMoved();
             if (!Visible && ShadowDecal2 >= 0) {
-                // terrain decal removal (terrain +0x64, agent B)
+                if (Scene->Terrain)
+                    Scene->Terrain->DestroyEffectDecal(ShadowDecal2);   // terrain +0x64
                 ShadowDecal2 = -1;
             }
             // attached objects get +0xc(show)
@@ -513,7 +530,7 @@ void SModel::SetVisible(bool show, bool fade)
             return;
         }
         if (FadeState == 0) {
-            ShadowDecal2 = -1;   // 0x6da0c0
+            DropShadowDecal();   // 0x6da0c0
             FadeState = -1;
             FadeAlpha = 1.0f;
             FadeStart = now;
@@ -1252,7 +1269,22 @@ void SModel::SetHighlight(int mode)
 
 void SModel::Slot_C4() { STUB_LOG("SModel::Slot_C4 (0x6d7ef0)"); }
 void SModel::Slot_C8() { STUB_LOG("SModel::Slot_C8 (0x6d7920)"); }
-void SModel::Slot_CC() { STUB_LOG("SModel::Slot_CC (0x6dad80)"); }
+
+// PANZERS 0x6dad80
+// The blob shadow texture (soldiers: SPWalkerAnimation "ShadowTexture";
+// -1 for none): drops the terrain decal, releases the old texture and keeps
+// a reference to the new one. Update 0x6dba80 places the decal.
+void SModel::SetShadowTexture(int texture)
+{
+    if (ShadowDecal2 >= 0) {
+        if (Scene && Scene->Terrain)
+            Scene->Terrain->DestroyEffectDecal(ShadowDecal2);   // scene +0x1c8, terrain +0x64
+        ShadowDecal2 = -1;
+    }
+    if (ShadowDecal >= 0)
+        PzGepard()->ReleaseTexture(ShadowDecal);                 // Gepard +0x48
+    ShadowDecal = TerrainAddRefTexture(texture);                 // 0x677f20
+}
 // World point -> node space of collision node `node`: the inverse (0x7c59c0)
 // of the logic-pose node matrix (+0x58, 0x6d7c60), row-vector convention,
 // ((m0 x + m3 y) + m6 z) + m9 per axis (0x6db5df / 0x6db7c0).
@@ -1895,8 +1927,19 @@ int SModel::Update(int frame, int attachMatrix)
             }
         }
     }
-    // Terrain shadow decal of the model (+0x12c texture, +0xe8 decal):
-    // terrain slots +0x60/+0x74/+0x68 (agent B); not used by the menu.
+    // The blob shadow (HD this+0x12c / +0xe8 / +0xec = SModel +0x130 /
+    // +0xec / +0xf0): unless the model fades out, a terrain effect decal of
+    // the shadow texture, made at the model position (+0x88) and moved to
+    // its world position every update, when the shadow buffer is off
+    // (Gepard option 2) or option 5 is off; the shadow buffer pass skips
+    // the models that have a shadow texture unless option 5 is on.
+    if (FadeState >= 0 && ShadowDecal >= 0 && (GepardOption(2) == 0 || GepardOption(5) == 0) && Scene->Terrain) {
+        if (ShadowDecal2 < 0 && ShadowDecal >= 0)
+            ShadowDecal2 = Scene->Terrain->CreateEffectDecal(ShadowDecal, Pos[0], Pos[2], 0.0f, 1.0f, 0, 0, false,
+                                                             true);   // terrain +0x60
+        Scene->Terrain->SetEffectDecalAlpha(ShadowDecal2, 1.0f);       // terrain +0x74
+        Scene->Terrain->SetEffectDecalPosition(ShadowDecal2, World[9], World[11]);   // terrain +0x68
+    }
     return 1;
 }
 
