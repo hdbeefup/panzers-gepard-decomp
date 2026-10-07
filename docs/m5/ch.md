@@ -77,7 +77,10 @@ so it reads the logic's unlimited-cargo flag. The unit's +0x2d9 is the high byte
 - Training Camp (PZ_M5_MISSION="Training camp", PZ_M5_AUTO=1): every code entered in turn: the
   `Cheat:` line shows and takes the text, each code prints its message (log `PZM5 CHEAT ...`),
   support counters 10 -> 110, prestige +1000, `DirtyHungarianPhrasebook` opens the VICTORY box;
-  Esc closes the line. German 1 starts with its intro cut-scene, during which Enter is ignored
+  Esc closes the line. `SheepInTheTrees` makes the fogged units around the camp visible at once.
+  Not verified on screen: the experience code with units selected (no own units at that point of
+  Training Camp; posted Ctrl+A / box drags did not select any), the joke (no enemies there),
+  instant kill / invulnerability / cargo in combat (their readers were already lifted). German 1 starts with its intro cut-scene, during which Enter is ignored
   (as in HD: ViewState 2).
 
 ## Reference to record from the original (optional)
