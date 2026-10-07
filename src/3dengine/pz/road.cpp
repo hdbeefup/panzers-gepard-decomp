@@ -244,12 +244,82 @@ void BuildParcelMesh(STerrain* t, SHdHeap<SRoadMesh>* heap, int px, int pz, SPar
 
 } // namespace
 
-// HD 0x6f95b0 STerrain::UpdateRoad (reimplemented from the decompile, 14.6 KB
-// of HD code: same Hermite sampling, step, per-segment bounds, half-width
-// vertex test, cell inclusion, U/V rules and the integral texture-repeat
-// scale; the per-parcel dirty-range bookkeeping is simplified to a full
-// rebuild and the along-road coordinate inside a sample interval is a
-// projection, where HD intersects the two sample planes)
+namespace {
+
+// A line a*x + b*z + c (HD keeps sample planes and chords this way).
+struct SLine {
+    float NX, NZ, C;
+    float Eval(float x, float z) const { return NZ * z + NX * x + C; }
+};
+
+// The plane through (x0, z0) facing (dx, dz), normalised when its length > 0.
+SLine PlaneAt(float x0, float z0, float dx, float dz)
+{
+    SLine l = { dx, dz, -(x0 * dx + z0 * dz) };
+    float q = dz * dz + dx * dx;
+    if (q > 0.0f) {
+        float k = (float)(1.0 / sqrt((double)q));
+        l.NX *= k; l.NZ *= k; l.C *= k;
+    }
+    return l;
+}
+
+// The line through (x0, z0) and (x1, z1), normal (z0 - z1, x1 - x0).
+SLine ChordLine(float x0, float z0, float x1, float z1)
+{
+    SLine l;
+    l.NX = z0 - z1;
+    l.NZ = x1 - x0;
+    l.C = -(x0 * l.NX + z0 * l.NZ);
+    float q = l.NX * l.NX + l.NZ * l.NZ;
+    if (q > 0.0f) {
+        float k = (float)(1.0 / sqrt((double)q));
+        l.NX *= k; l.NZ *= k; l.C *= k;
+    }
+    return l;
+}
+
+// Intersection of the lines a and b; false when they are parallel.
+bool Cross(const SLine& a, const SLine& b, float& x, float& z)
+{
+    float det = a.NZ * b.NX - a.NX * b.NZ;
+    if (det == 0.0f)
+        return false;
+    float inv = 1.0f / det;
+    x = -((a.NZ * b.C - a.C * b.NZ) * inv);
+    z = -((a.C * b.NX - a.NX * b.C) * inv);
+    return true;
+}
+
+void RoadUV(unsigned flags, float along, float across, STerrainVertex& o, bool oneD)
+{
+    float u, w;
+    if ((flags & 0x10) == 0) { u = along; w = across; }
+    else { u = across; w = along; }
+    if (flags & 0x20)
+        u = u * -1.0f;
+    if (flags & 0x40)
+        w = oneD ? (float)(1.0 - (double)w) : 1.0f - w;
+    o.U = u;
+    o.V = w;
+}
+
+} // namespace
+
+// PANZERS 0x6f95b0
+// STerrain::UpdateRoad. Samples the Hermite centre line every Step tiles
+// (both ends of every control segment, so a join repeats its sample), then
+// per parcel in the road bounds: every grid vertex picks the control
+// segment whose two end planes hold it and whose chord is nearest (closer
+// than Width); a vertex closer than Width / 2 to the chord of one of that
+// segment's sample intervals (between the interval's end planes) is on the
+// road (flag 2); cells with such a corner are drawn. U/V of every drawn
+// vertex: the vertex's line parallel to the nearest holding interval's
+// chord meets the interval's two end planes, U is the position between
+// them along the chord, V the chord distance / Width + 0.5; before the
+// first / after the last sample the distance to the end plane continues U.
+// HD skips parcels whose control segments are not Dirty and keeps their
+// mesh; this rebuilds every parcel the road covers (the same meshes).
 void STerrain::UpdateRoad(int road)
 {
     PZ_TRACE("STerrain::UpdateRoad (0x6f95b0)");
@@ -268,131 +338,263 @@ void STerrain::UpdateRoad(int road)
     std::vector<SSample> s;
     int bx0 = ParcelsX * 8, bz0 = ParcelsZ * 8, bx1 = 0, bz1 = 0;
     float arc = 0.0f;
-    const float half = r.Width * 0.5f;
     for (int i = 0; i + 1 < r.PointCount; ++i) {
         SRoadCtrl& a = r.Points[i];
         const SRoadCtrl& b = r.Points[i + 1];
-        float len = sqrtf((b.Z - a.Z) * (b.Z - a.Z) + (b.X - a.X) * (b.X - a.X));
+        int mnx = ParcelsX * 8, mnz = ParcelsZ * 8, mxx = 0, mxz = 0;
+        float len = (float)sqrt((double)((b.Z - a.Z) * (b.Z - a.Z) + (b.X - a.X) * (b.X - a.X)));
         int n = (int)lrintf(len / r.Step);
         if (n == 0)
             n = 1;
-        a.FirstSample = (int)s.size();
-        a.Length = arc;
-        float mnx = (float)(ParcelsX * 8), mnz = (float)(ParcelsZ * 8), mxx = 0, mxz = 0;
         for (int k = 0; k <= n; ++k) {
             float t = (float)k / (float)n, t2 = t * t, t3 = t2 * t;
-            float h00 = t3 * 2.0f - t2 * 3.0f + 1.0f, h01 = t2 * 3.0f - t3 * 2.0f;
-            float h10 = t3 - t2 * 2.0f + t, h11 = t3 - t2;
+            if (k == 0) {
+                a.FirstSample = (int)s.size();
+                a.Length = arc;
+            }
+            float h00 = (t3 * 2.0f - t2 * 3.0f) + 1.0f, h01 = t2 * 3.0f - t3 * 2.0f;
+            float h10 = (t3 - t2 * 2.0f) + t, h11 = t3 - t2;
             SSample o;
             o.X = a.X * h00 + b.X * h01 + a.DirX * len * h10 + b.DirX * len * h11;
             o.Z = a.Z * h00 + b.Z * h01 + a.DirZ * len * h10 + b.DirZ * len * h11;
             float d00 = t2 * 6.0f - t * 6.0f, d01 = t * 6.0f - t2 * 6.0f;
-            float d10 = t2 * 3.0f - t * 4.0f + 1.0f, d11 = t2 * 3.0f - t * 2.0f;
+            float d10 = (t2 * 3.0f - t * 4.0f) + 1.0f, d11 = t2 * 3.0f - t * 2.0f;
             o.DX = a.X * d00 + b.X * d01 + a.DirX * len * d10 + b.DirX * len * d11;
             o.DZ = a.Z * d00 + b.Z * d01 + a.DirZ * len * d10 + b.DirZ * len * d11;
-            float dl = sqrtf(o.DX * o.DX + o.DZ * o.DZ);
-            if (dl > 0.0f) {
-                o.DX /= dl;
-                o.DZ /= dl;
-            }
+            double inv = 1.0 / sqrt((double)(o.DX * o.DX + o.DZ * o.DZ));
+            o.DX = (float)((double)o.DX * inv);
+            o.DZ = (float)((double)o.DZ * inv);
             if (!s.empty()) {
                 const SSample& p = s.back();
-                arc += sqrtf((o.X - p.X) * (o.X - p.X) + (o.Z - p.Z) * (o.Z - p.Z));
+                arc += (float)sqrt((double)((o.X - p.X) * (o.X - p.X) + (o.Z - p.Z) * (o.Z - p.Z)));
             }
             o.Arc = arc;
             s.push_back(o);
-            if (o.X < mnx) mnx = o.X;
-            if (mxx < o.X) mxx = o.X;
-            if (o.Z < mnz) mnz = o.Z;
-            if (mxz < o.Z) mxz = o.Z;
+            if (o.X < (float)mnx) mnx = (int)o.X;
+            if ((float)mxx < o.X) mxx = (int)o.X;
+            if (o.Z < (float)mnz) mnz = (int)o.Z;
+            if ((float)mxz < o.Z) mxz = (int)o.Z;
         }
-        a.X0 = (int)(mnx - (half + 1.0f)); if (a.X0 < 0) a.X0 = 0;
-        a.X1 = (int)(half + 2.0f + mxx);   if (ParcelsX * 8 < a.X1) a.X1 = ParcelsX * 8;
-        a.Z0 = (int)(mnz - (half + 1.0f)); if (a.Z0 < 0) a.Z0 = 0;
-        a.Z1 = (int)(half + 2.0f + mxz);   if (ParcelsZ * 8 < a.Z1) a.Z1 = ParcelsZ * 8;
+        a.X0 = (int)((float)mnx - (r.Width * 0.5f + 1.0f)); if (a.X0 < 0) a.X0 = 0;
+        a.X1 = (int)(r.Width * 0.5f + 2.0f + (float)mxx);  if (ParcelsX * 8 < a.X1) a.X1 = ParcelsX * 8;
+        a.Z0 = (int)((float)mnz - (r.Width * 0.5f + 1.0f)); if (a.Z0 < 0) a.Z0 = 0;
+        a.Z1 = (int)(r.Width * 0.5f + 2.0f + (float)mxz);  if (ParcelsZ * 8 < a.Z1) a.Z1 = ParcelsZ * 8;
         if (a.X0 < bx0) bx0 = a.X0;
         if (bx1 < a.X1) bx1 = a.X1;
         if (a.Z0 < bz0) bz0 = a.Z0;
         if (bz1 < a.Z1) bz1 = a.Z1;
     }
-    r.Points[r.PointCount - 1].FirstSample = (int)s.size() - 1;
+    const int ns = (int)s.size();
+    r.Points[r.PointCount - 1].FirstSample = ns - 1;
     r.Points[r.PointCount - 1].Length = arc;
-    // Whole texture repeats along the road.
-    float reps = arc / r.TexLength;
-    float scale = reps > 0.0f ? (float)lrintf(reps) / reps : 1.0f;
-    if (scale == 0.0f)
-        scale = 1.0f;
 
-    // 2. Per parcel in the road bounds: flag grid vertices within half the
-    // width of the centre line, give every vertex its U/V.
-    int ns = (int)s.size();
-    for (int pz = bz0 / 8; pz < (bz1 + 7) / 8 && pz < ParcelsZ; ++pz)
-        for (int px = bx0 / 8; px < (bx1 + 7) / 8 && px < ParcelsX; ++px) {
-            SParcelGrid g;
-            memset(&g, 0, sizeof(g));
-            int seg0 = r.PointCount, seg1 = -1;
-            for (int i = 0; i + 1 < r.PointCount; ++i) {
-                const SRoadCtrl& a = r.Points[i];
-                if (px * 8 <= a.X1 && a.X0 < px * 8 + 8 && pz * 8 <= a.Z1 && a.Z0 < pz * 8 + 8) {
-                    if (i < seg0) seg0 = i;
-                    if (seg1 < i) seg1 = i;
-                }
-            }
-            if (seg1 < 0)
-                continue;
-            for (int v = 0; v < 81; ++v) {
-                float x = (float)(px * 8 + v % 9), z = (float)(pz * 8 + v / 9);
-                // Nearest sample interval whose slab contains the vertex.
-                float best = 1e30f, across = 0.0f, along = 0.0f;
-                bool found = false;
-                int k0 = r.Points[seg0].FirstSample, k1 = r.Points[seg1 + 1].FirstSample;
-                for (int k = k0; k < k1 && k + 1 < ns; ++k) {
-                    const SSample& a = s[k];
-                    const SSample& b = s[k + 1];
-                    if ((x - a.X) * a.DX + (z - a.Z) * a.DZ <= -0.0001f)
+    // Whole texture repeats along the road (HD rounds the length in widths).
+    const float total = r.Points[r.PointCount - 1].Length;
+    const float scale = (float)(int)lrintf(total / r.Width) / (total / r.Width);
+
+    for (int px = bx0 / 8; px < (bx1 + 7) / 8; ++px)
+        for (int pz = bz0 / 8; pz < (bz1 + 7) / 8; ++pz) {
+            unsigned char flag[81];
+            int remap[81], seg[81];
+            memset(flag, 0, sizeof(flag));
+            memset(remap, 0, sizeof(remap));
+            memset(seg, -1, sizeof(seg));
+            int segMin = r.PointCount + 1, segMax = -1;
+            int nv = 0;
+            // 2a. Nearest control segment of every vertex, then the on-road flag.
+            for (int i = 0; i < 9; ++i) {
+                const int x = px * 8 + i;
+                const float fx = (float)x;
+                for (int j = 0; j < 9; ++j) {
+                    const int z = pz * 8 + j;
+                    const float fz = (float)z;
+                    const int v = i + j * 9;
+                    if (!(bx0 <= x && x < bx1 && bz0 <= z && z < bz1))
                         continue;
-                    if ((x - b.X) * b.DX + (z - b.Z) * b.DZ > 0.0f)
+                    float best = r.Width;
+                    for (int c = 0; c + 1 < r.PointCount; ++c) {
+                        const SRoadCtrl& a = r.Points[c];
+                        const SRoadCtrl& b = r.Points[c + 1];
+                        if (a.X1 < x || x + 8 <= a.X0 || a.Z1 < z || z + 8 <= a.Z0)
+                            continue;
+                        float sa = a.DirZ * fz + a.DirX * fx + -(a.Z * a.DirZ + a.X * a.DirX);
+                        float sb = b.DirZ * fz + b.DirX * fx + -(b.Z * b.DirZ + b.X * b.DirX);
+                        if (sa <= 0.0f || 0.0f < sb)
+                            continue;
+                        float d = fabsf(ChordLine(a.X, a.Z, b.X, b.Z).Eval(fx, fz));
+                        if (best <= d)
+                            continue;
+                        seg[v] = c;
+                        best = d;
+                    }
+                    const int c = seg[v];
+                    if (c < 0)
                         continue;
-                    float sx = b.X - a.X, sz = b.Z - a.Z;
-                    float sl = sqrtf(sx * sx + sz * sz);
-                    if (sl <= 0.0f)
-                        continue;
-                    float nx = sz / sl, nz = -sx / sl;   // left normal
-                    float d = (x - a.X) * nx + (z - a.Z) * nz;
-                    if (fabsf(d) < best) {
-                        best = fabsf(d);
-                        float f = ((x - a.X) * sx + (z - a.Z) * sz) / (sl * sl);
-                        if (f < 0.0f) f = 0.0f;
-                        if (f > 1.0f) f = 1.0f;
-                        across = d;
-                        along = (a.Arc + f * (b.Arc - a.Arc)) * scale;
-                        found = true;
+                    if (c < segMin) segMin = c;
+                    if (segMax < c) segMax = c;
+                    for (int k = r.Points[c].FirstSample; k < r.Points[c + 1].FirstSample; ++k) {
+                        const SSample& a = s[k];
+                        const SSample& b = s[k + 1];
+                        if (a.DZ * fz + a.DX * fx + -(a.Z * a.DZ + a.X * a.DX) <= 0.0f ||
+                            0.0f < b.DZ * fz + b.DX * fx + -(b.X * b.DX + b.Z * b.DZ))
+                            continue;
+                        if ((double)fabsf(ChordLine(a.X, a.Z, b.X, b.Z).Eval(fx, fz)) <
+                            (double)(r.Width * 0.5f)) {
+                            flag[v] |= 2;
+                            ++nv;
+                            break;
+                        }
                     }
                 }
-                if (!found)
-                    continue;
-                if (best < half)
-                    g.Flag[v] |= 2;
-                float uAlong = along / r.TexLength;
-                float vAcross = across / r.Width + 0.5f;
-                float u, w;
-                if ((r.Flags & 0x10) == 0) {
-                    u = uAlong;
-                    w = vAcross;
-                } else {
-                    u = vAcross;
-                    w = uAlong;
-                }
-                if (r.Flags & 0x20)
-                    u = -u;
-                if (r.Flags & 0x40)
-                    w = 1.0f - w;
-                g.U[v] = u;
-                g.V[v] = w;
             }
-            BuildParcelMesh(this, &r.Meshes, px, pz, g, seg0, seg1);
+            // 2b. Cells with an on-road corner; their other corners join.
+            int nidx = 0;
+            for (int i = 0; i < 8; ++i)
+                for (int j = 0; j < 8; ++j) {
+                    const int x = px * 8 + i, z = pz * 8 + j, v = i + j * 9;
+                    if (!(bx0 <= x && x < bx1 - 1 && bz0 <= z && z < bz1 - 1))
+                        continue;
+                    if (!((flag[v] | flag[v + 1] | flag[v + 9] | flag[v + 10]) & 2))
+                        continue;
+                    nidx += 6;
+                    const int corner[4] = { v, v + 1, v + 9, v + 10 };
+                    for (int q = 0; q < 4; ++q)
+                        if (flag[corner[q]] == 0) {
+                            ++nv;
+                            flag[corner[q]] = 1;
+                        }
+                }
+            if (nv <= 0 || nidx <= 0)
+                continue;
+            if (nv > 0x51)
+                Logger.g->Panic("STerrain::UpdateRoad(): too many vertices...");
+            if (nidx > 0x180)
+                Logger.g->Panic("STerrain::UpdateRoad(): too many indices...");
+            SRoadMesh* m = MeshForParcel(&r.Meshes, ParcelsX * pz + px);
+            m->Visible = 1;
+            m->Seg0 = segMin;
+            m->Seg1 = segMax;
+            if (m->VCap < nv) {
+                m->VCap = nv;
+                m->Verts = (STerrainVertex*)realloc(m->Verts, nv * sizeof(STerrainVertex));
+            }
+            m->NVerts = nv;
+            memset(m->Verts, 0, m->VCap * sizeof(STerrainVertex));
+            if (m->ICap < nidx) {
+                m->ICap = nidx;
+                m->Indices = (unsigned short*)realloc(m->Indices, nidx * sizeof(unsigned short));
+            }
+            m->NIndices = nidx;
+            memset(m->Indices, 0, m->ICap * sizeof(unsigned short));
+
+            // 2c. Vertices (x outer, z inner) with their U/V.
+            int out = 0;
+            for (int i = 0; i < 9; ++i) {
+                const int x = px * 8 + i;
+                for (int j = 0; j < 9; ++j) {
+                    const int z = pz * 8 + j;
+                    const int v = i + j * 9;
+                    if (!(bx0 <= x && x < bx1 && bz0 <= z && z < bz1) || flag[v] == 0)
+                        continue;
+                    remap[v] = out;
+                    STerrainVertex& o = m->Verts[out++];
+                    const float fx = (float)x, fz = (float)z;
+                    const bool in = x >= 0 && x <= Width && z >= 0 && z <= Height;
+                    o.X = fx;
+                    o.Y = in ? Heights[Stride * z + x] : 0.0f;
+                    o.Z = fz;
+                    float nrm[3];
+                    NormalAt(nrm, x, z);
+                    o.NX = nrm[0]; o.NY = nrm[1]; o.NZ = nrm[2];
+                    o.Color = in ? Diffuse[Stride * z + x] : 0;
+                    o.U = 0.0f;
+                    o.V = 0.0f;
+
+                    float best = 3.4028235e+38f;
+                    float along0 = 0.0f;
+                    int k0 = 0, k1 = ns - 1;
+                    if (seg[v] >= 0) {
+                        along0 = r.Points[seg[v]].Length * scale;
+                        k0 = r.Points[seg[v]].FirstSample;
+                        k1 = r.Points[seg[v] + 1].FirstSample;
+                    }
+                    for (int k = k0; k < k1; ++k) {
+                        const SSample& a = s[k];
+                        const SSample& b = s[k + 1];
+                        float clen = (float)sqrt((double)((a.X - b.X) * (a.X - b.X) +
+                                                          (a.Z - b.Z) * (a.Z - b.Z)));
+                        SLine pa = PlaneAt(a.X, a.Z, a.DX, a.DZ);
+                        SLine pb = PlaneAt(b.X, b.Z, b.DX, b.DZ);
+                        SLine ch = ChordLine(a.X, a.Z, b.X, b.Z);
+                        float d = ch.Eval(fx, fz);
+                        if (0.0f < pa.Eval(fx, fz) && pb.Eval(fx, fz) <= 0.0f &&
+                            (double)fabsf(d) < (double)best) {
+                            best = fabsf(d);
+                            // The vertex's line parallel to the chord.
+                            SLine par = { ch.NX, ch.NZ, -(ch.NZ * fz + ch.NX * fx) };
+                            float p0x, p0z, p1x, p1z;
+                            if (Cross(par, pa, p0x, p0z) && Cross(par, pb, p1x, p1z)) {
+                                float f0 = (float)sqrt((double)((p0x - fx) * (p0x - fx) +
+                                                                (p0z - fz) * (p0z - fz)));
+                                float f1 = (float)sqrt((double)((p0x - p1x) * (p0x - p1x) +
+                                                                (p0z - p1z) * (p0z - p1z)));
+                                RoadUV(r.Flags, ((f0 / f1) * scale * clen + along0) / r.TexLength,
+                                       d / r.Width + 0.5f, o, false);
+                            } else {
+                                Logger.g->Log(1, "STerrain::UpdateRoad(): Unable to generate texture coords.");
+                            }
+                        }
+                        along0 = clen * scale + along0;
+                    }
+                    // Before the first sample: the distance to its plane.
+                    {
+                        SLine pa = PlaneAt(s[0].X, s[0].Z, s[0].DX, s[0].DZ);
+                        float d = ChordLine(s[0].X, s[0].Z, s[1].X, s[1].Z).Eval(fx, fz);
+                        if ((double)fabsf(d) < (double)best) {
+                            float dist = (float)sqrt((double)((s[0].X - fx) * (s[0].X - fx) +
+                                                              (s[0].Z - fz) * (s[0].Z - fz)));
+                            float e = pa.Eval(fx, fz);
+                            if (dist < best && e <= 0.0f) {
+                                best = dist;
+                                RoadUV(r.Flags, e / r.TexLength, d / r.Width + 0.5f, o, false);
+                            }
+                        }
+                    }
+                    // Past the last sample: the end length plus the distance to its plane.
+                    {
+                        const SSample& a = s[ns - 2];
+                        const SSample& b = s[ns - 1];
+                        SLine pb = PlaneAt(b.X, b.Z, b.DX, b.DZ);
+                        float d = ChordLine(a.X, a.Z, b.X, b.Z).Eval(fx, fz);
+                        if ((double)fabsf(d) < (double)best) {
+                            float dist = (float)sqrt((double)((b.X - fx) * (b.X - fx) +
+                                                              (b.Z - fz) * (b.Z - fz)));
+                            float e = pb.Eval(fx, fz);
+                            if (dist < best && 0.0f < e)
+                                RoadUV(r.Flags, (along0 + e) / r.TexLength, d / r.Width + 0.5f, o,
+                                       true);
+                        }
+                    }
+                }
+            }
+            // 2d. Two triangles per drawn cell (x outer, z inner).
+            int k = 0;
+            for (int i = 0; i < 8; ++i)
+                for (int j = 0; j < 8; ++j) {
+                    const int x = px * 8 + i, z = pz * 8 + j, v = i + j * 9;
+                    if (!(bx0 <= x && x < bx1 - 1 && bz0 <= z && z < bz1 - 1))
+                        continue;
+                    if (!((flag[v] | flag[v + 1] | flag[v + 9] | flag[v + 10]) & 2))
+                        continue;
+                    m->Indices[k++] = (unsigned short)remap[v];
+                    m->Indices[k++] = (unsigned short)remap[v + 1];
+                    m->Indices[k++] = (unsigned short)remap[v + 9];
+                    m->Indices[k++] = (unsigned short)remap[v + 9];
+                    m->Indices[k++] = (unsigned short)remap[v + 1];
+                    m->Indices[k++] = (unsigned short)remap[v + 10];
+                }
         }
-    // Meshes no build touched belong to parcels the road left.
+    // Meshes no build touched belong to parcels the road left (HD 0x6f65d0).
     for (int i = HdHeapNext(&r.Meshes, -1); i >= 0; i = HdHeapNext(&r.Meshes, i))
         if (!r.Meshes.Data[i].Visible) {
             free(r.Meshes.Data[i].Verts);
