@@ -51,3 +51,16 @@ Six parallel parts, merged and checked together. Each part has its own notes in 
 - SWorld 0x5d68e0 (AI group answering an attack), hit in 2 missions.
 - Soldier blob shadows (SModel 0x6dad80), SScene::DrawLines, rain / snow / flare, DrawLakes / Sea.
 - Mission victories, the player's own army in combat, and towing in play are not covered by the sweep.
+
+## Follow-ups after the merge (found while playing)
+
+- `.4d` cut-scenes now take their time (SGameLogic +0x288, 0x56f0d0 / 0x582380 / 0x5652d0): a victory
+  trigger that starts one (German 4's ger-04-2) shows the Victory box after it, as HD. The `.4d` scene
+  itself is still not drawn.
+- A window resize re-applies the game view's panel mode (SSuperWindow::OnSize 0x65b410 → 0x625d80): a
+  maximized mission fills the window.
+- The in-game chat line and the cheat codes (docs/m5/ch.md has the codes); 0x548bf0 now reads the
+  logic's unlimited-cargo flag (it read a unit byte, so every supply was free).
+- The exe and window icon (resource 103).
+- Checks on master 375f294 + this doc: census 2531 / 1316 / 139; menu 0 / 1181, tc1 3901 / 3901,
+  tut1 2012 / 2012.
