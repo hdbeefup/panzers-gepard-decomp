@@ -26,6 +26,7 @@
 #include "stream.h"
 #include "logger.h"
 #include "stub_log.h"
+#include "cutscene.h"
 #include "unit.h"
 #include "unitextern.h"
 #include "driverunit.h"
@@ -674,6 +675,7 @@ void SGameLogic::Tick_578b00()
     const int* f = (const int*)this;
     if (f[0x20] < 0)                                              // +0x80
         return;
+    PzMessagesTick(this);                                         // the fading lines (tutorial_msg.cpp, M4)
     bool lines = f[0x24] > 0;                                     // +0x90
     bool counters = (f[0x54] >= 0 && f[0x55] >= 0) || (f[0x56] >= 0 && f[0x57] >= 0);
     if ((lines || counters) && Logger.g) {
@@ -719,7 +721,7 @@ void SGameLogic::Tick_568af0()
     PZ_M2_TRACE("SGameLogic::Tick_568af0 (0x568af0)");
     if (!Flag2b8)
         return;
-    STUB_LOG("SGameLogic::Tick_568af0 scripted sequence (0x568bc0 / 0x5826c0 / 0x565390)");
+    PzCutsceneTick(this);                                         // cutscene.cpp (M4)
 }
 
 // PANZERS 0x5649e0
@@ -795,6 +797,8 @@ void SGameLogic::UpdateUnitVisuals(SIViewport* vp, double interpolation)
     }
     // The minimap dots (MinimapFrame >= 0) are drawn by the HUD
     // (PzMinimapUpdate, src/panzers/minimap.cpp).
+    if (Flag2b8)
+        PzCutsceneCamera(this, interpolation);                    // 0x58adc0 (cutscene.cpp, M4)
 }
 
 // PANZERS 0x56d1a0

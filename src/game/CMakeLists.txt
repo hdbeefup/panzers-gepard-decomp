@@ -33,6 +33,9 @@ add_library(pzgame STATIC
     gamelogic.cpp
     gamelogic_mission.cpp
     triggers.cpp
+    triggers_script.cpp
+    cutscene.h
+    cutscene.cpp
     movementgroup.cpp
     logicextra.cpp
     # U: units + prototypes

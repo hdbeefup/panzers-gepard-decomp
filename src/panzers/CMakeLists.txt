@@ -19,6 +19,8 @@ add_library(panzersgame STATIC
     superwindow.h
     # M3 skeleton (docs/M3_INTERFACES.md)
     superwindow_m3.cpp
+    tutorial.cpp
+    tutorial_msg.cpp
     gameview.h
     gameview.cpp
     gameview_mission.cpp

@@ -271,8 +271,12 @@ void M3OnMainMenu(SSuperWindow* sw)
 }
 
 // Returns true when the action was handled by the M3 path.
+bool PzTutorialAction(SSuperWindow* sw, int action);   // tutorial.cpp (M4)
+
 bool SuperWindowM3Action(SSuperWindow* sw, int action, int param)
 {
+    if (PzTutorialAction(sw, action))                              // 0x4d4d3 Tutorial
+        return true;
     switch (action) {
     case PZA_LOAD_REPLAY:                                          // 0x494c2
         LoadReplay(sw, (const char*)(size_t)param);

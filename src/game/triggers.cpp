@@ -9,6 +9,7 @@
 // running triggers, +0x2f0 active locations.
 
 #include <stdlib.h>
+#include <math.h>
 #include <string.h>
 #include "gamelogic.h"
 #include "trigger.h"
@@ -21,10 +22,23 @@
 #include "unitextern.h"
 #include "logger.h"
 #include "stub_log.h"
+#include "campaign.h"
+#include "cutscene.h"
+#include "pz/ipixie.h"
+#include "gettext.h"
+#include "core_common.h"
+#include "stream.h"
 
 namespace pz {
 
 using m2u::UV;
+
+void UnitSetPlayer(SUnit* u, int player);                         // 0x5c1630 (below)
+void PzMessagesClearStatic(SGameLogic* gl);                       // tutorial_msg.cpp 0x5638b0
+void PzMessageFading(SGameLogic* gl, const char* text, int color);// tutorial_msg.cpp 0x56a480
+void PzTriggerTextBlock(SGameLogic* gl, const char* key, bool fading);   // tutorial_msg.cpp (0x40 / 0x41)
+void PzSpeechQueue(const char* file);                             // tutorial_msg.cpp 0x600770
+void PzSpeechTick();                                              // tutorial_msg.cpp 0x607f50 (trigger part)
 
 // Trigger trace (recompile only): one line per started trigger and per
 // executed action, with the tick, so the 90 s loop can be compared with the
@@ -115,6 +129,7 @@ void SWorld::UpdateSpeech()
     PZ_M2_TRACE("SWorld::UpdateSpeech (0x607f50)");
     if (!g_GameLogic || g_GameLogic->IsPaused())
         return;
+    PzSpeechTick();                                               // +0x7280 trigger speech (tutorial_msg.cpp, M4)
     const int* q = (const int*)((const unsigned char*)this + 0x726c);   // {array, size, max, free, count}
     if (q[1] > 0 && q[4] > 0) {
         static bool once;
@@ -140,7 +155,7 @@ void SWorld::RefreshBlockMapDirtyRect()
 // Found-unit groups
 
 // PANZERS 0x563580 (SDArray<SFoundUnit>::Clear(n))
-static void ClearFound(SFoundUnits* g, int size)
+void ClearFound(SFoundUnits* g, int size)
 {
     if (g->Count != 0 && g->Units == nullptr)
         Logger.g->Panic("SDArray<%s>::Clear: array is damaged", "SFoundUnit");
@@ -154,7 +169,7 @@ static void ClearFound(SFoundUnits* g, int size)
 }
 
 // PANZERS 0x560d80 + 0x560790: append, returns the new element
-static SFoundUnit* AddFound(SFoundUnits* g)
+SFoundUnit* AddFound(SFoundUnits* g)
 {
     if (g->Count == g->Max) {
         int nmax = g->Max < 0x10 ? 0x10 : (g->Max * 6) / 5;
@@ -562,9 +577,18 @@ void SGameLogic::CheckConditions(SRunningTrigger* rt)
                         common = common == -1 ? f : -2;
                 }
                 value = common >= 0 ? common : -1;
-            } else if (v == 0x40000004 || v == 0x40000008) {
-                // average health (+0x170 slot) / ammunition of the found units
-                STUB_LOG("SGameLogic::CheckConditions variable 0x40000004 / 0x40000008 (0x580600)");
+            } else if (v == 0x40000004) {
+                // the mean health of the found units in percent (+0x170
+                // GetHealth), rounded by fistp (round to nearest); 0 without
+                // units. HD keeps it in DAT_0092e350.
+                float sum = 0.0f;
+                for (int j = 0; j < rt->Found.Count; ++j)
+                    if (UV::kReal)
+                        sum = UV::Iface(FoundUnit(&rt->Found, j))->GetHealth() + sum;
+                value = rt->Found.Count == 0 ? 0 : (int)lrintf((sum * 100.0f) / (float)rt->Found.Count);
+            } else if (v == 0x40000008) {
+                // the mean ammunition of gunner 0 of the found units
+                STUB_LOG("SGameLogic::CheckConditions variable 0x40000008 (0x580600)");
                 value = 0;
             } else if (v >= 0x40000014 && v <= 0x40000027) {
                 value = g_World->GetTriggerVariableValue(v, true);    // World vtbl +4 (v, 1)
@@ -879,6 +903,236 @@ static void ActionRemoveFound(SGameLogic* gl, SRunningTrigger* rt)
     }
 }
 
+// ---------------------------------------------------------------------------
+// M4 (agent T): the actions of maps/tutorial.map.
+
+// PANZERS 0x564510
+// The found units follow a path: one movement group towards the first path
+// point (0x56ff30), then 0x5bbb60(command, path, p4, queue) per unit.
+static void OrderAlongPath(SGameLogic* gl, SFoundUnits* g, int command, int path)
+{
+    SHeap<SPath>& paths = g_World->Paths;
+    if (!paths.IsLive(path))
+        Logger.g->Panic("SHeap<%s>::operator[]: invalid index (%d)", "SPath", path);
+    SPath& p = paths.Array[path].Data;
+    if (p.Points.Size < 1)
+        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "SPathPoint", 0);
+    gl->GroupOrder(false, 0, g, true, p.Points.Array[0].X, p.Points.Array[0].Z);   // 0x56ff30(0, p4, g, 1, x, z)
+    for (int k = 0; k < g->Count; ++k)
+        if (UV::kReal)
+            WorldUnit(FoundUnit(g, k))->OrderParam(command, path, false, false);   // 0x5bbb60
+}
+
+// PANZERS 0x581930
+// The unit stands strictly inside the location rectangle (false for a dead
+// location).
+static bool StrictlyInLocation(int unit, int location)
+{
+    if (!g_World->Locations.IsLive(location))
+        return false;
+    if (!m2u::IsLive(unit))
+        Logger.g->Panic("SHeapTRB::operator[]: invalid index (%d)", unit);
+    const SLocation* l = LocationAt(location);                    // 0x5608c0
+    float x = UV::X(unit), z = UV::Z(unit);
+    return (float)l->X1 < x && x < (float)l->X2 && (float)l->Z1 < z && z < (float)l->Z2;
+}
+
+// RunTriggers case 0x15: the found units enter (order 0x2a) the first live
+// unit in the location that is placed, not stored (or class 10) and not
+// dying, in heap order (0x56b3b0).
+static void ActionEnterBuilding(SGameLogic* gl, const STriggerAction* a, SRunningTrigger* rt)
+{
+    if (rt->Found.Count == 0 || !g_World->Locations.IsLive(a->P20))   // 0x573730
+        return;
+    PZ_FOR_EACH_UNIT(u) {
+        if (UV::B150(u))
+            continue;
+        if (!(UV::Container(u) < 0 || UV::ClassType(u) == 10))
+            continue;
+        if (UV::Unplaced(u))
+            continue;
+        if (StrictlyInLocation(u, a->P20)) {
+            gl->OrderAtUnit(&rt->Found, 0x2a, u, false, false);  // 0x564720(g, 0x2a, u, 0, 0)
+            break;
+        }
+    }
+}
+
+// PANZERS 0x5c1630 (SUnit::SetPlayer)
+// The campaign statistics move the unit's category count from the old player
+// to the new one (outside the cut-scenes and the multiplayer menu), the
+// stored units and members follow, the team is the player's, and the
+// selection bits are cleared.
+void UnitSetPlayer(SUnit* u, int player)
+{
+    if (u->Player < 0)
+        Logger.g->Panic("SUnit::SetPlayer - Player < 0");
+    if (g_GameLogic && g_Campaign && g_Campaign->MenuToLoad != 1) {
+        int cat = UnitStatsCategory(u);                           // 0x56d6d0
+        if (u->Player != player && cat > 0 && !g_GameLogic->IsPaused()) {   // 0x56e150
+            int* st = (int*)((unsigned char*)g_Campaign + 0x14c);
+            st[u->Player * 0x36] -= 1;                            // +0x14c + player * 0xd8
+            st[u->Player * 0x36 + cat] -= 1;
+            st[player * 0x36] += 1;
+            st[player * 0x36 + cat] += 1;
+        }
+    }
+    u->Player = player;                                           // +0xfc
+    for (int i = 0; i < u->Stored.Size; ++i) {                    // +0x16c
+        int s = u->Stored.Array[i].Unit;
+        if (!m2u::IsLive(s))
+            Logger.g->Panic("SHeapTRB::operator[]: invalid index (%d)", s);
+        UnitSetPlayer(WorldUnit(s), player);
+    }
+    for (int i = 0; i < u->Members.Size; ++i) {                   // +0x178
+        int m = u->Members.Array[i].Unit;
+        if (!m2u::IsLive(m))
+            Logger.g->Panic("SHeapTRB::operator[]: invalid index (%d)", m);
+        UnitSetPlayer(WorldUnit(m), player);
+    }
+    u->Team = *(int*)(g_World->Players[u->Player]);              // World +0x170 + player * 0x48
+    u->_104 = 0;
+    u->_108 = 0;
+    u->_10c = 0;
+}
+
+// PANZERS 0x579420
+// Removes the objective markers (+0x194 list, 0x14 each: {float, ?, board
+// frame, objective, target}) of one objective. The recompile draws no
+// markers yet (the objectives screen lists the texts only).
+static void RemoveObjectiveMarkers(SGameLogic* gl, int objective, int target)
+{
+    (void)gl; (void)objective; (void)target;
+}
+
+// RunTriggers case 0x23: objective Num (1-based) completed.
+static void ActionObjectiveCompleted(SGameLogic* gl, const STriggerAction* a)
+{
+    if (a->Num <= 0 || !g_Campaign || a->Num - 1 >= g_Campaign->ObjectiveCount)
+        return;
+    SCampaignObjective& o = g_Campaign->Objectives[a->Num - 1];   // 0x560580
+    if (!o.Hero) {                                                // +0x07
+        PzMessageFading(gl, GetText("world/GameLogic.cpp", "Objective completed: "), 2);   // 0x660c50, 0x56a480
+        PzMessageFading(gl, SStr(o.Text), 0);
+        PzMessageFading(gl, "", 0);
+    }
+    if (o.State != 2) {
+        if (!o.Main)                                              // +0x05: side objectives give prestige
+            g_Campaign->Prestige += o.Secret ? 0x28 : 0x3c;       // 0x592b10 (+0x38)
+        // sound +0x80(0), +0x6c, +0x70("music/Objective.mp3"), +0x78(0)
+        STUB_LOG("SGameLogic::RunTriggers objective music music/Objective.mp3 not played");
+    }
+    o.State = 2;
+    RemoveObjectiveMarkers(gl, -1, a->Num - 1);                   // 0x579420(-1, n)
+    int i = 0;
+    for (; i < g_Campaign->ObjectiveCount; ++i) {
+        const SCampaignObjective& m = g_Campaign->Objectives[i];
+        if (m.Main && m.State != 2)
+            break;
+    }
+    if (i < g_Campaign->ObjectiveCount)
+        return;
+    // Every main objective done: the human players win.
+    for (int pl = 0; pl < 12; ++pl) {
+        int* rec = (int*)g_World->Players[pl];                    // World +0x170 + pl * 0x48
+        if (rec[3] == 1) {                                        // +0x17c
+            rec[7] = 1;                                           // +0x18c
+            g_Campaign->SetMissionResult(1);                      // 0x597470(1)
+            rec[2] = 2;                                           // +0x178
+        }
+    }
+}
+
+// RunTriggers case 0x24: unit +0x114 = Num %, for units with health left,
+// and for every member / seat of every found unit.
+static void ActionSetHealth(SRunningTrigger* rt, int percent)
+{
+    if (rt->Found.Count == 0 || !UV::kReal)
+        return;
+    for (int k = 0; k < rt->Found.Count; ++k) {
+        SUnit* u = WorldUnit(FoundUnit(&rt->Found, k));
+        if (u->HP != 0.0f)                                        // ucomiss +0x114, 0
+            u->HP = (float)percent * 0.01f;                       // mulss 0.01f (0x7f1b48)
+        for (int m = 0; m < u->Members.Size; ++m) {
+            int mi = u->Members.Array[m].Unit;
+            if (!m2u::IsLive(mi))
+                Logger.g->Panic("SHeapTRB::operator[]: invalid index (%d)", mi);
+            WorldUnit(mi)->HP = (float)percent * 0.01f;
+        }
+    }
+}
+
+// RunTriggers case 0x2c: move to the location centre facing Num degrees.
+static void ActionMoveFacing(SGameLogic* gl, const STriggerAction* a, SRunningTrigger* rt)
+{
+    if (rt->Found.Count == 0)
+        return;
+    const SLocation* l = LocationAt(a->P20);
+    float target[2];
+    target[0] = (float)((double)(l->X2 + l->X1) * 0.5);
+    target[1] = (float)((double)(l->Z2 + l->Z1) * 0.5);
+    float dir = (float)a->Num * 0.017453292f;                     // 0x7f59a0
+    GroupStats(&rt->Found);                                       // 0x582770
+    if (!(target[0] >= 0.0f))
+        return;
+    float dx = target[0] - rt->Found.X;
+    float dz = target[1] - rt->Found.Z;
+    float d = dx * dx + dz * dz;
+    if (d > rt->Found.RadiusSq)
+        gl->MoveFoundUnitsToLocationDir(&rt->Found, 1, target, dir, false, false, false);   // 0x57f200
+    else
+        gl->MoveFoundUnitsNear(&rt->Found, 1, target, false, false, false);   // 0x57e8b0 (shared tail of case 0xe)
+}
+
+// RunTriggers case 0x2d: a one-shot effect at the location centre (guide
+// arrows of the tutorial).
+static void ActionLocationEffect(const STriggerAction* a)
+{
+    if (!g_Pixie || !g_Scene)
+        return;
+    int proto = g_Pixie->LoadEffectPrototype(SStr(a->Str4000), false, false, 0, 0);   // pixie +0x10(name, 0, 0)
+    const SLocation* l = LocationAt(a->P20);
+    float pos[3], dir[3] = {0.0f, 1.0f, 0.0f};
+    pos[0] = (float)(l->X2 + l->X1) * 0.5f;                       // cvtdq2ps, mulss 0.5f (0x7f453c)
+    pos[2] = (float)(l->Z2 + l->Z1) * 0.5f;
+    pos[1] = g_World->GetTerrainHeight(pos[0], pos[2]);           // 0x5e7730
+    g_Pixie->PlayEffect(g_Scene, proto, pos, dir, 0);             // pixie +0x24(scene, proto, &pos, &dir, 0)
+    g_Pixie->ReleaseEffectPrototype(proto);                       // pixie +0x20
+}
+
+// RunTriggers case 0x38: "Loading cutscene..." after frame 0, then the map
+// cut-scene "maps/<n>.map" (when it exists and the campaign +0x14 is clear)
+// or "cutscenes/<n>/<n>" (0x56ea20).
+static void ActionPlayCutscene(SGameLogic* gl, const STriggerAction* a)
+{
+    if (gl->Frame > 0) {
+        PzMessageFading(gl, GetText("world/GameLogic.cpp", "Loading cutscene..."), 2);   // 0x56a480
+        // viewport +0x3c / +0x50: one frame drawn with the message (not lifted).
+    }
+    const char* n = SStr(a->Str1000);
+    char map[300];
+    _snprintf(map, sizeof(map) - 1, "maps/%s.map", n);
+    map[sizeof(map) - 1] = 0;
+    bool mapCut = g_Campaign && g_Campaign->_014 == 0 && FileSystem.Stat(map, nullptr) == 0;   // 0x65faf0
+    if (mapCut) {
+        // HD tears the logic down and loads that map in place (0x563860 ...
+        // 0x5640b0, campaign +0x14 = 1). Not lifted.
+        STUB_LOG("SGameLogic::RunTriggers action 0x38 map cut-scene (maps/<n>.map) not lifted");
+        return;
+    }
+    char name[300];
+    _snprintf(name, sizeof(name) - 1, "cutscenes/%s/%s", n, n);   // "cutscenes/" + n + "/" + n
+    name[sizeof(name) - 1] = 0;
+    PzCutscenePlay(gl, name);                                     // 0x56ea20
+}
+
+// RunTriggers case 0x42: World 0x600770 queues the speech file. The speech
+// queue player (SWorld::UpdateSpeech 0x607f50) is not lifted.
+static void ActionSpeech(const STriggerAction* a)
+{
+    PzSpeechQueue(SStr(a->Str1000));                              // World 0x600770
+}
+
 // PANZERS 0x579ab0
 // Walks the running triggers. For each: drops found units that died or were
 // unplaced (then 0x582770), waits (+0x08), and otherwise executes actions
@@ -1040,6 +1294,99 @@ void SGameLogic::RunTriggers()
             break;
         case TA_CREATE_UNIT:                                      // 0x29
             ActionCreateUnit(this, a, rt, true);
+            break;
+        case 0xd:                                                 // units along a path (order 6)
+            if (rt->Found.Count != 0)
+                OrderAlongPath(this, &rt->Found, 6, a->P800);     // 0x564510(g, 6, path, 0, 0)
+            break;
+        case 0x15:
+            ActionEnterBuilding(this, a, rt);
+            break;
+        case 0x16:                                                // unload all (order 0x2b, -1)
+            if (rt->Found.Count != 0)
+                OrderValue(&rt->Found, 0x2b, -1, false, false);   // 0x564870(g, 0x2b, -1, 0, 0)
+            break;
+        case 0x17: {                                              // camera to the location centre
+            if (!g_World->Locations.IsLive(a->P20))               // 0x573730
+                break;
+            const SLocation* l = LocationAt(a->P20);              // 0x5608c0
+            float cx = (float)((double)(l->X2 + l->X1) * 0.5);    // mulsd 0.5 (0x7ea760)
+            float cz = (float)((double)(l->Z2 + l->Z1) * 0.5);
+            if (cx >= 0.0f)
+                g_World->SetCameraTarget(cx, cz);                 // 0x5f4f60
+            break;
+        }
+        case 0x1b: {                                              // give the found units to a player
+            int player = ResolvePlayer(a->Player, rt);            // 0x56abe0
+            if (player < 0)
+                break;
+            for (int k = 0; k < rt->Found.Count; ++k)
+                if (UV::kReal)
+                    UnitSetPlayer(WorldUnit(FoundUnit(&rt->Found, k)), player);   // 0x5c1630
+            break;
+        }
+        case 0x23:                                                // objective completed
+            ActionObjectiveCompleted(this, a);
+            break;
+        case 0x24:                                                // health of the found units, in percent
+            ActionSetHealth(rt, a->Num);
+            break;
+        case 0x27:                                                // behaviour (order 0x21)
+            if (rt->Found.Count != 0)
+                OrderValue(&rt->Found, 0x21, a->P8000, false, false);   // 0x564870(g, 0x21, +0x40, 0, 0)
+            break;
+        case 0x28:                                                // global state (order 0x28)
+            if (rt->Found.Count != 0)
+                OrderValue(&rt->Found, 0x28, a->P10000, false, false);  // 0x564870(g, 0x28, +0x44, 0, 0)
+            break;
+        case 0x2a:                                                // stop (order 8)
+            if (rt->Found.Count != 0)
+                OrderPlain(&rt->Found, 8, false, false);          // 0x564440(g, 8, 0, 0)
+            break;
+        case 0x2b:                                                // unit +0x20 with the two slot values
+            for (int k = 0; k < rt->Found.Count; ++k)
+                if (UV::kReal)
+                    UV::Iface(FoundUnit(&rt->Found, k))->Hook20((int)(size_t)&a->P20000[0]);   // +0x20(&action +0x48)
+            break;
+        case 0x2c:                                                // move to the location, facing Num degrees
+            ActionMoveFacing(this, a, rt);
+            break;
+        case 0x2d:                                                // an effect at the location centre
+            ActionLocationEffect(a);
+            break;
+        case 0x2f:                                                // wait Num ticks
+            rt->Wait = a->Num;                                    // running trigger +0x08
+            break;
+        case 0x37:                                                // XP to the found units
+            for (int k = 0; k < rt->Found.Count; ++k)
+                if (UV::kReal)
+                    UV::Iface(FoundUnit(&rt->Found, k))->AddXP(-1, (float)a->Num, 0);   // +0x8c(-1, Num, 0)
+            break;
+        case 0x38:                                                // play a cut-scene
+            ActionPlayCutscene(this, a);
+            break;
+        case 0x3a:                                                // weather
+            g_World->SetWeather(a->P200000, (int)((float)a->Num / 20.0f));   // 0x5fdc80(+0x60, Num / 20.0f)
+            break;
+        case 0x40:                                                // echo: the static lines of a text block
+            if (g_Campaign) {
+                PzMessagesClearStatic(this);                      // 0x5638b0
+                PzTriggerTextBlock(this, SStr(a->Str4000), false);   // campaign +0x120, 0x5815e0 per line
+            }
+            break;
+        case 0x41:                                                // message: the fading lines of a text block
+            PzTriggerTextBlock(this, SStr(a->Str4000), true);     // 0x56a480 per line
+            break;
+        case 0x42:                                                // speech
+            ActionSpeech(a);                                      // 0x600770
+            break;
+        case 0x49:                                                // found units: +0x140 / +0x14c off
+            for (int k = 0; k < rt->Found.Count; ++k)
+                if (UV::kReal) {
+                    SUnit* u = WorldUnit(FoundUnit(&rt->Found, k));
+                    u->_140 = false;
+                    u->_14c = false;
+                }
             break;
         default: {
             // The other 66 actions (combat, AI, objectives, cameras, sounds,

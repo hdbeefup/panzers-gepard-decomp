@@ -36,6 +36,7 @@
 #include "selection.h"
 #include "unit.h"
 #include "gamelogic.h"
+#include "cutscene.h"
 
 namespace pz { void PzCameraSplineTick(); }   // 0x6096f0 (src/world/worldcamera.cpp)
 
@@ -475,9 +476,14 @@ void SGameView::Update()
     Logic->UpdateUnitVisuals(Viewport, visuals);                   // 0x5638f0
     if (Concert)
         Concert->Update(false);                                    // Concert +0x0c(0)
-    // HD: IsPaused && 0x589860 (an animation is shown) -> SetPanelMode(2);
-    // 0x589860 is SInGameAnimLogic (not lifted): treated as false.
-    if (ViewState == 2)
+    // HD: IsPaused && 0x589860 (the cut-scene has a camera track) ->
+    // SetPanelMode(2) and the visuals once more; otherwise mode 2 ends.
+    if (Logic->IsPaused() && pz::PzCutsceneHasCamera()) {          // 0x56e150, 0x589860 (cutscene.cpp, M4)
+        if (ViewState != 2) {
+            SetPanelMode(2);                                       // 0x625d80
+            Logic->UpdateUnitVisuals(Viewport, visuals);           // 0x5638f0
+        }
+    } else if (ViewState == 2)
         SetPanelMode(0);
     MouseCamera(MouseX, MouseY, ms);                               // 0x620bc0
     // HUD block: the range overlay of the single selected unit is V's.
