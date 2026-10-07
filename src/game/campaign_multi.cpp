@@ -30,14 +30,47 @@ void SPanzersCampaign::LetChatroomDone()
 }
 
 // PANZERS 0x591d50
-// SetArmyName("") and SetArmyFileName("") (inline): the names at +0xe8 /
-// +0xf0 are not kept by the recompile (only the army file list uses them).
+// SetArmyName("") and SetArmyFileName("") (inline), no mission army.
 void SPanzersCampaign::ClearArmy()
 {
     if (GameMode != 4)
         Logger.g->Panic("SCampaign::SetArmyName: ArmyName can only be set in Multi mode.");
+    ArmyName = "";                                                // 0x52c320 on +0xe8
+    ArmyFileName = "";                                            // 0x52c320 on +0xf0
     ArmyResize(&MissionArmy, 0);                                  // 0x51e520(0)
     Prestige = StartPrestige;                                     // +0x38 = +0x28
+}
+
+// PANZERS 0x591e00
+const char* SPanzersCampaign::GetArmyName() const
+{
+    if (GameMode != 4)
+        Logger.g->Panic("SCampaign::GetArmyName: GameMode is not Multi.");
+    return ArmyName.buf ? ArmyName.buf : "";
+}
+
+// PANZERS 0x591dd0
+const char* SPanzersCampaign::GetArmyFileName() const
+{
+    if (GameMode != 4)
+        Logger.g->Panic("SCampaign::GetArmyFileName: GameMode is not Multi.");
+    return ArmyFileName.buf ? ArmyFileName.buf : "";
+}
+
+// PANZERS 0x597150
+void SPanzersCampaign::SetArmyName(const char* name)
+{
+    if (GameMode != 4)
+        Logger.g->Panic("SCampaign::SetArmyName: ArmyName can only be set in Multi mode.");
+    ArmyName = name ? name : "";                                  // 0x52c320
+}
+
+// PANZERS 0x597120
+void SPanzersCampaign::SetArmyFileName(const char* file)
+{
+    if (GameMode != 4)
+        Logger.g->Panic("SCampaign::SetArmyFileName: ArmyFileName can only be set in Multi mode.");
+    ArmyFileName = file ? file : "";                              // 0x52c320
 }
 
 // PANZERS 0x5974b0

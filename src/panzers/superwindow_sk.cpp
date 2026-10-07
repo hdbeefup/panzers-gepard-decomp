@@ -4,6 +4,7 @@
 // (called first by SuperWindowM3Action). OWNER: agent SK (M5, docs/m5/sk.md).
 
 #include <windows.h>
+#include "mods.h"
 #include "superwindow.h"
 #include "mainmenu.h"
 #include "skirmish.h"
@@ -17,6 +18,7 @@
 #include "pzboard.h"
 #include "board.h"
 #include "gettext.h"
+#include "market.h"
 
 void M3LoadNextCampaignView(SSuperWindow* sw);                    // superwindow_m3.cpp (0x658b10)
 
@@ -148,17 +150,47 @@ bool PzSkirmishAction(SSuperWindow* sw, int action, int param)
         sw->LoadMainMenu();                                        // 0x6583e0
         DeleteSkirmish();
         return true;
-    case PZA_SKIRMISH_NEW:                                         // 0x534b3
-    case PZA_SKIRMISH_EDIT: {                                      // 0x534b4
-        // HD: room SetVisible(0); 0x534b3 also clears the army (SetArmyName
-        // 0x591d50); SetRace(room +0x123c); LoadNextCampaignView -> case 1:
-        // the market in army-making mode, which saves the army file
-        // (SMarket::SaveArmy 0x64a180) and comes back with 0x4d542.
-        STUB_LOG("SSuperWindow::OnAction 0x534b3 / 0x534b4: army making in the market (0x658b10 case 1, SMarket multi mode, SaveArmy 0x64a180) not lifted");
-        if (SSkirmishChatRoomMenu* room = static_cast<SSkirmishChatRoomMenu*>(sw->Menu_108))
-            room->ArmiesEnabled = true;
+    case PZA_SKIRMISH_NEW: {                                       // 0x534b3 New army
+        // The room hides; the campaign's army and its names are cleared
+        // (0x591d50); the race of the local slot; LoadNextCampaignView:
+        // MenuToLoad is still 1 (InitMultiMode), so the market (case 1).
+        SSkirmishChatRoomMenu* room = static_cast<SSkirmishChatRoomMenu*>(sw->Menu_108);
+        room->SetVisible(false);                                   // +0x108 vtbl +0x6c(0)
+        pz::g_Campaign->ClearArmy();                               // 0x591d50
+        pz::g_Campaign->SetRace(room->Race);                       // 0x5974b0(+0x123c)
+        M3LoadNextCampaignView(sw);                                // 0x658b10
+        return true;
+    }
+    case PZA_SKIRMISH_EDIT: {                                      // 0x534b4 Edit army
+        // As New, but the campaign keeps the army LoadCurrentArmy bought.
+        SSkirmishChatRoomMenu* room = static_cast<SSkirmishChatRoomMenu*>(sw->Menu_108);
+        room->SetVisible(false);
+        pz::g_Campaign->SetRace(room->Race);                       // 0x5974b0(+0x123c)
+        M3LoadNextCampaignView(sw);                                // 0x658b10
+        return true;
+    }
+    case PZA_MARKET_START:                                         // 0x4d542 market saved the army
+    case PZA_MARKET_CANCEL: {                                      // 0x4d541 market left without saving
+        // HD (0x659250): ReleaseMultiView; with the multiplayer room
+        // (+0x104, not lifted) ...; with the skirmish room (+0x108): +0x538
+        // = 1 (the army list on), room visible, and after a save the army
+        // list again (LoadArmyNames 0x654030). Without a room: single player.
+        SSkirmishChatRoomMenu* room = static_cast<SSkirmishChatRoomMenu*>(sw->Menu_108);
+        if (!room)
+            return false;
+        sw->ReleaseMultiView();                                    // 0x65b8c0
+        room->ArmiesEnabled = true;                                // +0x538 = 1
+        // HD bug kept: New / Edit left the local slot "in the market" (ready
+        // 2, 0x51e270(1)); unlike the multiplayer room's branch, this one
+        // does not reset it (0x51e270(0)), so the first I'm Ready click only
+        // toggles 2 -> 0 (0x51e2b0) and a second one is needed.
+#if PANZERS_MOD_BUGFIXES
         if (g_Skirmish)
-            g_Skirmish->SetNotReady(false);
+            g_Skirmish->SetNotReady(false);                        // MOD_BUGFIXES: 0x51e270(0) as the multiplayer room
+#endif
+        room->SetVisible(true);                                    // vtbl +0x6c(1)
+        if (action == PZA_MARKET_START)
+            room->LoadArmyNames();                                 // 0x654030
         return true;
     }
     case 0x47562:                                                  // GV_GAMEOVER / GV_ERROR: HD deletes

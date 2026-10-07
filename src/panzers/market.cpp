@@ -1,12 +1,12 @@
 // src/panzers/market.cpp
 // SMarket, the Headquarters screen (market.h). OWNER: agent H.
 //
-// Lifted for the single-player path (Training Camp, campaign); the
-// multiplayer deck / army-file branches (DAT_008f1a74 != 0, campaign
-// +0x11c "deck making") are logged and skipped. Not lifted: the 3D preview
-// (SMarketView, its own SWorld "vasarlomenu" and sub-viewport) and with it
-// the unit-state button of the info panel (SUnitButton::SetUnit on the
-// preview unit); the army-file save (SaveArmy 0x64a180, multiplayer only).
+// Lifted for the single-player path (Training Camp, campaign) and the
+// skirmish army making (multi mode, M6-AR: Buy / Done / Cancel, the "Save
+// Army" dialog, SaveArmy 0x64a180, the Leave Market box, the age-limited
+// warehouse). The GameSpy deck branches (campaign +0x11c "deck making",
+// SMulti game type 4, Mode 1) are logged and skipped. Not lifted: the
+// vehicle menu (SMarketVehicleMenu).
 //
 // HD board slots as in pzwidgets.cpp. Glyph tables of the custom fonts come
 // from the stack tables of Create 0x6407d0 (extracted from the decompile).
@@ -39,6 +39,12 @@
 #include "pz/iscene.h"
 #include "pz/iterrain.h"
 #include "pz/iviewport.h"
+#include "skirmish_state.h"
+#include "superwindow.h"
+#include "mod_widescreen.h"
+#include "stream.h"
+#include <direct.h>
+#include <time.h>
 
 static const char* Tx(const char* id) { return GetText("panzers/Market.cpp", id); }
 static const char* Str(const SString& s) { return s.buf ? s.buf : ""; }
@@ -808,7 +814,12 @@ SMarket::SMarket()
     MaxTanks = r ? r->TankMaxNumber : 0;                           // [0x91a] +0x118
     MaxArtillery = r ? r->ArtilleryMaxNumber : 0;                  // [0x91b] +0x11c
     MaxSupport = r ? r->SupportMaxNumber : 0;                      // [0x91c] +0x120
-    // HD: in multiplayer (DAT_008f1a74) the tank limit becomes 8 or 10.
+    if (g_Skirmish) {                                              // DAT_008f1a74: the tank limit by the age
+        if (g_Skirmish->GameAge == 0)                              // SMulti +0x4a3c
+            MaxTanks = 8;
+        if (g_Skirmish->GameAge == 1)
+            MaxTanks = 10;
+    }
 }
 
 // PANZERS 0x63fa10
@@ -858,15 +869,32 @@ void SMarket::Create()
     PZ_M3_TRACE("SMarket::Create (0x6407d0)");
     LoadUnitDisplayNames();
     pz::SPanzersCampaign* camp = pz::g_Campaign;
-    // campaign +0x11c ("#Deck Making") and multiplayer ("#Army Making") titles are not lifted.
+    // The GameSpy deck modes (campaign +0x11c "#Deck Making", SMulti game
+    // type 4 "#Army Making", Mode 1: the warehouse is the deck +0x60) are
+    // not lifted: the recompile's SMulti is the offline skirmish
+    // (PzSkirmish), game types 0..3.
     SFullScreenMenu::Create(Tx("Headquarters"));                   // 0x64bd50
-    // Single player (DAT_008f1a74 == 0): Buy and Start Mission.
-    InsertChild(&BuyButton);
-    BuyButton.SetPosition(0x180, 0x2d2, 0, 0);
-    BuyButton.Create(2, Tx("Buy"));
-    InsertChild(&StartButton);
-    StartButton.SetPosition(0x300, 0x2d2, 0, 0);
-    StartButton.Create(2, Tx("Start Mission"));
+    if (g_Skirmish) {
+        // Multi (DAT_008f1a74, not type 4): Buy / Done / Cancel (0x64c0d0:
+        // x 0x100 / 0x200 / 0x300, y 0x2d2, style 2).
+        InsertChild(&BuyButton);
+        BuyButton.SetPosition(0x100, 0x2d2, 0, 0);
+        BuyButton.Create(2, Tx("Buy"));
+        InsertChild(&StartButton);
+        StartButton.SetPosition(0x200, 0x2d2, 0, 0);
+        StartButton.Create(2, Tx("Done"));
+        InsertChild(&LeaveButton);
+        LeaveButton.SetPosition(0x300, 0x2d2, 0, 0);
+        LeaveButton.Create(2, Tx("Cancel"));
+    } else {
+        // Single player (DAT_008f1a74 == 0): Buy and Start Mission.
+        InsertChild(&BuyButton);
+        BuyButton.SetPosition(0x180, 0x2d2, 0, 0);
+        BuyButton.Create(2, Tx("Buy"));
+        InsertChild(&StartButton);
+        StartButton.SetPosition(0x300, 0x2d2, 0, 0);
+        StartButton.Create(2, Tx("Start Mission"));
+    }
     Mode = 0;                                                      // [0x17]
 
     HqFont = Board->LoadCustomFont("menu/headquarters_hq.tga", 0x1e,
@@ -1085,14 +1113,29 @@ void SMarket::Create()
     if (ArmyCount == 0)
         StartButton.SetEnable(false);                              // vtbl +0x70(0)
 
-    // SInputDialog "Save Army" (+0x1480, multiplayer) and the "Leave
-    // Market" box (+0x2070) are not created; the "Start Mission" box is.
+    // The "Save Army" dialog (+0x1480; the army's name, "Player" outside
+    // multi mode), the "Connection failed" box (+0x1898), the "Start
+    // Mission" box (+0x1c84) and the "Leave Market" box (+0x2070), all
+    // modal and hidden.
+    InsertChild(&SaveDialog);                                      // vtbl +0x54
+    SaveDialog.SetPosition(0, 0, Width, Height);                   // vtbl +0x08(0, 0, +0x1c, +0x20)
+    SaveDialog.Create(Tx("Save Army"), Tx("Army Name:"),
+                      camp && camp->IsMultiMode() ? camp->GetArmyName() : "Player", 1, true); // 0x53b5c0
+    SaveDialog.Cursor = 0;                                         // 0x543970(0, -1)
+    SaveDialog.SetVisible(false);
+    InsertChild(&ConnBox);
+    ConnBox.Create("", "", PZ_MB_OK, true);                        // 0x53e3b0("", "", 0, 1)
     InsertChild(&StartBox);
-    StartBox.Create(Tx("Start Mission"), "", PZ_MB_YESNO, true);   // 0x53e3b0
+    StartBox.Create(Tx("Start Mission"), "", PZ_MB_YESNO, true);   // 0x53e3b0 (deck: "#Start Army Making")
     StartBox.SetText(Tx("Are you sure?"), 0xd0d0d0);               // 0x53e910
-    Cursor = 0;
+    StartBox.Cursor = 0;
     StartBox.SetVisible(false);
-    Cursor = 0;
+    InsertChild(&LeaveBox);
+    LeaveBox.Create(Tx("Leave Market"), "", PZ_MB_YESNO, true);
+    LeaveBox.SetText(Tx("Are you sure, you want to leave the market without saving?"), 0xd0d0d0);
+    LeaveBox.Cursor = 0;
+    LeaveBox.SetVisible(false);
+    Cursor = 0;                                                    // 0x543970(0, -1)
 }
 
 // PANZERS 0x640210
@@ -1159,11 +1202,21 @@ int SMarket::IconFont(const char* unit) const
     }
 }
 
-// PANZERS 0x644fc0 (single-player branch)
+// PANZERS 0x644fc0
 bool SMarket::Available(const pz::SPUnit* p)
 {
     pz::SPanzersCampaign* c = pz::g_Campaign;
     bool ok = false;
+    // Multi mode (not coop, 0x594cd0): by the unit's age (+0x28): 0 any,
+    // 1 early, 2 late (SMulti +0x4a3c).
+    if (c && c->IsMultiMode() && g_Skirmish && g_Skirmish->GameType != 3) {
+        switch (p->MarketMulti) {
+        case 0: return true;
+        case 1: return g_Skirmish->GameAge == 0;
+        case 2: return g_Skirmish->GameAge == 1;
+        default: return false;
+        }
+    }
     if (c && c->GameMode == pz::PZ_GM_TUTORIAL) {
         if (p->MarketBuyFirst != 0 && p->MarketBuyLast != 0)
             return true;
@@ -1659,12 +1712,140 @@ void SMarket::LoadUnitInfo()
     Board->SetText(PrestigeFrame, g_PzFont[PZF_SANS21], 0, buf);
 }
 
-// PANZERS 0x64a180 (multiplayer army file; not used in single player)
-void SMarket::SaveArmy(int p1)
+// The army file body (0x65cd20 SStreamBuffer, then 0x64a140): the race,
+// the SP as a float, the records (SDArray<SUnitDef>::Save: count, then
+// 0x5cfbf0 per record). The file: signature, the chunk (tag, version, the
+// army name 0x591e00, the CRC 0x65d090 of the body), the body xor-coded
+// from its end (byte i: (i >> 3) ^ i * 0x23 ^ b ^ 0x55), chunk end.
+static bool WriteArmyFile(const char* path, const pz::SArmyArray* army, int race, float sp,
+                          unsigned tag, int version, const char* name)
 {
-    STUB_LOG("SMarket::SaveArmy (0x64a180)");
+    SStreamBuffer body;                                            // 0x65cd20
+    body.WriteInt(race);                                           // 0x65dc40(+0x37c)
+    body.WriteFloat(sp);                                           // 0x65dc20
+    body.WriteInt(army->Size);                                     // 0x64a140
+    for (int i = 0; i < army->Size; ++i)
+        pz::UnitDefSave(&army->Array[i], &body);                   // 0x5cfbf0
+    SStream* f = FileSystem.OpenWrite(path, nullptr);              // 0x65f7a0
+    if (!f)
+        return false;
+    f->WriteSignature();                                           // 0x65dc60
+    f->WriteChunkStart(tag);                                       // 0x65db80
+    f->WriteInt(version);                                          // 0x65dc40
+    f->WriteString(name);                                          // 0x65dca0(GetArmyName 0x591e00)
+    f->WriteInt(body.GenerateCRC());                               // 0x65d090
+    int n = body.Seek(0, 2);                                       // 0x65d8a0
+    body.Seek(0, 0);
+    while (n-- != 0) {
+        unsigned char b = body.ReadByte();                         // 0x65d300
+        f->WriteByte((unsigned char)((n >> 3) ^ (n * 0x23) ^ b ^ 0x55)); // 0x65daf0
+    }
+    f->WriteChunkEnd();                                            // 0x65db10
+    f->Release();                                                  // vtbl +0(1)
+    return true;
+}
+
+// PANZERS 0x64a180
+// The campaign's army (0x591e70) into an army file: file "" makes a new
+// name, armies/<G|A|R><e|l><SP>-<time>.army (team games; the SP is the
+// limit +0x1478), or armies/<G|A|R>-<map>-<time>.army (coop, chunk AREC
+// v2, the SP left +0x1474). An empty army writes nothing (true); false
+// when the file cannot be opened. The GameSpy deck branch (game type 4,
+// chunk GASY, armies/<TestGameSpyDeck>.army) is not lifted.
+bool SMarket::SaveArmy(const char* file)
+{
     PZ_M3_TRACE("SMarket::SaveArmy (0x64a180)");
-    (void)p1;
+    pz::SPanzersCampaign* camp = pz::g_Campaign;
+    pz::SArmyArray army = { nullptr, 0, 0 };
+    camp->GetMissionArmy(&army);                                   // 0x591e70
+    if (army.Size == 0) {
+        pz::ArmyFree(&army);                                       // 0x51de90
+        return true;
+    }
+    Logger.g->Log(1, "SMarket::SaveArmy");                         // 0x65c810(log, 1, ...)
+    SString dir;
+    FileSystem.FileNameProcess(&dir, "armies");                    // 0x65f020
+    _mkdir(Str(dir));                                              // __mkdir
+    FreeStr(&dir);
+    const char* raceTag = Race == 0 ? "G" : Race == 1 ? "A" : "R"; // +0x37c
+    bool coop = g_Skirmish && g_Skirmish->GameType == 3;           // SMulti +0x4a38
+    if (g_Skirmish && g_Skirmish->GameType == 4) {
+        STUB_LOG("SMarket::SaveArmy 0x64a180: the GameSpy deck branch (game type 4) is not lifted");
+        pz::ArmyFree(&army);
+        return true;
+    }
+    char path[0x104];
+    if (!file || !*file) {
+        if (coop)
+            _snprintf(path, sizeof(path) - 1, "armies/%s-%s-%d.army", raceTag,
+                      g_Skirmish->MapName, (int)_time64(nullptr));   // SMulti +0x4a40
+        else
+            _snprintf(path, sizeof(path) - 1, "armies/%s%c%d-%d.army", raceTag,
+                      (g_Skirmish && g_Skirmish->GameAge != 0) ? 'l' : 'e', StartPrestige,
+                      (int)_time64(nullptr));                      // +0x4a3c, +0x1478, __time64
+        path[sizeof(path) - 1] = 0;
+        SString full;
+        FileSystem.FileNameProcess(&full, path);                   // 0x65f020
+        strncpy(path, Str(full), sizeof(path) - 1);
+        path[sizeof(path) - 1] = 0;
+        FreeStr(&full);
+    } else {
+        strncpy(path, file, sizeof(path) - 1);
+        path[sizeof(path) - 1] = 0;
+    }
+    bool ok = coop ? WriteArmyFile(path, &army, Race, (float)Prestige, 0x43455241, 2, camp->GetArmyName())     // AREC
+                   : WriteArmyFile(path, &army, Race, (float)StartPrestige, 0x594d5241, 5, camp->GetArmyName()); // ARMY
+    Logger.g->Log(0, "SMarket::SaveArmy: %s %s", path, ok ? "written" : "not opened");
+    pz::ArmyFree(&army);                                           // 0x51de90
+    return ok;
+}
+
+// PANZERS 0x64afb0
+// The 3D preview (subport 1) from (0x136, 0x3c) down to the top of the box,
+// or its full height 0x13f without one.
+void SMarket::SetPreviewHeight(SWidget* box)
+{
+    if (Subport[1] < 0)
+        return;
+    int wx, wy, ww, wh;
+    GetWindowParent()->GetPosition(&wx, &wy, &ww, &wh);            // 0x5435b0 +0x04
+    int dh = 0x13f;
+    if (box) {
+        int bx, by, bw, bh;
+        box->GetPosition(&bx, &by, &bw, &bh);                      // vtbl +0x04
+        dh = by - 0x3c;                                           // HD: (int*)y - 0xf, i.e. y - 0x3c
+    }
+    int px = (ww * 0x136) / 0x400, py = (wh * 0x3c) / 0x300;
+    int pw = (ww * 0x1aa) / 0x400, ph = (wh * dh) / 0x300;
+#if PANZERS_MOD_WIDESCREEN
+    {
+        int dx = 0x136, dy = 0x3c, dw = 0x1aa, ddh = dh;
+        if (ModWidescreenDesignRect(static_cast<SSuperWindow*>(GetWindowParent()), &dx, &dy, &dw, &ddh)) {
+            px = dx; py = dy; pw = dw; ph = ddh;
+        }
+    }
+#endif
+    pz::SIViewport* vp = pz::PzGepard()->GetViewport(0);           // Gepard +0x3c(0)
+    vp->GetSubport(1)->SetPosition(px, py, pw, ph);                // +0x5c(1), +0x00
+}
+
+// (inline in 0x647d00) The army in campaign form (+0xd00): a crew squad
+// goes into its vehicle's stored units.
+void SMarket::BuildCampaignArmy(pz::SArmyArray* army) const
+{
+    for (int i = 0; i < ArmyCount; ++i) {
+        pz::SUnitDef* d = pz::ArmyAdd(army);                       // 0x560d10
+        if (Army[i].Vehicle.size != 0) {
+            SetStr(&d->ClassName, Str(Army[i].Vehicle));
+            pz::SArmyArray crew = { nullptr, 0, 0 };
+            pz::UnitDefCopy(pz::ArmyAdd(&crew), &Army[i].Def);
+            d->StoredUnits = crew.Array;
+            d->StoredCount = crew.Size;
+            d->StoredMax = crew.Max;
+        } else {
+            pz::UnitDefCopy(d, &Army[i].Def);                      // 0x560290
+        }
+    }
 }
 
 // PANZERS 0x64b0a0
@@ -1676,7 +1857,7 @@ void SMarket::SetArmyCategory(int category)
     FillArmyList();
 }
 
-// PANZERS 0x647d00 (single-player cases)
+// PANZERS 0x647d00 (the vehicle menu and the GameSpy deck cases are not lifted)
 bool SMarket::OnAction(SWidget* source, int action, int param)
 {
     (void)param;
@@ -1705,31 +1886,60 @@ bool SMarket::OnAction(SWidget* source, int action, int param)
         STUB_LOG("SMarketVehicleMenu (0x648c20): the vehicle menu is not lifted");
         return true;
     }
+    if (source == &SaveDialog) {                                   // +0x1480 (multi: Done)
+        if (action == PZA_INPUT_CANCEL) {                          // 0x49584
+            SaveDialog.SetVisible(false);                          // vtbl +0x6c(0)
+            SetPreviewHeight(nullptr);                             // 0x64afb0(0)
+            return true;
+        }
+        const char* name = SaveDialog.GetText();                   // 0x53b260
+        if (name && *name) {
+            pz::SPanzersCampaign* camp = pz::g_Campaign;
+            pz::SArmyArray army = { nullptr, 0, 0 };              // +0xd00
+            BuildCampaignArmy(&army);
+            camp->SetArmy(&army, true);                            // 0x5971b0(+0xd00, 1)
+            SString file;
+            if (_stricmp(name, camp->GetArmyName()) == 0) {        // the same army: its file again
+                camp->SetArmyName(name);                           // 0x597150
+                SetStr(&file, camp->GetArmyFileName());            // 0x591dd0
+            } else {                                               // another name: a new file
+                camp->SetArmyName(name);
+                camp->SetArmy(&army, true);
+                SetStr(&file, "");
+            }
+            if (!SaveArmy(Str(file)))                              // 0x64a180
+                Logger.g->Warning(Tx("Error during saving army file.\n\nMaybe disk is full...")); // 0x65cac0
+            FreeStr(&file);
+            pz::ArmyFree(&army);                                   // 0x51de90
+            SendAction(PZA_MARKET_START, 0);                       // 0x543930(0x4d542, 0)
+        }
+        return true;
+    }
     if (source == &StartBox) {
         if (action == PZA_MSGBOX_YES) {                            // 0x4d582
-            // The army in campaign form (+0xd00): a crew squad goes into
-            // its vehicle's stored units.
             pz::SArmyArray army = { nullptr, 0, 0 };              // +0xd00
-            for (int i = 0; i < ArmyCount; ++i) {
-                pz::SUnitDef* d = pz::ArmyAdd(&army);              // 0x560d10
-                if (Army[i].Vehicle.size != 0) {
-                    SetStr(&d->ClassName, Str(Army[i].Vehicle));
-                    pz::SArmyArray crew = { nullptr, 0, 0 };
-                    pz::UnitDefCopy(pz::ArmyAdd(&crew), &Army[i].Def);
-                    d->StoredUnits = crew.Array;
-                    d->StoredCount = crew.Size;
-                    d->StoredMax = crew.Max;
-                } else {
-                    pz::UnitDefCopy(d, &Army[i].Def);              // 0x560290
-                }
-            }
+            BuildCampaignArmy(&army);
             if (pz::g_Campaign)
                 pz::g_Campaign->SetArmy(&army, true);              // 0x5971b0(+0xd00, 1)
             pz::ArmyFree(&army);                                   // 0x51de90
             SendAction(PZA_MARKET_START, 0);                       // 0x4d542
         } else {
-            StartBox.SetVisible(false);
+            StartBox.SetVisible(false);                            // vtbl +0x6c(0)
+            SetPreviewHeight(nullptr);                             // 0x64afb0(0)
         }
+        return true;
+    }
+    if (source == &LeaveBox) {                                     // +0x2070
+        if (action == PZA_MSGBOX_YES)                              // 0x4d582
+            SendAction(PZA_MARKET_CANCEL, 0);                      // 0x543930(0x4d541, 0)
+        else {
+            LeaveBox.SetVisible(false);
+            SetPreviewHeight(nullptr);
+        }
+        return true;
+    }
+    if (source == &ConnBox) {                                      // +0x1898
+        SendAction(PZA_MARKET_CANCEL, 0);
         return true;
     }
     if (source == &ArmyList) {
@@ -1803,8 +2013,22 @@ bool SMarket::OnAction(SWidget* source, int action, int param)
                 Buy();                                             // 0x6403b0
             return true;
         }
+        if (source == &LeaveButton) {                              // +0x1cc
+            LeaveBox.SetVisible(true);                             // vtbl +0x6c(1)
+            SetPreviewHeight(&LeaveBox);                           // 0x64afb0
+            return true;
+        }
         if (source == &StartButton) {
-            StartBox.SetVisible(true);                             // vtbl +0x6c(1); 0x64afb0 reshapes the 3D view
+            pz::SPanzersCampaign* camp = pz::g_Campaign;
+            if (camp && camp->IsMultiMode() && !(g_Skirmish && g_Skirmish->GameType == 4)) {
+                // Multi: Done -> "Save Army" (HD also copies the campaign
+                // army into +0xd0c, 0x591e70; nothing reads it here).
+                SaveDialog.SetVisible(true);                       // +0x1480 vtbl +0x6c(1)
+                SetPreviewHeight(&SaveDialog);                     // 0x64afb0
+                return true;
+            }
+            StartBox.SetVisible(true);                             // vtbl +0x6c(1)
+            SetPreviewHeight(&StartBox);                           // 0x64afb0
             return true;
         }
     }

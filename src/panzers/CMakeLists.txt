@@ -43,6 +43,8 @@ add_library(panzersgame STATIC
     ingamemenu.cpp
     savemenu.h
     savemenu.cpp
+    inputdialog_pz.h
+    inputdialog_pz.cpp
     chatline.cpp
     cheats.cpp
     results.h

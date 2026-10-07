@@ -37,8 +37,9 @@
 #include "hudwidgets.h"
 #include "pzunitregistry.h"
 #include "hud.h"
+#include "inputdialog_pz.h"
 
-namespace pz { struct SWorld; struct SGameLogic; }
+namespace pz { struct SWorld; struct SGameLogic; struct SArmyArray; }
 
 enum PzMarketAction {
     PZA_MARKET_CANCEL = 0x4d541,
@@ -163,7 +164,8 @@ struct SMarketArmyItem {
 struct SMarket : SFullScreenMenu {
     int  Mode;                          // +0x05c 0 single player, 1 multiplayer deck
     SComplexButton BuyButton;           // +0x0e4 Buy / Sell
-    SComplexButton StartButton;         // +0x158 Start Mission
+    SComplexButton StartButton;         // +0x158 Start Mission (multi: "Done" / "#Finish" / "#Next")
+    SComplexButton LeaveButton;         // +0x1cc multi only: "Cancel" (-> the Leave Market box)
     SComplexButton ChangeVehicle;       // +0x240
     SMarketView    View;                // +0x2b4
     SDXWidget      CostBar;             // +0x31c
@@ -212,7 +214,10 @@ struct SMarket : SFullScreenMenu {
     int  Prestige;                      // +0x1474
     int  StartPrestige;                 // +0x1478
     int  SelArmy;                       // +0x147c
+    pz::SInputDialog SaveDialog;        // +0x1480 "Save Army" / "Army Name:" (multi: Done -> the army file)
+    pz::SMessageBox ConnBox;            // +0x1898 "Connection failed" (multiplayer only)
     pz::SMessageBox StartBox;           // +0x1c84 "Start Mission / Are you sure?"
+    pz::SMessageBox LeaveBox;           // +0x2070 "Leave Market" / "Are you sure, you want to leave the market without saving?"
     pz::STextBox Description;           // +0x2474
     int  MaxAll;                        // +0x2464 SUnitRegistry +0x114
     int  MaxTanks;                      // +0x2468 +0x118
@@ -226,7 +231,9 @@ struct SMarket : SFullScreenMenu {
     void Update() override;                                          // +0x78 0x64b380
     void Create();                                                   // 0x6407d0
     void LoadUnitInfo();                                             // 0x6450c0
-    void SaveArmy(int p1);                                           // 0x64a180 (1)
+    bool SaveArmy(const char* file);                                 // 0x64a180 the campaign's army into an army file ("": a new file)
+    void SetPreviewHeight(SWidget* box);                             // 0x64afb0 the 3D preview ends above a box (nullptr: full height)
+    void BuildCampaignArmy(pz::SArmyArray* army) const;              // (inline in 0x647d00) +0xd00: a crew squad into its vehicle
 
     void FillArmyList();                                             // 0x6492d0
     void FillWarehouse();                                            // 0x6499a0

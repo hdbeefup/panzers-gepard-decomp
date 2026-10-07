@@ -35,8 +35,8 @@
 enum PzSkirmishAction {
     PZA_SKIRMISH_START  = 0x534b1,   // countdown over (0x655a60) -> LetChatroomDone, game view
     PZA_SKIRMISH_CANCEL = 0x534b2,   // Cancel -> main menu, SMulti deleted
-    PZA_SKIRMISH_EDIT   = 0x534b3,   // Edit army -> the market (army making)
-    PZA_SKIRMISH_NEW    = 0x534b4,   // New army -> the market (army making)
+    PZA_SKIRMISH_NEW    = 0x534b3,   // New army (+0x3c8, 0x6553d7) -> the market with no army
+    PZA_SKIRMISH_EDIT   = 0x534b4,   // Edit army (+0x43c, 0x655488) -> the market with the chosen army
 };
 
 struct SSkirmishChatRoomMenu : SFullScreenMenu {
@@ -76,7 +76,6 @@ struct SSkirmishChatRoomMenu : SFullScreenMenu {
     char           ShownMap[0x104];    // (recompile) the map whose preview is up
     int            MiniMapFont;        // (recompile) menu/minimap_hq.tga (HD releases it at once)
     int            CompassFont;        // (recompile) menu/minimap_compass_hq.tga
-    char           ArmyName[0x80];     // (recompile) the campaign's army name (HD SetArmyName 0x597150 / GetArmyName 0x591e00)
 
     SSkirmishChatRoomMenu();                                         // 0x652d20
     ~SSkirmishChatRoomMenu() override;                               // 0x652ef0

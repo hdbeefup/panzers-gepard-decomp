@@ -257,7 +257,7 @@ M5 SK (single-player Skirmish, docs/m5/sk.md) replaced `SSingleMenu Skirmish 0x5
 SSkirmishChatRoomMenu 0x653250 / 0x656210 / 0x654df0 lifted). New logged stubs on that path:
 `SSuperWindow::OnAction
 0x534b3 / 0x534b4: army making in the market (0x658b10 case 1, SMarket multi mode, SaveArmy 0x64a180)
-not lifted` (New / Edit army), and `SSuperWindow::LoadNextCampaignView 4 after a skirmish: SMultiPreMenu
+not lifted` (New / Edit army; replaced by M6 AR, below), and `SSuperWindow::LoadNextCampaignView 4 after a skirmish: SMultiPreMenu
 (0x658a30) not lifted, main menu` (HD goes to the multiplayer menu after a skirmish's results).
 
 M5 SC (scenario mode, docs/m5/sc.md) replaced `SCampaign::InitScenarioMode (0x5944d0)`, `SSuperWindow::Play
@@ -269,3 +269,10 @@ M5 CH (chat line and cheats, docs/m5/ch.md) replaced the `SGameView::OnKeyDown E
 (0x6255b0, agent H)` StubOnce (the Enter case 0x623728..0x62417e and the cheats lifted; 0x6255b0 itself is the
 bug-report screenshot, still unmapped) and the `SPanzersCampaign 0x597180(0) after Restart Mission (not
 mapped)` STUB_LOG (0x597180 lifted). Census `2529 lifted + 1316 SWINE-shared + 140 stubs`.
+
+M6 AR (army making for Skirmish, docs/m6/ar.md) replaced `SSuperWindow::OnAction 0x534b3 / 0x534b4: army
+making in the market (0x658b10 case 1, SMarket multi mode, SaveArmy 0x64a180) not lifted` (New / Edit army
+open the market in multi mode; Done -> the Save Army dialog -> SMarket::SaveArmy 0x64a180; 0x4d541 / 0x4d542
+back to the room) and `SMarket::SaveArmy (0x64a180)`. New logged stub (not on the skirmish path):
+`SMarket::SaveArmy 0x64a180: the GameSpy deck branch (game type 4) is not lifted`. Census `2546 lifted +
+1316 SWINE-shared + 139 stubs`.

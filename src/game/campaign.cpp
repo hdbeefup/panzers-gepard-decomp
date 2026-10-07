@@ -334,6 +334,8 @@ SPanzersCampaign::~SPanzersCampaign()
     Objectives = nullptr;
     ObjectiveCount = ObjectiveMax = 0;
     FreeSString(&ReplayName);                                     // +0x12c
+    FreeSString(&ArmyName);                                       // +0xe8
+    FreeSString(&ArmyFileName);                                   // +0xf0
     for (int p = 0; p < 12; ++p)                                  // the player records' names (+0x140 + p * 0xd8)
         FreeSString((SString*)PlayerStats[p]);
     ArmyFree(&MissionArmy);

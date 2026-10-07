@@ -182,7 +182,6 @@ SSkirmishChatRoomMenu::SSkirmishChatRoomMenu()
     for (int i = 0; i < 8; ++i)
         ReadyFrames[i] = -1;
     ShownMap[0] = 0;
-    ArmyName[0] = 0;
 }
 
 // PANZERS 0x652ef0
@@ -647,16 +646,17 @@ static void WriteTestArmyFile(const pz::SArmyArray* army, int race, int age, int
     Logger.g->Log(0, "PZM5: test army written to %s", path);
 }
 
-// PANZERS 0x654030// The army files of the local player's nation, age and prestige limit:
+// PANZERS 0x654030
+// The army files of the local player's nation, age and prestige limit:
 // armies/<G|A|R><e|l><SP>*.army (FindFirstFileA / FindNextFileA); an item
 // per readable file (ReadArmyFile: race and SP must match): the army name,
-// the file. The army chosen before (HD: the campaign's GetArmyName
-// 0x591e00; the recompile keeps the name in the room) becomes the
+// the file. The army chosen before (the campaign's GetArmyName 0x591e00:
+// the army loaded last, or the one the market just saved) becomes the
 // selection; then LoadCurrentArmy.
 // PZ_M5_SK_ARMY=1 (recompile-only test hook, inert when unset): one more
 // item "PZ_M5_SK_ARMY" that gives the local player the Computer army of
-// its nation (src/game/skirmish_game.cpp), so a skirmish can be started
-// without an army file.
+// its nation (src/game/skirmish_game.cpp). Not needed since M6-AR (New /
+// Edit make army files in the market); kept for scripted tests.
 void SSkirmishChatRoomMenu::LoadArmyNames()
 {
     if (!Visible || !ArmiesEnabled)                                // +0x39, +0x538
@@ -685,7 +685,7 @@ void SSkirmishChatRoomMenu::LoadArmyNames()
             continue;
         }
         Armies.AddItem(Str(name), path, 0xd0d0d0, 0);              // 0x53c020(name, file, 0xd0d0d0, 0)
-        if (_stricmp(Str(name), ArmyName) == 0)                     // GetArmyName 0x591e00
+        if (_stricmp(Str(name), pz::g_Campaign->GetArmyName()) == 0)   // GetArmyName 0x591e00
             SelArmy = Armies.ItemCount - 1;                        // +0x1240 = +0x654 - 1
         FreeSString(&name);
     }
@@ -708,14 +708,13 @@ void PzSkirmishTestArmy(pz::SArmyArray* out, int nation);         // src/game/sk
 // PANZERS 0x6547b0
 // The selected army file into the campaign: SetArmyName (clears the army),
 // SetRace, read the file (its army name must be the list's), SetArmy
-// 0x5971b0 (buy every record against the prestige limit), SetArmyName /
-// SetArmyFileName (kept in the room by the recompile).
+// 0x5971b0 (buy every record against the prestige limit), SetArmyName
+// 0x597150 / SetArmyFileName 0x597120 (Edit army and SaveArmy use them).
 void SSkirmishChatRoomMenu::LoadCurrentArmy()
 {
     Logger.g->Log(1, "SSkirmishChatRoomMenu::LoadCurrentArmy");
     pz::g_Campaign->ClearArmy();                                   // 0x591d50
     pz::g_Campaign->SetRace(Race);                                 // 0x5974b0
-    ArmyName[0] = 0;
     if (Armies.CurSel < 0)                                         // +0x5ac
         return;
     const char* file = Str(Armies.Items[Armies.CurSel].Text2);     // 0x53c490
@@ -748,8 +747,8 @@ void SSkirmishChatRoomMenu::LoadCurrentArmy()
     }
     pz::g_Campaign->SetArmy(&army, g_Skirmish->GameType != 3);     // 0x5971b0(&army, !coop)
     pz::ArmyFree(&army);
-    strncpy(ArmyName, text ? text : "", sizeof(ArmyName) - 1);     // SetArmyName 0x597150
-    ArmyName[sizeof(ArmyName) - 1] = 0;
+    pz::g_Campaign->SetArmyName(text ? text : "");                 // 0x597150 (the file's army name = the item's)
+    pz::g_Campaign->SetArmyFileName(file);                         // 0x597120
 }
 // PANZERS 0x656210
 void SSkirmishChatRoomMenu::Update()
@@ -925,7 +924,7 @@ bool SSkirmishChatRoomMenu::OnAction(SWidget* source, int action, int param)
         if (source == &NewArmy) {                                  // +0x3c8
             ArmiesEnabled = false;                                 // +0x538 = 0
             m->SetNotReady(true);                                  // 0x51e270(1)
-            SendAction(PZA_SKIRMISH_NEW, param);                   // 0x543930(0x534b3, ...)
+            SendAction(PZA_SKIRMISH_NEW, param);                   // 0x543930(0x534b3, param)
             return true;
         }
         if (source == &EditArmy) {                                 // +0x43c

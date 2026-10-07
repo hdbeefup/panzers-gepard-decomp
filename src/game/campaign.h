@@ -109,7 +109,8 @@ struct SPanzersCampaign {
     SString       MissionSection;   // +0x0d8 missions.ini section = the map MINA name ("Training camp", LoadMap 0x6201c0); LoadMap starts the mission at once when its size (+0xdc) is 0
     int           MenuToLoad;       // +0x0e0 PzMenuToLoad (getter 0x596600)
     int           MissionResult;    // +0x0e4 0x5920b0 (setter 0x597470): 0 running, 1 victory, 3 defeat (SGameView::Update 0x628430 end check); mission start runs the logic when 0
-    unsigned char _0e8[0x0f8 - 0x0e8];
+    SString       ArmyName;         // +0x0e8 multi mode: the army's name (SetArmyName 0x597150, GetArmyName 0x591e00)
+    SString       ArmyFileName;     // +0x0f0 multi mode: its file (SetArmyFileName 0x597120, GetArmyFileName 0x591dd0)
     int           _0f8;             // +0x0f8 saved with the replay header and the save
     int           _0fc;             // +0x0fc saved
     int           _100;             // +0x100 ctor -1
@@ -168,6 +169,11 @@ struct SPanzersCampaign {
     void ClearArmy();                                      // 0x591d50 (SetArmyName / SetArmyFileName ""): no mission army, Prestige = StartPrestige
     void SetRace(int race);                                // 0x5974b0
     void SetMissionSP(int sp);                             // 0x597480 StartPrestige (+0x28)
+    bool IsMultiMode() const { return GameMode == 4; }     // 0x594d20
+    const char* GetArmyName() const;                       // 0x591e00
+    const char* GetArmyFileName() const;                   // 0x591dd0
+    void SetArmyName(const char* name);                    // 0x597150
+    void SetArmyFileName(const char* file);                // 0x597120
     void SetMapName(const char* path);                     // (inline 0x52c320 on +0x20 in SSkirmishChatRoomMenu::Update 0x656210)
     const char* GetMissionCode();
     // Market hand-over (SMarket::OnAction 0x647d00, Start Mission -> Yes).
