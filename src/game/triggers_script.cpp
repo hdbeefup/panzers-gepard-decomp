@@ -15,6 +15,11 @@
 #include "world.h"
 #include "logger.h"
 #include "stub_log.h"
+#include "unit.h"
+#include "unitextern.h"
+#include "pzunitregistry.h"
+#include "pz/igepardhd.h"
+#include "pz/ipixie.h"
 
 namespace pz {
 
@@ -23,6 +28,7 @@ using m2u::UV;
 void ClearFound(SFoundUnits* g, int size);   // triggers.cpp 0x563580
 SFoundUnit* AddFound(SFoundUnits* g);        // triggers.cpp 0x560d80 + 0x560790
 void GroupStats(SFoundUnits* g);             // triggers.cpp 0x582770
+void OrderAlongPath(SGameLogic* gl, SFoundUnits* g, int command, int path);   // triggers.cpp 0x564510
 
 namespace {
 
@@ -69,6 +75,85 @@ bool NameMatches(int u, const char* name, int len)
     if (len > 0 && name[len - 1] == '*')
         return strncmp(id, name, len - 1) == 0;
     return (int)strlen(id) == len && (len == 0 || _stricmp(id, name) == 0);
+}
+
+// The first live unit whose script id equals the name (SString ==: same
+// length, case-insensitive), or -1 (the loops of cases 4, 6, 0x10, 0x13, 0x19).
+int UnitByScriptId(const char* name, int len)
+{
+    PZ_FOR_EACH_UNIT(i) {
+        const char* id = UV::ScriptId(i);
+        if ((int)strlen(id) == len && (len == 0 || _stricmp(id, name) == 0))
+            return i;
+    }
+    return -1;
+}
+
+// The path whose name equals the string (0x5e9840 + strcmp), or -1.
+int PathByName(const char* name)
+{
+    SHeap<SPath>& paths = g_World->Paths;                         // World +0x7494
+    for (int i = 0; i < paths.Size; ++i)
+        if (paths.IsLive(i) && strcmp(SStr(paths.Array[i].Data.Name), name) == 0)
+            return i;
+    return -1;
+}
+
+// The weather whose name equals the string (0x5e6520: same length,
+// case-insensitive), or -1.
+int WeatherByName(const char* name)
+{
+    SWorld* w = g_World;
+    int len = (int)strlen(name);
+    for (int i = 0; i < w->Weathers.Size; ++i) {
+        const SString& n = w->Weathers.Array[i].Name;
+        if (n.size == len && (len == 0 || _stricmp(n.buf, name) == 0))
+            return i;
+    }
+    return -1;
+}
+
+// The SWorld::CreateUnit 0x5e3170 call of cases 0 / 1 / 0x23: the unit, its
+// script id and the crew's ("<id>-crew", stored unit 0).
+void CreateScripted(int player, const char* cls, const float* xzdir, int p5, bool crew, const char* passedId,
+                    const char* id)
+{
+    float pos[3] = {xzdir[0], 0.0f, xzdir[1]};
+    int u = g_World->CreateUnit(player, cls, pos, xzdir[2] * 0.017453292f, p5, 1.0f, -1, crew, passedId);   // 0x5e3170
+    if (u < 0)
+        return;
+    SUnit* unit = WorldUnit(u);
+    unit->ScriptID = id;                                          // 0x52c2c0 (+0x194)
+    if (unit->Stored.Size != 0) {                                 // +0x170
+        char crewId[160];
+        _snprintf(crewId, sizeof(crewId) - 1, "%s-crew", id);     // 0x52c580(id, "-crew")
+        crewId[sizeof(crewId) - 1] = 0;
+        WorldUnit(unit->Stored.Array[0].Unit)->ScriptID = crewId; // 0x546450(0) -> +0x194 (0x52c320)
+    }
+}
+
+// PANZERS 0x56d860 (hideallunit) / 0x580320 (showallunit): the infantry,
+// vehicles and guns (classes 0, 5, 0xb) that are not inside another unit
+// (or are on top of it, +0x7c).
+void HideShowAll(bool show)
+{
+    PZ_FOR_EACH_UNIT(i) {
+        int ct = UV::ClassType(i);
+        if (ct != 0 && ct != 5 && ct != 0xb)
+            continue;
+        SUnit* u = WorldUnit(i);
+        if (u->Parent >= 0 && !u->_7c)                            // +0x78, +0x7c
+            continue;
+        if (!show) {
+            // PANZERS 0x5c5100
+            u->_16a[0] = u->Unplaced;                             // +0x16a = +0x168
+            if (!u->Unplaced)
+                UV::Iface(i)->Unplace();                          // +0x4c
+        } else if (!u->_16a[0]) {
+            // PANZERS 0x5c5120
+            UV::Iface(i)->Place(u->Pos[0], u->Pos[2], u->Dir);    // +0x50(+0x8c, +0x94, +0xb0)
+        }
+    }
 }
 
 } // namespace
@@ -140,15 +225,188 @@ void PzExecuteScriptStatement(SGameLogic* gl, const char* text, bool preprocess)
         GroupStats(&group);                                       // 0x582770
     }
     if (preprocess) {
-        // HD: "create" / "create2" check the unit class (0x5d0e70),
-        // "create_model" preloads the model (Gepard +0x20 / +0x24).
-        if (cmd->Id == 0 || cmd->Id == 1 || cmd->Id == 0x20)
-            STUB_LOG("SGameLogic::ExecuteScriptStatement preprocess create / create_model (0x5d0e70)");
+        // "create" (a player 1..12) / "create2" load the unit class
+        // (0x5d0e70(name, 1)), "create_model" loads the model once
+        // (Gepard +0x20 / +0x24).
+        if ((cmd->Id == 0 && in[5] - 1 >= 0 && in[5] - 1 < 0xc) || cmd->Id == 1) {
+            if (g_UnitRegistry)
+                g_UnitRegistry->GetPUnit(str[1], true);           // 0x5d0e70(str[1], 1)
+        } else if (cmd->Id == 0x20) {
+            int proto = PzGepard()->LoadModelPrototype(str[0], 0.005f, 0, 0);   // Gepard +0x20 (0x3ba3d70a)
+            PzGepard()->ReleaseModelPrototype(proto);             // Gepard +0x24
+        }
         free(group.Units);
         return;
     }
     float target[2] = {fl[1], fl[2]};
     switch (cmd->Id) {
+    case 0:                                                       // create <id>, <class>, x, z, dir, player
+        if (in[5] - 1 >= 0 && in[5] - 1 < 0xc) {
+            float xzdir[3] = {fl[2], fl[3], fl[4]};
+            CreateScripted(in[5] - 1, str[1], xzdir, 0, true, str[0], str[0]);
+        }
+        break;
+    case 1: {                                                     // create2 <id>, <class>, x, z, dir, p5
+        if (strLen[0] < 1)
+            Logger.g->Panic("SString::operator[]: invalid index (%d)", 0);
+        // HD: the player is (<id> starts with '#'), the script id passed is "".
+        float xzdir[3] = {fl[2], fl[3], fl[4]};
+        CreateScripted(str[0][0] == '#', str[1], xzdir, in[5], true, "", str[0]);
+        break;
+    }
+    case 4: {                                                     // follow <id>, <id2>
+        int t = UnitByScriptId(str[1], strLen[1]);
+        if (t >= 0)
+            gl->OrderAtUnit(&group, 7, t, false, false);          // 0x564720(g, 7, unit)
+        break;
+    }
+    case 6: {                                                     // attack <id>, <id2>
+        int t = UnitByScriptId(str[1], strLen[1]);
+        if (t >= 0)
+            gl->OrderAtUnit(&group, 0x11, t, false, false);
+        break;
+    }
+    case 0xf:                                                     // gunner_aim_ground <id>, x, z
+        gl->OrderAtPoint(&group, 0x22, target, false, false);     // 0x564660(g, 0x22, &t)
+        break;
+    case 0x10: {                                                  // gunner_aim_unit <id>, <id2>
+        int t = UnitByScriptId(str[1], strLen[1]);
+        if (t >= 0)
+            gl->OrderAtUnit(&group, 0x23, t, false, false);
+        break;
+    }
+    case 0x11:                                                    // gunner_lock
+        gl->OrderPlain(&group, 0x24, false, false);
+        break;
+    case 0x12:                                                    // gunner_change_active <id>, n
+        gl->OrderValue(&group, 0x29, in[1], false, false);
+        break;
+    case 0x13: {                                                  // board <id>, <carrier>
+        int t = UnitByScriptId(str[1], strLen[1]);
+        if (t < 0)
+            break;
+        SUnit* c = WorldUnit(t);
+        if (!c->Wrecked && (c->Parent < 0 || UV::ClassType(t) == 10) && !c->Unplaced)   // +0x150, +0x78, +0x168
+            gl->OrderAtUnit(&group, 0x2a, t, false, false);
+        break;
+    }
+    case 0x15:                                                    // gunner_spin_to_dir <id>, deg
+        gl->OrderFloat(&group, 0x25, fl[1] * 0.017453292f, false, false);   // 0x564910
+        break;
+    case 0x16: {                                                  // fx <file>, x, y, z
+        if (!g_Pixie || !g_Scene)
+            break;
+        int proto = g_Pixie->LoadEffectPrototype(str[0], false, false, 0, 0);   // pixie +0x10(name, 0, 0, "")
+        if (proto < 0)
+            Logger.g->Panic("SGameLogic::ExecuteScriptStatement: Failed to load effect %s", str[0]);
+        float dir[3] = {1.0f, 0.0f, 1.0f};
+        float pos[3];
+        pos[0] = fl[1];
+        pos[1] = g_World->GetTerrainHeight(fl[1], fl[3]) + fl[2]; // 0x5e7730 + y
+        pos[2] = fl[3];
+        g_Pixie->PlayEffect(g_Scene, proto, pos, dir, 0);         // pixie +0x24 (the prototype is kept)
+        break;
+    }
+    case 0x17:                                                    // change_behavior <id>, n
+        gl->OrderValue(&group, 0x21, in[1], false, false);
+        break;
+    case 0x18:                                                    // anim <id>, <animation>
+        for (int k = 0; k < group.Count; ++k)
+            UV::Iface(group.Units[k].Unit)->SetSpecialAnimation(str[1]);   // +0x1b8(SString)
+        break;
+    case 0x19: {                                                  // tow <id>, <id2>
+        int t = UnitByScriptId(str[1], strLen[1]);
+        if (t >= 0)
+            gl->OrderAtUnit(&group, 0x2c, t, false, false);
+        break;
+    }
+    case 0x1a:                                                    // untow
+        gl->OrderPlain(&group, 0x2d, false, false);
+        break;
+    case 0x1b:                                                    // heavy_bombardment x, z, player, alt, flag
+        gl->SupportHeavyBomber(true, fl[0], fl[1], in[2] - 1, fl[3], in[4] != 0, false, 0.0f);   // 0x567760
+        break;
+    case 0x1c:                                                    // tactical_bombardment x, z, player
+        gl->SupportTacBomber(true, fl[0], fl[1], in[2] - 1);      // 0x568740
+        break;
+    case 0x1d:                                                    // recon_plane x, z, player, alt, flag
+        gl->SupportRecon(true, fl[0], fl[1], in[2] - 1, fl[3], in[4] != 0);   // 0x568300
+        break;
+    case 0x1e:                                                    // parachute x, z, player, alt, flag
+        gl->SupportParatroopers(true, fl[0], fl[1], in[2] - 1, fl[3], in[4] != 0, false, 0.0f);   // 0x567d40
+        break;
+    case 0x1f:                                                    // cannonade x, z, player
+        gl->SupportArtillery(true, fl[0], fl[1], in[2] - 1);      // 0x5674c0
+        break;
+    case 0x20:                                                    // create_model <file>, x, z, dir
+        gl->CreateAnimatedModel(str[0], fl[1], g_World->GetTerrainHeight(fl[1], fl[2]), fl[2],
+                                fl[3] * 0.017453292f);            // 0x5649e0
+        break;
+    case 0x21:                                                    // move_to_dir <id>, x, z, deg
+        gl->MoveFoundUnitsToLocationDir(&group, 2, target, fl[3] * 0.017453292f, false, false, false);   // 0x57f200
+        break;
+    case 0x22:                                                    // sethp <id>, percent (0x57fa10)
+        for (int k = 0; k < group.Count; ++k)
+            UV::Iface(group.Units[k].Unit)->SetHealthPercent(fl[1]);   // +0x130
+        break;
+    case 0x23:                                                    // createwithoutcrew
+        if (in[5] - 1 >= 0 && in[5] - 1 < 0xc) {
+            float xzdir[3] = {fl[2], fl[3], fl[4]};
+            CreateScripted(in[5] - 1, str[1], xzdir, 0, false, "", str[0]);
+        }
+        break;
+    case 0x24:                                                    // hideallunit (0x56d860)
+        HideShowAll(false);
+        break;
+    case 0x25:                                                    // showallunit (0x580320)
+        HideShowAll(true);
+        break;
+    case 0x26:                                                    // disableai
+    case 0x27:                                                    // enableai: both set +0x1d4 in HD
+        for (int k = 0; k < group.Count; ++k)
+            WorldUnit(group.Units[k].Unit)->_1d4 = true;
+        break;
+    case 0x28:                                                    // attack_move_on_path <id>, <path>
+    case 0x29: {                                                  // move_units_on_path <id>, <path>
+        int path = PathByName(str[1]);
+        if (path < 0) {
+            Logger.g->Warning("SGameLogic::ExecuteScriptStatement: path %s not found", str[1]);   // 0x65cac0
+            break;
+        }
+        OrderAlongPath(gl, &group, cmd->Id == 0x28 ? 10 : 6, path);   // 0x564510
+        break;
+    }
+    case 0x2a: {                                                  // move_units_on_path_in_convoy <id>, <path>
+        int path = PathByName(str[1]);
+        if (path < 0) {
+            Logger.g->Warning("SGameLogic::ExecuteScriptStatement: path %s not found", str[1]);
+            break;
+        }
+        SPath& pp = g_World->Paths.Array[path].Data;              // 0x560960
+        if (pp.Points.Size < 1)
+            Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "SPathPoint", 0);
+        int g = gl->GroupOrder(true, 0, &group, true, pp.Points.Array[0].X, pp.Points.Array[0].Z);   // 0x56ff30
+        gl->ConvoyAlongPath(g, path);                             // 0x57e600
+        break;
+    }
+    case 0x2b: {                                                  // setweather <name>
+        int wi = WeatherByName(str[0]);                           // 0x5e6520
+        if (wi != -1)
+            g_World->SetWeather(wi, 0);                           // 0x5fdc80(i, 0) and 0x6088f0
+        break;
+    }
+    case 0x2c: {                                                  // disable_ambient_sounds (0x5f5140)
+        // HD also removes the sounds of the ambient sound sources (+0x658,
+        // Concert +0x3c) and turns the +0x73e8 sources off (0x6015d0); the
+        // recompile's StartEffects keeps only the two flags.
+        unsigned char* w = (unsigned char*)g_World;
+        w[0x73e4] = 0;
+        w[0x64c] = 0;
+        break;
+    }
+    case 0x2d:                                                    // enable_ambient_sounds
+        g_World->StartEffects();                                  // 0x5f5b50
+        break;
     case 2:                                                       // move
         gl->MoveFoundUnitsToLocation(&group, 1, target, false, false, false);   // 0x57efd0(g, 1, &t, 0, 0, 0)
         break;

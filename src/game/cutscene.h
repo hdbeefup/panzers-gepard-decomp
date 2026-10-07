@@ -47,6 +47,26 @@ void PzMessageFading(SGameLogic* gl, const char* text, int color); // 0x56a480 S
 void PzTriggerTextBlock(SGameLogic* gl, const char* key, bool fading);   // actions 0x40 / 0x41
 void PzCutsceneOverlay(unsigned argb);                             // 0x58c5d0 (the cut-scene colour)
 
+// The subtitles (src/panzers/cutscene_sub.cpp, M5 agent CS).
+void PzSubtitlesLoad(const char* file);                            // 0x56fd70 SSubtitler::ParseSubFile + the frame
+void PzSubtitlesShow(int time);                                    // 0x5826c0 (time in 1/25 s)
+void PzSubtitlesEnd();                                             // 0x565390 / 0x5652d0 tail
+void PzCutsceneSoundResume();                                      // Concert +0x64
+int  PzCutsceneSoundStart(const char* file);                       // Concert +0x2c(file, 1, 0, 0, 1)
+void PzCutsceneSoundStop(int id);                                  // Concert +0x3c
+
+// SGameLogic +0x00 (the view's SIGameViewCallback) calls
+// (src/panzers/gameview_mapcut.cpp).
+void PzViewLoadMapInPlace(int callback, const char* map);          // vtbl +0x10 0x624770
+void PzViewResetClock(int callback);                               // vtbl +0x0c 0x624730
+
+// RunTriggers case 0x38 (triggers.cpp): true when the map cut-scene
+// replaced the map (the running triggers are gone).
+bool PzMapCutscene(SGameLogic* gl, const char* name);
+// Recompile-only test hook PZ_M5_CS_FORCE=<frame>:<name> (inert when unset):
+// at that logic frame the trigger action 0x38 with <name> runs.
+void PzCutsceneTestHook(SGameLogic* gl);
+
 } // namespace pz
 
 #endif // PZ_CUTSCENE_H

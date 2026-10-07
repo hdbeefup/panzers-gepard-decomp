@@ -392,6 +392,8 @@ void SPanzersCampaign::InitCampaignMode()
         Logger.g->Panic("SCampaign::InitCampaignMode: GameMode can only be initialized once.");
     GameMode = PZ_GM_CAMPAIGN;
     SetStr(&MissionSection, Race == 0 ? "German 1" : Race == 1 ? "Allied 1" : "Russian 1");   // 0x52c320 on +0xd8
+    if (const char* t = getenv("PZ_M5_CS_SECTION"))               // recompile-only test hook (M5 CS): start at another mission
+        SetStr(&MissionSection, t);
     delete (SProperties*)MissionProps;                            // 0x660080 + delete 0x1c
     MissionProps = nullptr;
     delete (SProperties*)LocalProps;

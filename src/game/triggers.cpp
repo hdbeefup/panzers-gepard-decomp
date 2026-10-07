@@ -20,12 +20,14 @@
 #include "blockmaprefresh.h"
 #include "unit.h"
 #include "gunner.h"
+#include "buildingunit.h"
 #include "unitextern.h"
 #include "logger.h"
 #include "stub_log.h"
 #include "campaign.h"
 #include "cutscene.h"
 #include "pz/ipixie.h"
+#include "pz/imodel.h"
 #include "gettext.h"
 #include "core_common.h"
 #include "stream.h"
@@ -929,7 +931,7 @@ static void ActionRemoveFound(SGameLogic* gl, SRunningTrigger* rt)
 // PANZERS 0x564510
 // The found units follow a path: one movement group towards the first path
 // point (0x56ff30), then 0x5bbb60(command, path, p4, queue) per unit.
-static void OrderAlongPath(SGameLogic* gl, SFoundUnits* g, int command, int path)
+void OrderAlongPath(SGameLogic* gl, SFoundUnits* g, int command, int path)
 {
     SHeap<SPath>& paths = g_World->Paths;
     if (!paths.IsLive(path))
@@ -1138,11 +1140,78 @@ static void ActionLocationEffect(const STriggerAction* a)
     g_Pixie->ReleaseEffectPrototype(proto);                       // pixie +0x20
 }
 
+// PANZERS 0x579ab0 (case 0x38, the map branch 0x57d42a..0x57d5b8)
+// The map cut-scene: the logic's state of the old map goes (messages,
+// objective markers, animated models, doodad grid, vision maps, active
+// locations, running triggers), the view loads "maps/<n>.map" in place
+// (SIGameViewCallback +0x10, 0x624770), the logic's map state is built again
+// as in the ctor 0x55e440 (vision maps 0x564fb0, the player table 0x565e10,
+// active locations 0x5640b0 / 0x582080, doodad grid 0x564c20, every unit
+// +0x34 and the buildings' 0x5497a0), and campaign +0x14 = 1: the new map's
+// own 0x38 with the same name plays the cut-scene, PlaceMyUnits is off and
+// the mission end keeps the army that 0x624770 backed up. Without a view
+// (+0x00 = 0, the menu logic) nothing happens.
+bool PzMapCutscene(SGameLogic* gl, const char* map)
+{
+    if (gl->Mode == 0)                                            // *(+0x00) == 0
+        return false;
+    Logger.g->Log(0, "PZM5: map cut-scene %s at frame %d", map, gl->Frame);
+    PzMessagesClearFading(gl);                                    // 0x563860
+    PzMessagesClearStatic(gl);                                    // 0x5638b0
+    RemoveObjectiveMarkers(gl, -1, -1);                           // 0x579420(-1, -1)
+    for (int i = 0; i < gl->AnimatedModelCount; ++i) {            // 0x563230(0) on +0x2fc
+        if (gl->AnimatedModels[i].Model)
+            gl->AnimatedModels[i].Model->Release();               // +0x18 vtbl +4
+        FreeSString(&gl->AnimatedModels[i].Name);                 // +0x00
+    }
+    gl->AnimatedModelCount = 0;
+    if (gl->AnimatedModels)
+        memset(gl->AnimatedModels, 0, (size_t)gl->AnimatedModelMax * sizeof(SAnimatedModel));
+    free(gl->DoodadGrid);                                         // +0x1b8 (0x76654a)
+    gl->DoodadGrid = nullptr;
+    gl->FreeVisMaps();                                            // 0x579a50
+    gl->ActiveLocationCount = 0;                                  // 0x546af0(0) on +0x2f0
+    if (gl->ActiveLocations)
+        memset(gl->ActiveLocations, 0, (size_t)gl->ActiveLocationMax * sizeof(int));
+    for (int i = 0; i < gl->RunningTriggerCount; ++i) {           // 0x563410(0) on +0x268
+        free(gl->RunningTriggers[i].Found.Units);                 // +0x28
+        gl->RunningTriggers[i].Found.Units = nullptr;
+    }
+    gl->RunningTriggerCount = 0;
+    if (gl->RunningTriggers)
+        memset(gl->RunningTriggers, 0, (size_t)gl->RunningTriggerMax * sizeof(SRunningTrigger));
+    PzViewLoadMapInPlace(gl->Mode, map);                          // (+0x00) vtbl +0x10(map)
+    gl->BuildVisMaps();                                           // 0x564fb0
+    for (int i = 0; i < 12; ++i) {
+        gl->PlayerTable[i] = -1;                                  // +0x234
+        gl->Tick_565e10(i);                                       // 0x565e10
+    }
+    gl->CollectActiveLocations();                                 // 0x5640b0
+    PZ_FOR_EACH_UNIT(i) {
+        int ct = UV::ClassType(i);
+        if ((ct == 0 || ct == 5 || ct == 0xc || ct == 0xb) && !UV::Unplaced(i))   // +0x168
+            gl->UpdateActiveLocationsAt(i, false);                // 0x582080(unit, 0)
+    }
+    gl->BuildDoodadGrid();                                        // 0x564c20
+    if (UV::kReal) {
+        PZ_FOR_EACH_UNIT(i) {
+            UV::Iface(i)->RefreshTargeting();                     // +0x34
+            if (UV::ClassType(i) == 9)
+                static_cast<SBuildingUnit*>(g_World->Units.Array[i].Unit)->InitBlockCells();   // 0x5497a0
+        }
+    }
+    RemoveObjectiveMarkers(gl, -1, -1);                           // 0x579420(-1, -1)
+    g_Campaign->_014 = 1;                                         // campaign +0x14
+    return true;
+}
+
 // RunTriggers case 0x38: "Loading cutscene..." after frame 0, then the map
 // cut-scene "maps/<n>.map" (when it exists and the campaign +0x14 is clear)
-// or "cutscenes/<n>/<n>" (0x56ea20).
-static void ActionPlayCutscene(SGameLogic* gl, const STriggerAction* a)
+// or "cutscenes/<n>/<n>" (0x56ea20). HD returns from RunTriggers after this
+// action (0x57d1b2): the other running triggers wait for the next tick.
+static void ActionPlayCutscene(SGameLogic* gl, const STriggerAction* a, bool* mapLoaded)
 {
+    *mapLoaded = false;
     if (gl->Frame > 0) {
         PzMessageFading(gl, GetText("world/GameLogic.cpp", "Loading cutscene..."), 2);   // 0x56a480
         // viewport +0x3c / +0x50: one frame drawn with the message (not lifted).
@@ -1153,9 +1222,8 @@ static void ActionPlayCutscene(SGameLogic* gl, const STriggerAction* a)
     map[sizeof(map) - 1] = 0;
     bool mapCut = g_Campaign && g_Campaign->_014 == 0 && FileSystem.Stat(map, nullptr) == 0;   // 0x65faf0
     if (mapCut) {
-        // HD tears the logic down and loads that map in place (0x563860 ...
-        // 0x5640b0, campaign +0x14 = 1). Not lifted.
-        STUB_LOG("SGameLogic::RunTriggers action 0x38 map cut-scene (maps/<n>.map) not lifted");
+        PzMapCutscene(gl, map);
+        *mapLoaded = true;                                        // no action index to step (0x57d433 / 0x57d5b8)
         return;
     }
     char name[300];
@@ -1400,9 +1468,13 @@ void SGameLogic::RunTriggers()
                 if (UV::kReal)
                     UV::Iface(FoundUnit(&rt->Found, k))->AddXP(-1, (float)a->Num, 0);   // +0x8c(-1, Num, 0)
             break;
-        case 0x38:                                                // play a cut-scene
-            ActionPlayCutscene(this, a);
-            break;
+        case 0x38: {                                              // play a cut-scene
+            bool mapLoaded;
+            ActionPlayCutscene(this, a, &mapLoaded);
+            if (!mapLoaded)
+                RunningTriggers[i].Action++;                      // 0x57d772
+            return;                                               // 0x57d1b2: out of RunTriggers
+        }
         case 0x3a:                                                // weather
             g_World->SetWeather(a->P200000, (int)((float)a->Num / 20.0f));   // 0x5fdc80(+0x60, Num / 20.0f)
             break;

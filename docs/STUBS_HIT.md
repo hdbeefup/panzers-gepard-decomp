@@ -76,7 +76,8 @@ agents or by M2, in call order:
 | `SGameLogic::~SGameLogic`, `SScene::~SScene`, `SPixie::~SPixie` | D (M2) / A / C | Exit / OnDestroy |
 | `SSuperWindow::Initialize Gepard render options`, `DrawDebugPickerOverlayFromGepard`, `SVersion::GetVersionString` | shell | as before |
 
-Not hit: `SWorld::Slot_04/08/0C/10`, `SWorld::ComputeCamera modes 1/2`.
+Not hit: `SWorld::Slot_04/08/0C/10`, `SWorld::ComputeCamera modes 1/2` (mode 2, the
+cut-scene eye camera, lifted in M5 by agent CS, docs/m5/cs.md; mode 1 is still a stub).
 
 ## M1-I: integration, 3D menu on by default
 

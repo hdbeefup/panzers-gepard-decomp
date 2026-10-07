@@ -474,7 +474,9 @@ void SGameLogic::RefreshM2()
             w->Units.Frame = (unsigned)Frame;                     // World+0x4ec = frame
         if (Frame % 20 == 0)
             DispatchEverySecond();                                // 0x570cc0
+        PzCutsceneTestHook(this);                                 // recompile only (M5 CS, PZ_M5_CS_FORCE), off by default
         RunTriggers();                                            // 0x579ab0
+        w = g_World;                                              // (HD reads DAT_00929a50 each time: action 0x38 may load another map)
         if (g_Skirmish && Mode)                                   // M5-SK: the SMulti lost / victory check (0x576d80)
             PzSkirmishCheckPlayers(this, Frame);                  // skirmish_game.cpp
         SupportTestHook();                                        // recompile only (M3-C C3, PZ_M3C_TESTSUPPORT), off by default

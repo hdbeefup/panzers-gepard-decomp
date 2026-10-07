@@ -659,15 +659,8 @@ void SGameView::ResetClock()
     ClockStart = now;                                              // +0x45c
 }
 
-// 0x624770 (not lifted): load another map in place (trigger action): the
-// LoadMap 0x6201c0 + mission start 0x6281a0 sequence with the current army
-// (BackupCampaignUnits 0x561110 first when +0x3dec). Agent F's flow.
-void SGameView::Slot_10(int p1)
-{
-    STUB_LOG("SGameView callback +0x10 (0x624770)");
-    PZ_M3_TRACE("SGameView callback +0x10 (0x624770)");
-    (void)p1;
-}
+// 0x624770 SGameView::Slot_10 (load another map in place: the map cut-scene
+// of trigger action 0x38) is in gameview_mapcut.cpp (M5 agent CS).
 
 // ---------------------------------------------------------------------------
 // OnAction

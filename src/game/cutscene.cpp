@@ -26,6 +26,8 @@
 #include "stream.h"
 #include "logger.h"
 #include "stub_log.h"
+#include "campaign.h"
+#include "pz/iscene.h"
 
 namespace pz {
 
@@ -59,6 +61,7 @@ struct SCutscene {
     struct SStatement { int Frame; char* Text; };
     SStatement* Statements;      // SGameLogic +0x50 SDArray (0x0c each in HD)
     int       StatementCount;
+    int       SoundId = -1;      // SGameLogic +0x2d4 (Concert +0x2c)
 };
 SCutscene g_Cut;
 
@@ -399,6 +402,49 @@ void ApplyColour(float time)
     PzCutsceneOverlay(argb);                                      // 0x58c5d0
 }
 
+float BitsF(unsigned u)
+{
+    float f;
+    memcpy(&f, &u, 4);
+    return f;
+}
+
+// PANZERS 0x5fd9f0
+// SWorld::SetCameraMode: from the target camera (0) to the eye camera (2)
+// CamDist becomes the field of view (60 deg, 22.5 .. 120 deg), back to 0 the
+// distance (24, 12 .. 30); either way the projection is rebuilt. The state
+// of the free-fall camera (1) restarts above the map centre.
+void SetCameraMode(SWorld* w, int mode)
+{
+    if (w->CamMode == 0 && mode == 2) {
+        w->CamDist = BitsF(0x3f860a92);                           // +0x54
+        w->CamDistMin = BitsF(0x3ec90fdb);                        // +0x24
+        w->CamDistMax = BitsF(0x40060a92);                        // +0x28
+        w->CamProjectionDirty = true;                             // +0x34
+    }
+    if (w->CamMode == 2 && mode == 0) {
+        w->CamDist = 24.0f;
+        w->CamDistMin = 12.0f;
+        w->CamDistMax = 30.0f;
+        w->CamProjectionDirty = true;
+    }
+    w->CamMode = mode;                                            // +0xac
+    float* ff = (float*)((unsigned char*)w + 0xb0);               // free-fall state +0xb0..+0xd8
+    ff[8] = 1.5f;                                                 // +0xd0
+    float x = (float)(w->TerrainW / 2);
+    float z = (float)(w->TerrainH / 2);
+    ff[0] = x;                                                    // +0xb0
+    ff[2] = z;                                                    // +0xb8
+    float h = w->GetTerrainHeight(x, z);                          // 0x5e7730
+    ff[3] = 0.0f;                                                 // +0xbc
+    ff[4] = 0.0f;                                                 // +0xc0
+    ff[5] = 0.0f;                                                 // +0xc4
+    ff[6] = 0.0f;                                                 // +0xc8
+    ff[1] = h + ff[8];                                            // +0xb4
+    ff[7] = 0.0f;                                                 // +0xcc
+    *((unsigned char*)w + 0xd8) = 1;
+}
+
 // PANZERS 0x589970 (the camera part)
 void ApplyCamera(unsigned c, float time)
 {
@@ -409,7 +455,7 @@ void ApplyCamera(unsigned c, float time)
     if (cam.RawCount < 2)
         return;
     SWorld* w = g_World;
-    w->CamMode = cam.Type;                                        // 0x5fd9f0(type) (modes 0 / 2 only)
+    SetCameraMode(w, cam.Type);                                   // 0x5fd9f0(type)
     float nearPlane = (float)(cam.Near + 1) / 10.0f;              // 0x7f5a7c
     if (w->CamNear != nearPlane) {
         w->CamNear = nearPlane;
@@ -596,7 +642,7 @@ void StartInGame(SGameLogic* gl, const char* name)
     g_World->GetCameraState(g_Cut.SavedCamera);                   // 0x5e6a70(gl +0x2c0)
     g_World->ApplySelectionToAll(0);                              // 0x5fc860(0)
     gl->Running = 1;                                              // +0x04
-    // sound +0x64: stops the playing samples (not lifted).
+    PzCutsceneSoundResume();                                      // Concert +0x64
     g_Cut.SavedOverlay = gl->VisOverlayMode;
     gl->SetVisOverlayMode(0);                                     // 0x57f970(0)
     *((unsigned char*)g_World + 0x4d0) = 1;                       // World +0x4d0
@@ -624,18 +670,24 @@ void StartInGame(SGameLogic* gl, const char* name)
         if (UV::kReal)
             WorldUnit(i)->_1d4 = false;                           // +0x1d4
     }
-    // name + ".sub": the subtitles (0x56fd70); none for the tutorial.
+    // name + ".sub": the subtitles (0x56fd70; none for the tutorial).
     char sub[300];
-    _snprintf(sub, sizeof(sub) - 1, "%s.sub", name);
+    _snprintf(sub, sizeof(sub) - 1, "%s.sub", name);              // + ".sub" (0x7f66e0)
     sub[sizeof(sub) - 1] = 0;
-    if (FileSystem.Stat(sub, nullptr) == 0)
-        STUB_LOG("SGameLogic 0x56fd70 cut-scene subtitles (.sub) not shown");
+    PzSubtitlesLoad(sub);                                         // 0x56fd70
     for (int k = 0; k < g_Cut.StatementCount; ++k)                // +0x50 / +0x54
         PzExecuteScriptStatement(gl, g_Cut.Statements[k].Text, true);   // 0x568bc0(text, 1)
-    // Gepard +0x28, the cut-scene mp3 (sound +0x2c -> +0x2d4), the
-    // difficulty-dependent viewport mode and the view's +0x0c: not lifted.
-    STUB_LOG("SInGameAnimLogic subtitles / mp3 of the cut-scene not shown / played (0x56fd70, sound +0x2c)");
+    if (g_Scene)
+        g_Scene->Slot_28();                                       // scene +0x28 (0x6ac6e0)
+    char mp3[300];
+    _snprintf(mp3, sizeof(mp3) - 1, "%s.mp3", name);              // + ".mp3" (0x7f66e8)
+    mp3[sizeof(mp3) - 1] = 0;
+    g_Cut.SoundId = PzCutsceneSoundStart(mp3);                    // Concert +0x2c(mp3, 1, 0, 0, 1) -> +0x2d4
     gl->Flag2b8 = true;                                           // +0x2b8
+    // HD then sets the letterbox viewport mode by the difficulty option
+    // (0x64e240, campaign 0x591fb0: Gepard +0x10(2)); the recompile's
+    // letterbox is SGameView::Update's panel mode 2 (gameview_view.cpp).
+    PzViewResetClock(gl->Mode);                                   // (+0x00) vtbl +0x0c 0x624730
     g_Cut.Running = true;
     g_Cut.StartFrame = gl->Frame;                                 // +0x2bc = +0x08
     Logger.g->Log(0, "PZM4: cut-scene %s: %d statements, %d frames, start frame %d", name, g_Cut.StatementCount,
@@ -686,7 +738,7 @@ void PzCutsceneTick(SGameLogic* gl)
             PzExecuteScriptStatement(gl, g_Cut.Statements[k].Text, false);   // 0x568bc0(text, 0)
         }
     }
-    // 0x5826c0(elapsed * 25 / 20): the subtitle line of this time (not shown).
+    PzSubtitlesShow((elapsed * 0x19) / 0x14);                     // 0x5826c0(elapsed * 25 / 20)
     if (elapsed > g_Cut.Length)                                   // [0x929110]
         PzCutsceneEnd(gl);                                        // 0x565390
 }
@@ -703,6 +755,41 @@ void PzCutsceneCamera(SGameLogic* gl, double interpolation)
     ApplyCamera(g_CamOfFrame[frame], ((1.0f - (float)interpolation) + (float)frame) / 20.0f);   // 0x589970
 }
 
+// Recompile-only test hook (inert when PZ_M5_CS_FORCE is unset):
+// PZ_M5_CS_FORCE=<frame>:<name> runs what trigger action 0x38 with <name>
+// does (the map cut-scene "maps/<name>.map" when it exists and campaign +0x14
+// is clear, else "cutscenes/<name>/<name>") at that logic frame of a mission
+// (a logic with a view), once per process.
+void PzCutsceneTestHook(SGameLogic* gl)
+{
+    static int s_Frame = -2;
+    static char s_Name[128];
+    if (s_Frame == -2) {
+        s_Frame = -1;
+        const char* e = getenv("PZ_M5_CS_FORCE");
+        const char* c = e ? strchr(e, ':') : nullptr;
+        if (c && c[1]) {
+            s_Frame = atoi(e);
+            strncpy(s_Name, c + 1, sizeof(s_Name) - 1);
+        }
+    }
+    if (s_Frame < 0 || gl->Mode == 0 || gl->Frame != s_Frame || gl->Flag2b8)
+        return;
+    s_Frame = -1;
+    Logger.g->Log(0, "PZM5: PZ_M5_CS_FORCE %s at frame %d", s_Name, gl->Frame);
+    char map[300];
+    _snprintf(map, sizeof(map) - 1, "maps/%s.map", s_Name);
+    map[sizeof(map) - 1] = 0;
+    if (g_Campaign && g_Campaign->_014 == 0 && FileSystem.Stat(map, nullptr) == 0) {
+        PzMapCutscene(gl, map);
+        return;
+    }
+    char name[300];
+    _snprintf(name, sizeof(name) - 1, "cutscenes/%s/%s", s_Name, s_Name);
+    name[sizeof(name) - 1] = 0;
+    PzCutscenePlay(gl, name);
+}
+
 // PANZERS 0x565390
 void PzCutsceneEnd(SGameLogic* gl)
 {
@@ -714,15 +801,7 @@ void PzCutsceneEnd(SGameLogic* gl)
         gl->Flag2b8 = false;
         g_Cut.Running = false;
         // viewport +0x10(2, mode): the letterbox off (not lifted).
-        // PANZERS 0x5fd9f0 (0): back to the target camera (an eye camera
-        // gets the normal distance range back).
-        if (g_World->CamMode == 2) {
-            g_World->CamDist = 24.0f;
-            g_World->CamDistMin = 12.0f;
-            g_World->CamDistMax = 30.0f;
-            g_World->CamProjectionDirty = true;
-        }
-        g_World->CamMode = 0;
+        SetCameraMode(g_World, 0);                                // 0x5fd9f0(0)
         g_World->LoadCamera((const float*)g_Cut.SavedCamera);     // 0x5fd7c0(gl +0x2c0)
         g_World->SetCameraLimits(true);                           // 0x5efb40(1)
         g_World->MoveCamera(0.0f, 0.0f);                          // 0x5f4dc0(0, 0)
@@ -734,8 +813,9 @@ void PzCutsceneEnd(SGameLogic* gl)
         }
         *((unsigned char*)g_World + 0x4d0) = 0;                   // World +0x4d0
         gl->SetVisOverlayMode(g_Cut.SavedOverlay);                // 0x57f970(0x64df00()): the fog-of-war option
-        // sound +0x3c(+0x2d4): the cut-scene mp3 (not played); the subtitle
-        // board frame +0x274 (none).
+        PzCutsceneSoundStop(g_Cut.SoundId);                       // Concert +0x3c(+0x2d4)
+        g_Cut.SoundId = -1;
+        PzSubtitlesEnd();                                         // board +0x0c(+0x274), 0x5634d0(0)
         Logger.g->Log(0, "PZM4: cut-scene end at frame %d", gl->Frame);
     }
     // 0x589140: SInGameAnimLogic camera state reset (not lifted).

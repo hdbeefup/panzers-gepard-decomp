@@ -19,6 +19,7 @@
 #include "pz/iviewport.h"
 #include "pz/ipixie.h"
 #include "pz/iterrain.h"
+#include "pz/hdmath.h"
 #include "pz/imodel.h"
 #include "iboard.h"
 #include "iconcert.h"
@@ -833,8 +834,37 @@ void SWorld::ComputeCamera(SIViewport* vp)
         }
         return;
     }
-    // Modes 1 (free fall) and 2 (cinematic) are not used by the menu (M2).
-    STUB_LOG("SWorld::ComputeCamera modes 1/2 (0x5ddc30)");
+    if (CamMode == 2) {
+        // Mode 2 (the eye cameras of the cut-scenes, M5 agent CS): the eye
+        // is set directly (SInGameAnimLogic 0x5fd880), CamDist is the field
+        // of view (0x5fd9f0 sets 60 deg and its range), the focus height is
+        // the terrain point the view looks at (0 when it looks up).
+        vp->SetCamera(CamEye[0], CamEye[1], CamEye[2], CamYaw, -CamPitch);   // vp +0x20
+        if (Concert)
+            Concert->SetListener(CamEye[0], CamEye[1], CamEye[2], CamForward[0], CamForward[1], CamForward[2],
+                                 CamUp[0], CamUp[1], CamUp[2]);   // Concert +0x08(&eye, &forward, &up)
+        float focus = 0.0f;
+        if (CamPitch < 0.0f) {
+            double cp = HdCos((double)CamPitch);                  // 0x78d480
+            float ray[6];
+            ray[0] = CamEye[0];                                   // 0x5d2f30(eye, dir)
+            ray[1] = CamEye[1];
+            ray[2] = CamEye[2];
+            ray[3] = (float)(HdSin((double)CamYaw) * cp);         // 0x78d640
+            ray[4] = (float)HdSin((double)CamPitch);
+            ray[5] = (float)(HdCos((double)CamYaw) * cp);
+            float x, z;
+            RayTerrain(ray, &x, &focus, &z);                      // 0x5ea910
+        }
+        g_Scene->SetFocusHeight(focus);                           // scene +0x24
+        vp->SetProjection(CamDist, CamNear, CamFar);              // vp +0x28 (every frame: CamDist is the fov)
+        return;
+    }
+    if (CamMode != 1)
+        Logger.g->Panic("SWorld::ComputeCamera: unknown camera mode");
+    // Mode 1 (free fall, 0x5ddc30 from 0x5de26a) is used by no map or
+    // cut-scene of the campaign.
+    STUB_LOG("SWorld::ComputeCamera mode 1 (0x5ddc30)");
 }
 
 // ---------------------------------------------------------------------------
