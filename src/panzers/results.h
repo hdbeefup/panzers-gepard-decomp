@@ -92,4 +92,7 @@ void PzForcedMissionEnd(int* result, bool* out);
 // Deletes the results menu (+0x3e6c) with the view's other menus.
 void PzDeleteStatisticMenu(SGameView* view);
 
+// SResultsMenu::Create 0x6360f0 in multi mode, not coop (M5-SK, superwindow_sk.cpp).
+void PzSkirmishResults(SResultsMenu* r);
+
 #endif // PANZERS_RESULTS_H

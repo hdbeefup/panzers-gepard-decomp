@@ -13,6 +13,7 @@
 #include "worldapi.h"
 #include "pzunitregistry.h"
 #include "punit.h"
+#include "skirmish_state.h"   // M5-SK
 #include "unit.h"
 #include "triggersunits.h"
 #include "stream.h"
@@ -64,6 +65,10 @@ void SGameLogic::PlaceAllUnits()
     SArmyArray army = { nullptr, 0, 0 };
     if (g_Campaign)
         g_Campaign->GetMissionArmy(&army);                        // 0x591e70
+    if (PzSkirmishPlaceAllUnits(this)) {                          // M5-SK: the SMulti branch (skirmish_game.cpp)
+        ArmyFree(&army);
+        return;
+    }
     PlaceUnits(g_World->LocalPlayer, &army);                      // 0x572ec0(World+0x16c, &army)
     ArmyFree(&army);                                              // 0x51de90
 }

@@ -161,6 +161,13 @@ struct SPanzersCampaign {
     void LoadObjectives();                                 // 0x593ba0 "Objective %d Text" ...
     void LoadSupportCounts();                              // 0x594140 World players +0x19c..+0x1ac (Cannonade, ReconPlane, ...)
     void GetMissionArmy(SArmyArray* out);                  // 0x591e70 out = copy of MissionArmy (+0x3c)
+    // Multi mode (the skirmish room, M5-SK; src/game/campaign_multi.cpp).
+    void InitMultiMode();                                  // 0x593b70 GameMode 4, MenuToLoad 1, LoadMissionProps
+    void LetChatroomDone();                                // 0x594dc0 MenuToLoad 1 -> 2 (the game view)
+    void ClearArmy();                                      // 0x591d50 (SetArmyName / SetArmyFileName ""): no mission army, Prestige = StartPrestige
+    void SetRace(int race);                                // 0x5974b0
+    void SetMissionSP(int sp);                             // 0x597480 StartPrestige (+0x28)
+    void SetMapName(const char* path);                     // (inline 0x52c320 on +0x20 in SSkirmishChatRoomMenu::Update 0x656210)
     const char* GetMissionCode();
     // Market hand-over (SMarket::OnAction 0x647d00, Start Mission -> Yes).
     void SetArmy(SArmyArray* army, bool refund);           // 0x5971b0 refund: sell back MissionArmy, then AddMissionArmyUnit per record; else plain copy

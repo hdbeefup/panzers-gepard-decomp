@@ -250,3 +250,11 @@ and `SUnit::Slot_18 (0x5baf30)` (now InitAfterLoad / LinkAfterLoad), and the F6 
 as F6); M5 SV replaced it and `SSaveMenu::OnKeyDown (0x632530)`, `OnMouseDown (0x632590)` and
 `OnAction (0x632040)` (SSaveMenu, pz::SEditBox and LoadGameBefore 0x595330 lifted, docs/m5/sv.md). Census `2315 lifted + 1317 SWINE-shared + 183 stubs; 77 lifted bodies
 still contain a STUB_LOG`.
+
+M5 SK (single-player Skirmish, docs/m5/sk.md) replaced `SSingleMenu Skirmish 0x534d1 -> SSuperWindow
+0x658e70` (now SendAction 0x534d1; SSuperWindow::LoadSkirmishChatRoomView 0x658e70 and the skirmish room
+SSkirmishChatRoomMenu 0x653250 / 0x656210 / 0x654df0 lifted). New logged stubs on that path:
+`SSuperWindow::OnAction
+0x534b3 / 0x534b4: army making in the market (0x658b10 case 1, SMarket multi mode, SaveArmy 0x64a180)
+not lifted` (New / Edit army), and `SSuperWindow::LoadNextCampaignView 4 after a skirmish: SMultiPreMenu
+(0x658a30) not lifted, main menu` (HD goes to the multiplayer menu after a skirmish's results).

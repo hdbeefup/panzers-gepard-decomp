@@ -30,6 +30,7 @@
 #include "unit.h"
 #include "unitextern.h"
 #include "driverunit.h"
+#include "skirmish_state.h"   // M5-SK
 
 namespace pz {
 
@@ -303,6 +304,8 @@ SGameLogic::SGameLogic(int p1, int p2, int p3)
         for (int i = 0; i < 12; ++i)
             *(int*)(g_World->Players[i] + 0x1c) = 0;              // World+0x18c + i*0x48
     // HD: the multiplayer player setup (DAT_008f1a74) is skipped in the menu.
+    if (g_Skirmish && Mode && g_World)                            // M5-SK: SMulti && Logic +0 (0x55f02x..0x55f293)
+        PzSkirmishSetupPlayers(g_World);                          // skirmish_game.cpp
     if (g_World)
         BuildVisMaps();                                           // 0x564fb0 (logicextra.cpp)
     for (int i = 0; i < 12; ++i) {
@@ -472,6 +475,8 @@ void SGameLogic::RefreshM2()
         if (Frame % 20 == 0)
             DispatchEverySecond();                                // 0x570cc0
         RunTriggers();                                            // 0x579ab0
+        if (g_Skirmish && Mode)                                   // M5-SK: the SMulti lost / victory check (0x576d80)
+            PzSkirmishCheckPlayers(this, Frame);                  // skirmish_game.cpp
         SupportTestHook();                                        // recompile only (M3-C C3, PZ_M3C_TESTSUPPORT), off by default
         Tick_568af0();
         static const int kPlayerCycle[12] = { 0, 4, 8, 2, 6, 10, 1, 5, 9, 3, 7, 11 };   // HD table 0x7f6220

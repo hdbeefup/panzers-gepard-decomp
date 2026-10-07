@@ -20,6 +20,7 @@
 #include "milesconcert.h"
 #include "igepard.h"
 #include "campaign.h"
+#include "skirmish_state.h"   // M5-SK
 #include "worldapi.h"
 #include "world.h"
 #include "gamelogic.h"
@@ -100,7 +101,9 @@ void PzShowMissionEnd(SGameView* v, int result, bool out)
 {
     PZ_M3_TRACE("SGameView::Update end of mission (0x628430)");
     pz::SPanzersCampaign* c = pz::g_Campaign;
-    bool tutorial = c->IsTutorialMode() && !s_ForceStatistics;     // 0x594d40
+    // With SMulti (not coop: the skirmish, M5-SK) HD shows the same end boxes
+    // as the tutorial, with no autosave and no Defeat.mp3 (0x62bd2c, 0x62c118).
+    bool tutorial = (c->IsTutorialMode() || g_Skirmish) && !s_ForceStatistics;   // 0x594d40
     if (result == 1) {
         if (!tutorial) {
             // "Autosaving..." (SGameLogic 0x56a480 message, type 2), one frame
@@ -132,7 +135,8 @@ void PzShowMissionEnd(SGameView* v, int result, bool out)
             ShowStatisticMenu(v);
             ResetMouseMode(v);
         }
-        PlayEndMusic("music/Defeat.mp3");
+        if (!g_Skirmish)
+            PlayEndMusic("music/Defeat.mp3");
     }
     Logger.g->Log(0, "PZM3: mission result %d%s: %s", result, out ? " (local player out)" : "",
                   StatisticMenu(v) ? "results menu" : "end box");
@@ -564,6 +568,13 @@ void SResultsMenu::Create()
             Pages[i].SetPosition(0x11b + 0x38 * k, 0x1ea, 0, 0);
             Pages[i].Create(Background, 4 + 3 * k, 6 + 3 * k, 5 + 3 * k, 6 + 3 * k);
         }
+    }
+
+    // M5-SK: multi mode, not coop (the skirmish): no officer / medal sheet and
+    // no objectives (0x637474, goto 0x638fa7): the unit table and Continue.
+    if (c->IsMultiMode()) {
+        PzSkirmishResults(this);                                   // superwindow_sk.cpp
+        return;
     }
 
     // The nation: medal sheet, officer.

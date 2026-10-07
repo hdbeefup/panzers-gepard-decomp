@@ -13,6 +13,9 @@ add_library(pzgame STATIC
     # M3 F: campaign, save; O: packets
     campaign.h
     campaign.cpp
+    campaign_multi.cpp
+    skirmish_state.h
+    skirmish_game.cpp
     packets.h
     packets.cpp
     packets_rec.h

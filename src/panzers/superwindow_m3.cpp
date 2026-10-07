@@ -272,9 +272,12 @@ void M3OnMainMenu(SSuperWindow* sw)
 
 // Returns true when the action was handled by the M3 path.
 bool PzTutorialAction(SSuperWindow* sw, int action);   // tutorial.cpp (M4)
+bool PzSkirmishAction(SSuperWindow* sw, int action, int param);   // superwindow_sk.cpp (M5-SK)
 
 bool SuperWindowM3Action(SSuperWindow* sw, int action, int param)
 {
+    if (PzSkirmishAction(sw, action, param))                       // 0x534d1, 0x534b1..0x534b4 Skirmish (M5-SK)
+        return true;
     if (PzTutorialAction(sw, action))                              // 0x4d4d3 Tutorial
         return true;
     switch (action) {

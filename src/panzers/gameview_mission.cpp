@@ -26,6 +26,7 @@
 #include "gamelogic.h"
 #include "doodad.h"
 #include "results.h"
+#include "skirmish_state.h"   // M5-SK
 
 // PANZERS 0x6201c0
 // HD order: loading backdrop 0x61f460(0); the map name; MissionResult = 0;
@@ -150,7 +151,8 @@ void SGameView::MissionStart()
     World->InitCameraSpline(pz::SStr(Settings._40));              // 0x609760 (-csplay file)
     SetPanelMode(0);                                              // 0x625d80
     // HD: unless multiplayer (DAT_008f1a74).
-    pz::g_Campaign->SaveGameStartMission("Start", GetText("panzers/GameView.cpp", "Start"));   // 0x596e30
+    if (!g_Skirmish)                                              // M5-SK
+        pz::g_Campaign->SaveGameStartMission("Start", GetText("panzers/GameView.cpp", "Start"));   // 0x596e30
     Logger.g->Log(0, "PZM3: mission start");
     if (Settings.SkipFrames > 0) {                                // 0x929d60
         // HD: viewport(0) +0x50(0, 0xff), then the frames without drawing.
@@ -188,6 +190,10 @@ void PzGameViewEndCheck(SGameView* view)
     bool out = *(int*)(w->Players[w->LocalPlayer] + 0x1c) == 2;   // World+0x18c + local * 0x48
     PzForcedMissionEnd(&result, &out);                            // recompile test switch PZ_M3_FORCE_END (off: no-op)
     if (result != 1 && result != 3 && !out)
+        return;
+    // HD with SMulti (not coop): the local player is out but a team mate
+    // fights on: the game goes on (M5-SK, skirmish_game.cpp).
+    if (result != 1 && result != 3 && out && PzSkirmishTeammateAlive(w))
         return;
     if ((result == 1 || out) && !c->_014)
         view->Logic->BackupCampaignUnits();                       // 0x561110

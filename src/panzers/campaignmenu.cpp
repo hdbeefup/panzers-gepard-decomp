@@ -171,7 +171,7 @@ bool SSingleMenu::OnAction(SWidget* source, int action, int param)
         return true;
     }
     if (source == &Skirmish) {                                    // +0xd0
-        STUB_LOG("SSingleMenu Skirmish 0x534d1 -> SSuperWindow 0x658e70");
+        SendAction(PZA_NEWGAME_SKIRMISH, 0);                      // 0x543930(0x534d1, 0) -> SSuperWindow 0x658e70 (M5-SK)
         return true;
     }
     return true;
