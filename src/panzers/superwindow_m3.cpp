@@ -21,6 +21,10 @@
 #include "superwindow.h"
 #include "mainmenu.h"
 #include "trainingmenu.h"
+#include "campaignmenu.h"
+#include "briefing.h"
+#include "results.h"
+#include "milesconcert.h"
 #include "market.h"
 #include "gameview.h"
 #include "campaign.h"
@@ -70,6 +74,31 @@ static void FocusWidget(SWidget* widget)
             w->Parent->Focus = w;
         }
     }
+}
+
+// Concert +0x80(1): the music stream stops (HD LoadNextCampaignView cases
+// 0 and 2, results Cancel).
+static void StopMenuMusic()
+{
+    if (SIPanzersConcert* pc = dynamic_cast<SIPanzersConcert*>(Concert))
+        pc->StopStream(true);
+}
+
+static void DeleteWidget(SWidget*& w)
+{
+    if (w) {
+        delete w;
+        w = nullptr;
+    }
+}
+
+// The main menu after a campaign screen: HD LoadMainMenu 0x6583e0 also
+// deletes the campaign (DAT_00929a0c).
+static void CampaignToMainMenu(SSuperWindow* sw)
+{
+    delete pz::g_Campaign;
+    pz::g_Campaign = nullptr;
+    sw->LoadMainMenu();                                            // 0x6583e0
 }
 
 static void DeleteGameView(SSuperWindow* sw)
@@ -136,14 +165,28 @@ void M3LoadNextCampaignView(SSuperWindow* sw)
         FocusWidget(v);
         return;
     }
-    case pz::PZ_MENU_BRIEFING:
-        STUB_LOG("SSuperWindow::LoadNextCampaignView briefing (0x632f40)");
-        PZ_M3_TRACE("SSuperWindow::LoadNextCampaignView briefing (0x632f40)");
+    case pz::PZ_MENU_BRIEFING: {
+        StopMenuMusic();                                           // Concert +0x80(1)
+        sw->UnloadMenuBackground();                                // 0x65b940
+        SBriefingMenu* b = new SBriefingMenu();                    // new 0x340, 0x632f40
+        sw->Menu_10c = b;                                          // +0x10c
+        sw->InsertChild(b);                                        // vtbl +0x54
+        b->SetPosition(0, 0, 0x400, 0x300);                        // vtbl +0x08
+        b->Create();                                               // 0x634f20
+        FocusWidget(b);
+        // HD: SDXWindow +0xd8 = 0.
         return;
-    case pz::PZ_MENU_RESULTS:
-        STUB_LOG("SSuperWindow::LoadNextCampaignView results (0x633540)");
-        PZ_M3_TRACE("SSuperWindow::LoadNextCampaignView results (0x633540)");
+    }
+    case pz::PZ_MENU_RESULTS: {
+        SResultsMenu* r = new SResultsMenu();                      // new 0x1228, 0x633540
+        sw->Menu_114 = r;                                          // +0x114
+        sw->InsertChild(r);
+        r->SetPosition(0, 0, 0x400, 0x300);
+        r->Create();                                               // 0x6360f0
+        FocusWidget(r);
+        // HD: SDXWindow +0xd8 = 0.
         return;
+    }
     case pz::PZ_MENU_MULTI:
         STUB_LOG("SSuperWindow::LoadNextCampaignView multiplayer (0x658a30)");
         PZ_M3_TRACE("SSuperWindow::LoadNextCampaignView multiplayer (0x658a30)");
@@ -267,6 +310,65 @@ bool SuperWindowM3Action(SSuperWindow* sw, int action, int param)
             *(int*)((unsigned char*)pz::g_World + 0x174) = nation; // World +0x174 = race (player record of the local player)
         return true;
     }
+    case PZA_NEWGAME_START: {                                      // 0x53441 (SSingleDiffMenu Start)
+        PZ_M3_TRACE("SSuperWindow::OnAction New Game Start (0x659250 / 0x53441)");
+        SMainMenu* mm = sw->MainMenu;
+        SSingleMenu* single = mm ? static_cast<SSingleMenu*>(mm->NewGameMenu) : nullptr;   // main menu +0x5c
+        if (!single || !single->DiffMenu)
+            return true;
+        delete pz::g_Campaign;                                     // (recompile) HD overwrites the pointer
+        pz::g_Campaign = new pz::SPanzersCampaign();               // new 0xb8c, 0x590ec0
+        pz::g_Campaign->Race = single->Race;                       // +0x18 = SSingleMenu +0x31c
+        pz::g_Campaign->Difficulty = single->DiffMenu->Difficulty; // +0x1c = SSingleDiffMenu +0x3c4
+        Logger.g->Log(0, "PZM4: New Game, race %d, difficulty %d", single->Race, single->DiffMenu->Difficulty);
+        pz::g_Campaign->InitCampaignMode();                        // 0x592b20
+        if (SWindow* w = single->DiffMenu->GetWindowParent())      // 0x5450e0
+            w->UnsetModalWidget(single->DiffMenu);
+        if (sw->MainMenu) {                                        // +0xe8 (deletes the New Game menus)
+            delete sw->MainMenu;
+            sw->MainMenu = nullptr;
+        }
+        M3LoadNextCampaignView(sw);                                // 0x658b10
+        return true;
+    }
+    case PZA_NEWGAME_CANCEL: {                                     // 0x53442 (SSingleDiffMenu Cancel)
+        SMainMenu* mm = sw->MainMenu;
+        SSingleMenu* single = mm ? static_cast<SSingleMenu*>(mm->NewGameMenu) : nullptr;
+        if (!single || !single->DiffMenu)
+            return true;
+        if (SWindow* w = single->DiffMenu->GetWindowParent())      // 0x5450e0
+            w->UnsetModalWidget(single->DiffMenu);
+        delete single->DiffMenu;                                   // +0x1b8
+        single->DiffMenu = nullptr;
+        return true;
+    }
+    case PZA_BRIEFING_DONE:                                        // 0x424d1
+        DeleteWidget(sw->Menu_10c);                                // +0x10c
+        pz::g_Campaign->MenuToLoad = pz::PZ_MENU_GAMEVIEW;         // +0xe0 = 2
+        M3LoadNextCampaignView(sw);
+        return true;
+    case PZA_BRIEFING_CANCEL:                                      // 0x424d2
+        DeleteWidget(sw->Menu_10c);
+        CampaignToMainMenu(sw);
+        return true;
+    case PZA_RESULTS_CONTINUE:                                     // 0x524d1
+        DeleteWidget(sw->Menu_114);                                // +0x114
+        pz::g_Campaign->LetResultsDone();                          // 0x594e70
+        M3LoadNextCampaignView(sw);
+        return true;
+    case PZA_RESULTS_RESTART:                                      // 0x524d2
+    case 0x47565:
+        DeleteGameView(sw);
+        ReleaseWindowScene();
+        DeleteWidget(sw->Menu_114);
+        pz::g_Campaign->RestartMission();                          // 0x594f60
+        M3LoadNextCampaignView(sw);
+        return true;
+    case PZA_RESULTS_MAINMENU:                                     // 0x524d3
+        DeleteWidget(sw->Menu_114);
+        StopMenuMusic();                                           // Concert +0x80(1)
+        CampaignToMainMenu(sw);
+        return true;
     case PZA_TRAINING_CANCEL:                                      // 0x544d2
         if (sw->TrainingCampMenu) {
             delete sw->TrainingCampMenu;

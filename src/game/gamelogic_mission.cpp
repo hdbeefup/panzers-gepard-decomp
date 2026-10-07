@@ -12,6 +12,7 @@
 #include "world.h"
 #include "worldapi.h"
 #include "pzunitregistry.h"
+#include "punit.h"
 #include "unit.h"
 #include "triggersunits.h"
 #include "stream.h"
@@ -131,14 +132,129 @@ void SGameLogic::PlaceUnits(int player, SArmyArray* army)
     }
 }
 
+// The army record's XP dword (+0x0c) holds a float in HD (unit +0x64 + 100).
+static float DefXP(const SUnitDef* d) { float f; memcpy(&f, &d->XP, 4); return f; }
+static void SetDefXP(SUnitDef* d, float f) { memcpy(&d->XP, &f, 4); }
+
+// The record (its crew first, then itself) whose ScriptID is the unit's
+// gets the unit's XP + 100 (0x561110 inner loop).
+static void MarkSurvivor(SArmyArray* army, const SUnit* u)
+{
+    for (int i = 0; i < army->Size; ++i) {
+        SUnitDef* d = &army->Array[i];
+        if (d->StoredCount > 0) {
+            SUnitDef* c = &d->StoredUnits[0];
+            if (c->ScriptID.size == u->ScriptID.size &&
+                (c->ScriptID.size == 0 || _stricmp(c->ScriptID.buf, u->ScriptID.buf) == 0)) {
+                SetDefXP(c, u->XP + 100.0f);                      // DAT_007ee558
+                return;
+            }
+        }
+        if (d->ScriptID.size == u->ScriptID.size &&
+            (d->ScriptID.size == 0 || _stricmp(d->ScriptID.buf, u->ScriptID.buf) == 0)) {
+            SetDefXP(d, u->XP + 100.0f);
+            return;
+        }
+    }
+}
+
+// PANZERS 0x561110
+// Mission end (single-player part; the multiplayer army save and SMulti
+// names are not in the recompile). When the player's units were placed
+// (PlaceMyUnits 0x596650) the mission army's records learn which units
+// survived, by difficulty (campaign +0x1c): Easy keeps the dead units' XP,
+// Normal resets it to 0 (greenhorn replacements), Hard drops the dead ones
+// (a surviving crew becomes its own record; a dead crew of a vehicle with
+// a built-in driver only loses the crew). Then per player the live units
+// that count (0x56d6d0, not +0x110), the losses percent (+0xd0), the
+// mission time (frames / 20, 0x5974e0) and the score (+0xb60: XP and kills
+// of the local player minus the time, +5000 on victory, +8000 per optional
+// and +6000 per secret objective done).
 void SGameLogic::BackupCampaignUnits()
 {
-    STUB_LOG("SGameLogic::BackupCampaignUnits (0x561110)");
     PZ_M3_TRACE("SGameLogic::BackupCampaignUnits (0x561110)");
-    // HD (mission end): marks the army records whose units survived (by
-    // ScriptID, unit +0x194/+0x198), counts the live units per player into
-    // the campaign records (+0x148, +0x210), and computes the score +0xb60
-    // from the objectives. Training ends in the main menu and never reads it.
+    SWorld* w = g_World;
+    SPanzersCampaign* c = g_Campaign;
+    if (!w || !c)
+        return;
+    int live[12] = {};
+    SArmyArray* army = &c->MissionArmy;                           // +0x3c
+    if (c->PlaceMyUnits()) {                                      // 0x596650
+        if (c->Difficulty == 1 || c->Difficulty == 2) {
+            float reset = c->Difficulty == 1 ? 0.0f : -1.0f;      // 0 / 0xbf800000
+            for (int i = 0; i < army->Size; ++i) {
+                SetDefXP(&army->Array[i], reset);
+                if (army->Array[i].StoredCount > 0)
+                    SetDefXP(&army->Array[i].StoredUnits[0], reset);
+            }
+        }
+        for (int i = 0; i < w->Units.Size; ++i)
+            if (w->Units.IsLive(i))
+                MarkSurvivor(army, w->Units.Array[i].Unit);
+        if (c->Difficulty == 2) {
+            for (int i = 0; i < army->Size; ++i) {
+                SUnitDef* d = &army->Array[i];
+                bool remove = false;
+                if (d->StoredCount > 0 && DefXP(&d->StoredUnits[0]) == -1.0f) {
+                    // the crew died: a built-in driver keeps the vehicle
+                    SPUnit* p = g_UnitRegistry->GetPUnit(SStr(d->ClassName), false);   // 0x5d0e70(name, 0)
+                    if (!p->BuiltInDriver) {                      // +0xc8
+                        remove = true;
+                    } else {
+                        SArmyArray st = { d->StoredUnits, d->StoredCount, d->StoredMax };
+                        ArmyRemove(&st, 0);                       // 0x579220(0)
+                        d->StoredUnits = st.Array;
+                        d->StoredCount = st.Size;
+                        d->StoredMax = st.Max;
+                    }
+                } else if (DefXP(d) == -1.0f) {
+                    if (d->StoredCount > 0 && DefXP(&d->StoredUnits[0]) != -1.0f) {
+                        SUnitDef crew;                            // the crew walks on
+                        UnitDefCopy(&crew, &d->StoredUnits[0]);
+                        UnitDefCopy(ArmyAdd(army), &crew);        // 0x560290
+                        d = &army->Array[i];
+                    }
+                    remove = true;
+                }
+                if (remove) {
+                    ArmyRemove(army, i);                          // 0x579220(i)
+                    --i;
+                }
+            }
+        }
+    }
+    for (int i = 0; i < w->Units.Size; ++i) {
+        if (!w->Units.IsLive(i))
+            continue;
+        SUnit* u = w->Units.Array[i].Unit;
+        if (!u->_110 && UnitStatsCategory(u) > 0 && u->Player >= 0 && u->Player < 12)   // 0x56d6d0
+            ++live[u->Player];
+    }
+    for (int p = 0; p < 12; ++p) {
+        unsigned char* rec = c->PlayerStats[p];                   // +0x140 + p * 0xd8
+        *(int*)(rec + 0x08) = *(const int*)(w->Players[p] + 0x08);   // World +0x178 + p * 0x48
+        SString* name = (SString*)rec;                            // single player: no name
+        FreeSString(name);
+        int total = *(const int*)(rec + 0x0c);
+        *(int*)(rec + 0xd0) = total < 1 ? -1 : 100 - live[p] * 100 / total;
+    }
+    c->_b68 = Frame / 20;                                         // 0x5974e0(frames / 20, 0)
+    c->_b70 = 0;
+    const unsigned char* me = c->PlayerStats[w->LocalPlayer];
+    c->Score = *(const int*)(me + 0xcc) + (*(const int*)(me + 0x3c) * 10 - c->_b68) * 10;
+    if (c->Score < 0)
+        c->Score = 0;
+    if (c->GetMissionResult() == 1)                               // 0x5920b0
+        c->Score += 5000;
+    for (int i = 0; i < c->ObjectiveCount; ++i) {
+        const SCampaignObjective& o = c->Objectives[i];
+        if (o.Hero || o.State != 2)                               // +0x07 excludes
+            continue;
+        if (!o.Main)
+            c->Score += o.Secret ? 6000 : 8000;
+    }
+    Logger.g->Log(0, "PZM4: BackupCampaignUnits: army %d records, live %d, time %d s, score %d",
+                  army->Size, live[w->LocalPlayer], c->_b68, c->Score);
 }
 
 // PANZERS 0x57f970

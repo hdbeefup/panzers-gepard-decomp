@@ -345,7 +345,8 @@ void SStatisticMenu::Create()
             if (_stricmp(mission, cur) == 0)
                 break;
             auto hasMedal = [&](const char* m) {
-                const char* s = p ? p->GetString(m, "Medal", "") : "";
+                SProperties* lp = (SProperties*)c->LocalProps;    // "Medal": campaign +0x04 (0x630911)
+                const char* s = lp ? lp->GetString(m, "Medal", "") : "";
                 return s && *s;
             };
             if (c->Race == 1) {
@@ -369,7 +370,8 @@ void SStatisticMenu::Create()
             strncpy(mission, next, sizeof(mission) - 1);
             mission[sizeof(mission) - 1] = 0;
         }
-        const char* medal = p ? p->GetString(cur, "Medal", "") : "";
+        SProperties* lp = (SProperties*)c->LocalProps;
+        const char* medal = lp ? lp->GetString(cur, "Medal", "") : "";
         if (medal && *medal) {
             char medalName[260];
             strncpy(medalName, medal, sizeof(medalName) - 1);
@@ -408,4 +410,333 @@ void SStatisticMenu::Create()
     SetFocus();                                                    // 0x5439f0
     if (SWindow* win = GetWindowParent())                          // 0x5435b0
         win->SetModalWidget(this);                                 // 0x544fe0
+}
+
+// ---------------------------------------------------------------------------
+// SResultsMenu (the campaign debriefing; OWNER: agent K, M4)
+// ---------------------------------------------------------------------------
+
+static const char* Mm(const char* id) { return GetText("panzers/MainMenu.cpp", id); }
+
+// PANZERS 0x633540
+SResultsMenu::SResultsMenu()
+{
+    Background = -1;
+    SaveMenu = nullptr;                                            // param_1[0x439]
+    for (auto& row : Grid)
+        for (int& f : row)
+            f = -1;
+}
+
+// PANZERS 0x6341d0
+SResultsMenu::~SResultsMenu()
+{
+    if (SaveMenu) {
+        delete SaveMenu;
+        SaveMenu = nullptr;
+    }
+    if (SIPanzersConcert* pc = dynamic_cast<SIPanzersConcert*>(Concert))
+        pc->StopStream(true);                                      // Concert +0x80(1)
+    if (Background >= 0)
+        PzReleaseCustomFont(Background);
+}
+
+// PANZERS 0x63c230
+bool SResultsMenu::OnAction(SWidget* source, int action, int param)
+{
+    (void)param;
+    if (action == PZA_BUTTON_DOWN) {                               // 0x42541: a page button
+        for (int i = 0; i < 12; ++i) {
+            if (source != &Pages[i])
+                continue;
+            for (int k = 0; k < 12; ++k)
+                Pages[k].SetChecked(false);                        // 0x537df0(0)
+            Pages[i].SetChecked(true);                             // 0x537df0(1)
+            ShowPage(i);                                           // 0x63e690(i)
+        }
+        return true;
+    }
+    if (action == PZA_BUTTON_CLICK) {                              // 0x42542
+        if (source == &Save)                                       // +0x6a8: SSaveMenu 0xbac 0x633820(1), 0x6398f0
+            STUB_LOG("SResultsMenu Save -> SSaveMenu (0x633820 / 0x6398f0)");
+        if (source == &Restart)                                    // +0x790
+            SendAction(PZA_RESULTS_RESTART, 0);
+        if (source == &Continue)                                   // +0x71c
+            SendAction(PZA_RESULTS_CONTINUE, 0);
+        if (source == &Cancel)                                     // +0x804
+            SendAction(PZA_RESULTS_MAINMENU, 0);
+        return true;
+    }
+    if (action == 0x54501 || action == 0x54502) {                  // the save menu closed
+        if (SaveMenu) {
+            delete SaveMenu;
+            SaveMenu = nullptr;
+        }
+        return true;
+    }
+    return false;
+}
+
+// The unit table of one page (0x63e690): per player with a name (campaign
+// +0x140 + p * 0xd8, SString), the name and the page's counters: total
+// (+0x0c), destroyed (+0x3c), lost (+0x6c), captured (+0x9c) + page * 4,
+// XP (+0xcc), and the accomplishment from the losses (+0xd0).
+void SResultsMenu::ShowPage(int page)
+{
+    pz::SPanzersCampaign* c = pz::g_Campaign;
+    for (int p = 0; p < 8; ++p) {
+        const unsigned char* rec = c->PlayerStats[p];             // +0x140 + p * 0xd8
+        const SString* name = (const SString*)rec;
+        if (name->size == 0)
+            continue;
+        int* f = Grid[p];
+        char buf[64];
+        Board->SetText(f[0], g_PzFont[1], 2, name->buf ? name->buf : "");   // "%s"
+        static const int kCol[4] = { 0x0c, 0x3c, 0x6c, 0x9c };
+        for (int k = 0; k < 4; ++k) {
+            _snprintf(buf, sizeof(buf) - 1, "%d", *(const int*)(rec + kCol[k] + page * 4));
+            buf[sizeof(buf) - 1] = 0;
+            Board->SetText(f[1 + k], g_PzFont[1], 2, buf);
+        }
+        _snprintf(buf, sizeof(buf) - 1, "%d", *(const int*)(rec + 0xcc));
+        buf[sizeof(buf) - 1] = 0;
+        Board->SetText(f[5], g_PzFont[1], 2, buf);
+        int losses = *(const int*)(rec + 0xd0);
+        const char* acc = losses < 2 ? "Excellent" : losses < 0xc ? "Very good" : losses < 0x1b ? "Good"
+                        : losses < 0x34 ? "Avarage" : "Poor";
+        Board->SetText(f[6], g_PzFont[1], 2, Mm(acc));
+    }
+}
+
+static int TextFrame(int parent, int x, int y, int align, const char* text)
+{
+    int f = Board->CreateFrame(FT_TEXT, parent, x, y, 0, 1);      // board +0x08(2, P, x, y, 0, 1)
+    Board->SetText(f, g_PzFont[1], align, text ? text : "");      // board +0x34(f, 1, align, s, 0)
+    return f;
+}
+
+// PANZERS 0x6360f0
+// The debriefing page (menu/debriefing_menu_hq.tga, 50 glyphs): the officer
+// portrait of the nation's medal sheet, the title, name / rank / time /
+// prestige / score, the objectives, the unit table with its 12 category
+// pages, the buttons and the medals earned along the nation's mission chain.
+// Multiplayer / scenario variants: the recompile has no multiplayer.
+void SResultsMenu::Create()
+{
+    PZ_M3_TRACE("SResultsMenu::Create (0x6360f0)");
+    pz::SPanzersCampaign* c = pz::g_Campaign;
+    SProperties* props = (SProperties*)c->MissionProps;
+    const char* cur = pz::SStr(c->MissionSection);
+    SDXWidget::Create(0);                                          // 0x539a10
+    int P = GetFrame();                                            // +0x48
+
+    SCustomGlyph g[50];                                            // 0x8083a0.., the rest zero
+    memset(g, 0, sizeof(g));
+    g[0] = { 0, 0, 1024, 768 };
+    g[1] = { 128, 490, 153, 35 };
+    g[2] = { 1, 806, 153, 35 };
+    g[3] = { 1, 770, 153, 35 };
+    for (int i = 0; i < 11; ++i) {
+        g[4 + 3 * i] = { 283 + 56 * i, 490, 53, 35 };
+        g[5 + 3 * i] = { 155 + 54 * i, 806, 53, 35 };
+        g[6 + 3 * i] = { 155 + 54 * i, 770, 53, 35 };
+    }
+    Background = PzLoadCustomFont("menu/debriefing_menu_hq.tga", 0x32, g);   // board +0x74
+    int bg = Board->CreateFrame(FT_SPRITE, P, 0, 0, 0, 0);
+    PzSetSpriteGlyph(bg, Background, 0);                          // board +0x24
+    for (int i = 0; i < 12; ++i) {
+        InsertChild(&Pages[i]);
+        if (i == 0) {
+            Pages[0].SetPosition(0x80, 0x1ea, 0, 0);
+            Pages[0].Create(Background, 1, 3, 2, -1);              // 0x537a80
+            Pages[0].SetChecked(true);                             // 0x537df0(1)
+        } else {
+            int k = i - 1;
+            Pages[i].SetPosition(0x11b + 0x38 * k, 0x1ea, 0, 0);
+            Pages[i].Create(Background, 4 + 3 * k, 6 + 3 * k, 5 + 3 * k, 6 + 3 * k);
+        }
+    }
+
+    // The nation: medal sheet, officer.
+    bool victory = c->GetMissionResult() == 1;                     // 0x5920b0
+    auto missionNumber = [&](const char* m) { return props ? props->GetInt(m, "Mission number", 0) : 0; };
+    bool british = c->Race == 1 && (missionNumber(cur) == 1 || missionNumber(cur) == 7);   // 0x5920f0
+    int sheet;
+    const char* officer;
+    const char* fullName;
+    const char* first;
+    if (c->Race == 0) {
+        sheet = PzLoadCustomFont("menu/medals_ger_hq.tga", 9, kMedalGlyphs);
+        officer = "HANS"; fullName = "Hans von Gr\xfc" "bel"; first = "German 1";
+    } else if (c->Race == 2) {
+        sheet = PzLoadCustomFont("menu/medals_rus_hq.tga", 9, kMedalGlyphs);
+        officer = "SASHA"; fullName = "Alexander Vladimiriov"; first = "Russian 1";
+    } else if (british) {
+        sheet = PzLoadCustomFont("menu/medals_eng_hq.tga", 3, kMedalGlyphs);
+        officer = "JAMES"; fullName = "James Barnes"; first = "Allied 1";
+    } else {
+        sheet = PzLoadCustomFont("menu/medals_usa_hq.tga", 8, kMedalGlyphs);
+        officer = "WILLSON"; fullName = "Jeffrey S. Wilson"; first = "Allied 1";
+    }
+    const char* name = Mm(officer);
+    int portrait = Board->CreateFrame(FT_SPRITE, P, 0x53, 3, 0, 1);
+    PzSetSpriteGlyph(portrait, sheet, 0);
+
+    char line[0x400];
+    if (victory)
+        _snprintf(line, sizeof(line) - 1, "%s %s", Mm("CONGRATULATION"), name);
+    else
+        _snprintf(line, sizeof(line) - 1, "%s", Mm("DEFEAT!"));
+    line[sizeof(line) - 1] = 0;
+    TextFrame(P, 0x244, 0x32, 2, line);
+    _snprintf(line, sizeof(line) - 1, "%s%s", Mm("Name: "), Mm(fullName));   // campaign mode only
+    line[sizeof(line) - 1] = 0;
+    TextFrame(P, 0x10e, 0x55, 0, line);
+    {                                                              // the name goes into the player record (+0x140 SString)
+        SString* rec = (SString*)c->PlayerStats[0];
+        pz::FreeSString(rec);
+        const char* n = Mm(fullName);
+        rec->size = (int)strlen(n);
+        rec->buf = new char[rec->size + 1];
+        memcpy(rec->buf, n, rec->size + 1);
+    }
+    _snprintf(line, sizeof(line) - 1, "%s%s", Mm("Rank: "),
+              props ? props->GetString(cur, "Rank", Mm("Commander")) : Mm("Commander"));
+    line[sizeof(line) - 1] = 0;
+    TextFrame(P, 0x10e, 0x6e, 0, line);
+    int t = c->_b68;                                               // 0x591f90 (seconds)
+    char tbuf[64];
+    if (t / 60 >= 60)
+        _snprintf(tbuf, sizeof(tbuf) - 1, "%d:%02d:%02d", t / 3600, (t / 60) % 60, t % 60);
+    else
+        _snprintf(tbuf, sizeof(tbuf) - 1, "%d:%02d", t / 60, t % 60);
+    tbuf[sizeof(tbuf) - 1] = 0;
+    _snprintf(line, sizeof(line) - 1, "%s%s", Mm("Time: "), tbuf);
+    line[sizeof(line) - 1] = 0;
+    TextFrame(P, 0x10e, 0x87, 0, line);
+    if (victory) {
+        _snprintf(line, sizeof(line) - 1, "%s%d", Mm("Prestige: "), c->GetNextMissionSP() + c->Prestige);   // 0x5928b0 + +0x38
+        line[sizeof(line) - 1] = 0;
+        TextFrame(P, 0x10e, 0xa0, 0, line);
+    }
+    int score = c->Score;                                          // 0x592a40 (+0xb60)
+    _snprintf(line, sizeof(line) - 1, "%s%d", Mm("Score: "), score);
+    line[sizeof(line) - 1] = 0;
+    TextFrame(P, 0x10e, 0xb9, 0, line);
+    InsertChild(&Upload);                                          // +0x10e8
+    Upload.SetPosition(0x109, 0xcd, 0x190, 0);
+    Upload.Create(1, 5, false, false, 0, false);                   // 0x542380(1, 5, 0, 0, 0, 0)
+    if (score == 0)
+        Upload.AddLine(Mm("this score is not uploadable"), 0xd0d0d0);
+    if (c->_b84 != 0) {
+        _snprintf(line, sizeof(line) - 1, "%s%s", Mm("this score is not uploadable"),
+                  Mm(" (conditions: v1.10 or higher started campaign game spoil without cheatcodes)"));
+        line[sizeof(line) - 1] = 0;
+        Upload.AddLine(line, 0xd0d0d0);
+    }
+
+    // Objectives (counts as SStatisticMenu; HD swaps the optional and secret
+    // rows, kept).
+    int mainDone = 0, mainAll = 0, optDone = 0, optAll = 0, secDone = 0, secAll = 0;
+    const PzStatObjective* obj = (const PzStatObjective*)c->Objectives;
+    for (int i = 0; i < c->ObjectiveCount; ++i) {
+        const PzStatObjective& o = obj[i];
+        if (o.Excluded)
+            continue;
+        if (o.Main) { ++mainAll; if (o.State == 2) ++mainDone; }
+        else if (o.Secret) { ++optAll; if (o.State == 2) ++optDone; }
+        else { ++secAll; if (o.State == 2) ++secDone; }
+    }
+    TextFrame(P, 0x1e0, 0x55, 0, Mm("Objectives:"));
+    const char* labels[3] = { "- Main:", "- Optional:", "- Secret:" };
+    int done[3] = { mainDone, secDone, optDone }, all[3] = { mainAll, secAll, optAll };
+    for (int r = 0; r < 3; ++r) {
+        TextFrame(P, 0x1ea, 0x64 + 0xf * r, 0, Mm(labels[r]));
+        _snprintf(line, sizeof(line) - 1, "%d/%d", done[r], all[r]);
+        line[sizeof(line) - 1] = 0;
+        TextFrame(P, 0x230, 0x64 + 0xf * r, 0, line);
+    }
+
+    // The unit table.
+    static const int kHx[6] = { 0xff, 0x172, 0x1e5, 0x267, 0x2e4, 0x35c };
+    static const char* const kHead[6] = { "Total units", "Destroyed units", "Lost units", "Captured units ", "XP", "Accomplishment" };
+    for (int i = 0; i < 6; ++i)
+        TextFrame(P, kHx[i], 0xf8, 2, Mm(kHead[i]));
+    static const int kGx[7] = { 0xa3, 0xff, 0x172, 0x1e5, 0x267, 0x2e4, 0x35c };
+    for (int r = 0; r < 8; ++r)
+        for (int k = 0; k < 7; ++k)
+            Grid[r][k] = TextFrame(P, kGx[k], 0x111 + 0x19 * r, 2, "");
+    ShowPage(0);                                                   // 0x63e690(0)
+
+    // The buttons (y 0x2d2).
+    InsertChild(&Save);
+    Save.SetPosition(0, 0x2d2, 0, 0);
+    Save.Create(2, Mm("Upload Result"));
+    if (score < 1 || !victory || c->_b84 != 0)
+        Save.SetEnable(false);                                     // vtbl +0x70(0)
+    InsertChild(&Restart);
+    Restart.SetPosition(0x100, 0x2d2, 0, 0);
+    Restart.Create(2, Mm("Restart"));
+    if (victory) {
+        InsertChild(&Continue);
+        Continue.SetPosition(0x200, 0x2d2, 0, 0);
+        Continue.Create(2, Mm("Continue"));
+    }
+    InsertChild(&Cancel);
+    Cancel.SetPosition(0x300, 0x2d2, 0, 0);
+    Cancel.Create(2, Mm("Cancel"));
+
+    // The medals of the missions before this one along the chain.
+    struct Pos { int x, y; };
+    static const Pos kUsa[7] = { {33,545},{126,545},{231,545},{330,545},{430,545},{534,545},{636,545} };
+    static const Pos kEng[2] = { {33,545},{163,545} };
+    static const Pos kRus[8] = { {33,545},{138,545},{251,545},{371,545},{477,545},{588,545},{700,545},{822,545} };
+    static const Pos kGer[8] = { {33,545},{140,545},{251,545},{373,545},{490,545},{604,545},{720,545},{822,545} };
+    const Pos* pos = c->Race == 0 ? kGer : c->Race == 2 ? kRus : british ? kEng : kUsa;
+    int maxMedals = c->Race == 0 || c->Race == 2 ? 8 : british ? 2 : 7;
+    char m[260];
+    strncpy(m, first, sizeof(m) - 1);
+    m[sizeof(m) - 1] = 0;
+    int k = 0;
+    SProperties* local = (SProperties*)c->LocalProps;            // "Medal": campaign +0x04
+    auto medalOf = [&](const char* mission) { return local ? local->GetString(mission, "Medal", "") : ""; };
+    for (int guard = 0; guard < 64 && k < maxMedals && _stricmp(m, cur) != 0; ++guard) {
+        int n = missionNumber(m);
+        bool chainStart = n == 1 || n == 7;
+        bool take = c->Race == 1 ? (british ? (chainStart && victory) : !chainStart) : true;
+        if (c->Race == 1 && !british && chainStart) {
+            ++k;                                                   // skipped, the slot advances
+        } else if (take) {
+            const char* medal = medalOf(m);
+            if (medal && *medal) {
+                SDXWidget& w = Medals[k];
+                InsertChild(&w);
+                w.SetPosition(pos[k].x, pos[k].y, 1, 1);
+                w.SetTooltipText(medal);                           // 0x543bf0
+                w.SetBackgroundSprite(sheet, k + 1, false, false); // 0x539ba0
+                w.Create(0);                                       // 0x539a10
+            }
+            ++k;
+        }
+        const char* next = props ? props->GetString(m, "Next Mission", nullptr) : nullptr;
+        if (!next || !*next)
+            break;
+        strncpy(m, next, sizeof(m) - 1);
+        m[sizeof(m) - 1] = 0;
+    }
+    const char* medal = medalOf(cur);
+    if (victory && medal && *medal) {
+        if (!british)
+            TextFrame(P, 0x29e, 0x55, 0, Mm("New medal:"));
+        InsertChild(&NewMedal);                                    // +0x108c
+        NewMedal.SetPosition(0x30a, 0x47, 0, 0);
+        NewMedal.SetTooltipText(medal);
+        NewMedal.SetBackgroundSprite(sheet, k + 1, false, false);
+        NewMedal.Create(0);
+    }
+    PzReleaseCustomFont(sheet);                                    // board +0x80
+    Cursor = 0;                                                    // 0x543970(0, -1)
+    SetFocus();
+    Logger.g->Log(0, "PZM4: results [%s] %s, prestige %d, score %d, medals %d",
+                  cur, victory ? "victory" : "defeat", c->Prestige, score, k);
 }

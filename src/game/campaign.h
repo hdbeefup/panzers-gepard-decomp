@@ -73,6 +73,7 @@ void ArmyResize(SArmyArray* a, int size);                 // 0x51e520
 void ArmyCopyFrom(SArmyArray* dst, const SArmyArray* src);// 0x591500 / 0x591e70 (resize + 0x560290 per record)
 void ArmyFree(SArmyArray* a);                             // 0x51de90 (the array dtor)
 SUnitDef* ArmyAdd(SArmyArray* a);                         // 0x560d10 (SDArray::Add, grows by 6/5)
+void ArmyRemove(SArmyArray* a, int i);                    // 0x579220 (SDArray::Remove)
 void UnitDefCopy(SUnitDef* dst, const SUnitDef* src);     // 0x560290 (operator=)
 void UnitDefSave(const SUnitDef* d, SStream* s);          // 0x5cfbf0 gSaveVariables(s, d, 0x8ddb48)
 
@@ -136,14 +137,18 @@ struct SPanzersCampaign {
     // Mode set-up (SCampaign::*).
     void InitTutorialMode(const char* map, int race, int prestige);         // 0x594ab0 (3 dwords)
     void InitScenarioMode(const char* map, const char* section, int race, int prestige); // 0x5944d0 (4)
-    void InitCampaignMode(const char* missionsIni, const char* mission, int race, int difficulty); // 0x592b20 (name guessed; us-02 uses 0x592d20)
+    void InitCampaignMode();                               // 0x592b20 Race / Difficulty set by the caller (0x53441); the nation's first mission
+    void PrepareMission();                                 // 0x592d80 (name guessed) props, prestige, MissionArmy = Army + "Unit %d", MenuToLoad 0 / 2 / 8
+    void RestartMission();                                 // 0x594f60 (name guessed) results "Restart" (0x524d2)
+    const char* GetBriefingText();                         // 0x591e30 [<section>] "Briefing text"
+    int  GetNextMissionSP();                               // 0x5928b0 [Next Mission] "SP", 500 without one
 
     // Flow.
     int  GetMenuToLoad();                                  // 0x596600
     void OnMapLoaded();                                    // 0x594d50 (name guessed) "Map loaded": market or game view
     void SetMenuGameView();                                // 0x594e50 (name guessed) MenuToLoad = 2, +0xe4 = 0
     void LetMapDone();                                     // 0x594e00 needs MenuToLoad 2; modes 1-4 -> 3 (results), 5 -> 5 (main menu)
-    void LetResultsDone();                                 // 0x594e70
+    void LetResultsDone();                                 // 0x594e70 campaign: the next mission (PrepareMission) or 5 (main menu)
     const char* GetMapName();                              // 0x592040
     bool IsTutorialMode();                                 // 0x594d40 GameMode == 5
     bool IsScenarioMode();                                 // 0x594d30 GameMode == 1

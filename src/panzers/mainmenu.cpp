@@ -12,6 +12,8 @@
 #include "iconcert.h"
 #include "stub_log.h"
 #include "window.h"
+#include "campaignmenu.h"
+#include "m3common.h"
 
 // Logged stubs for the submenus the main menu opens (src/stubs/stub_panzers.cpp).
 void PzStub_NewGameMenu(SWidget* parent);
@@ -284,7 +286,14 @@ bool SMainMenu::OnAction(SWidget* source, int action, int param)
     if (source == &Buttons[0]) {                     // +0x60 New Game
         if (LoadGameMenu) { delete LoadGameMenu; LoadGameMenu = nullptr; }
         if (NewGameMenu) { delete NewGameMenu; NewGameMenu = nullptr; }
-        PzStub_NewGameMenu(Parent);                  // new 0x320 0x633770 + 0x639790
+        if (pz::g_M3.Enabled) {                      // M4 campaign shell (with -m3)
+            SSingleMenu* m = new SSingleMenu();      // new 800, 0x633770
+            NewGameMenu = m;                         // +0x5c
+            Parent->InsertChild(m);                  // (+0x24)->vtbl +0x54
+            m->Create();                             // 0x639790
+        } else {
+            PzStub_NewGameMenu(Parent);              // new 0x320 0x633770 + 0x639790
+        }
     } else if (source == &Buttons[1]) {              // +0xd4 Load Game
         if (LoadGameMenu) { delete LoadGameMenu; LoadGameMenu = nullptr; }
         if (NewGameMenu) { delete NewGameMenu; NewGameMenu = nullptr; }

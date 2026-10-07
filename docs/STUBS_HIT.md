@@ -116,7 +116,8 @@ These stubs exist but were **not** hit on the boot-to-menu path:
 `CreateHostFromCommandLine (0x6576f0)`; `ConnectToHostFromCommandLine
 (0x657460)`; the `-market` and map command-line starts; `LoadMultiPreMenu
 (0x658a30)`; `LoadChatRoomView (0x658050)`; and the New Game / Load Game
-submenus (0x633770 / 0x62cbc0). The SWINE-era stubs `ZSTD_decompress`,
+submenus (0x633770 / 0x62cbc0; with `-m3` the New Game submenu is lifted in
+M4, `src/panzers/campaignmenu.*`, docs/M4_STATUS.md). The SWINE-era stubs `ZSTD_decompress`,
 `DXGetErrorStringA`, `MpegAudioPrecalculate`, `SMenuBackGroundView::*` and
 `MatchInfo::*` were not hit either.
 

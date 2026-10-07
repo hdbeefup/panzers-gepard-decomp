@@ -427,7 +427,7 @@ bool PzGameViewMenuAction(SGameView* v, SWidget* source, int action, int param)
         if (action == PZA_MSGBOX_YES) {
             DeleteInGameMenu(v);
             if (v->Logic && pz::g_Campaign)
-                STUB_LOG("SGameLogic::BackupCampaignUnits (0x561110) at End Mission (agent F)");
+                v->Logic->BackupCampaignUnits();                   // 0x561110
             v->SendAction(0x47562, 0);                             // GV_GAMEOVER (LAB_00622b00)
         }
         return true;

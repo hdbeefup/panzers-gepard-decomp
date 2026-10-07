@@ -41,6 +41,11 @@ add_library(panzersgame STATIC
     market_glyphs.inl
     trainingmenu.h
     trainingmenu.cpp
+    # M4 campaign shell
+    campaignmenu.h
+    campaignmenu.cpp
+    briefing.h
+    briefing.cpp
 )
 target_include_directories(panzersgame PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(panzersgame PRIVATE ${PANZERS_SRC_DIR}/sound ${PANZERS_SRC_DIR}/stubs)

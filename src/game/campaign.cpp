@@ -25,6 +25,12 @@ namespace pz {
 
 SPanzersCampaign* g_Campaign = nullptr;   // HD 0x929a0c
 
+static SProperties* Props(SPanzersCampaign* c) { return (SProperties*)c->MissionProps; }
+
+// SPanzersCampaign::SaveGameBefore (the "Before" save of the next mission,
+// agent S): a logged stub in src/stubs/stub_panzers.cpp until S lands it.
+void PzStub_SaveGameBefore(SPanzersCampaign* c);
+
 // ---------------------------------------------------------------------------
 // SDArray<SUnitDef> helpers
 
@@ -176,7 +182,7 @@ static int UnitDefPrice(const SUnitDef* d)
 }
 
 // PANZERS 0x579220 (SDArray<SUnitDef>::Remove)
-static void ArmyRemove(SArmyArray* a, int i)
+void ArmyRemove(SArmyArray* a, int i)
 {
     UnitDefClear(&a->Array[i]);
     --a->Size;
@@ -327,6 +333,8 @@ SPanzersCampaign::~SPanzersCampaign()
     Objectives = nullptr;
     ObjectiveCount = ObjectiveMax = 0;
     FreeSString(&ReplayName);                                     // +0x12c
+    for (int p = 0; p < 12; ++p)                                  // the player records' names (+0x140 + p * 0xd8)
+        FreeSString((SString*)PlayerStats[p]);
     ArmyFree(&MissionArmy);
     ArmyFree(&Army);
     FreeSString(&MissionSection);
@@ -356,11 +364,120 @@ void SPanzersCampaign::InitScenarioMode(const char* map, const char* section, in
     (void)map; (void)section; (void)race; (void)prestige;
 }
 
-void SPanzersCampaign::InitCampaignMode(const char* missionsIni, const char* mission, int race, int difficulty)
+// PANZERS 0x592b20
+// New Game (0x53441): the nation's first mission, missions.ini and
+// missions_local.ini (both panic when missing), the map, the mission's
+// "SP" as starting prestige, then PrepareMission.
+void SPanzersCampaign::InitCampaignMode()
 {
-    STUB_LOG("SCampaign::InitCampaignMode (0x592b20)");
     PZ_M3_TRACE("SCampaign::InitCampaignMode (0x592b20)");
-    (void)missionsIni; (void)mission; (void)race; (void)difficulty;
+    if (GameMode != PZ_GM_NONE)
+        Logger.g->Panic("SCampaign::InitCampaignMode: GameMode can only be initialized once.");
+    GameMode = PZ_GM_CAMPAIGN;
+    SetStr(&MissionSection, Race == 0 ? "German 1" : Race == 1 ? "Allied 1" : "Russian 1");   // 0x52c320 on +0xd8
+    delete (SProperties*)MissionProps;                            // 0x660080 + delete 0x1c
+    MissionProps = nullptr;
+    delete (SProperties*)LocalProps;
+    LocalProps = nullptr;
+    MissionProps = new SProperties("missions.ini", true);         // new 0x1c, 0x65fe80(Format("missions.ini", ..), 1)
+    LocalProps = new SProperties("missions_local.ini", true);
+    SetStr(&MapName, GetMapName());                               // 0x592040, 0x52c320 on +0x20
+    StartPrestige = Props(this)->GetInt(SStr(MissionSection), "SP", 0);   // 0x660500(section, "SP", 0) -> +0x28
+    PrepareMission();                                             // 0x592d80
+    MissionResult = 0;                                            // +0xe4
+}
+
+// PANZERS 0x592d80
+// The start of a campaign mission (InitCampaignMode, LetResultsDone and the
+// results' Restart): the mission properties, the support calls, the player
+// counters, Prestige = StartPrestige, MissionArmy = Army plus the mission's
+// own units ("Unit %d" = class, "Unit %d stored" = its crew, "Unit %d slot
+// 1 / 2", unique ScriptIDs), the objectives; MenuToLoad 8 with an "Intro
+// Anim" (every one is commented out in missions.ini), else 0 (briefing)
+// when "Diary" (default 1), else 2 (game view).
+void SPanzersCampaign::PrepareMission()
+{
+    PZ_M3_TRACE("SCampaign::PrepareMission (0x592d80)");
+    LoadMissionProps();                                           // 0x593740
+    LoadSupportCounts();                                          // 0x594140 (no world yet: nothing)
+    for (int p = 0; p < 12; ++p) {                                // 0x594470
+        unsigned char* r = PlayerStats[p];
+        memset(r + 0x0c, 0, 4 * 12 * 4);                          // the 4 x 12 unit counters
+        memset(r + 0xcc, 0, 12);                                  // +0xcc, +0xd0, +0xd4
+    }
+    Prestige = StartPrestige;                                     // +0x38 = +0x28
+    ArmyCopyFrom(&MissionArmy, &Army);                            // 0x51e520(Army.Size) + 0x560290 each
+    SUnitDef blank;                                               // 0x5cfb10
+    const char* sec = SStr(MissionSection);
+    for (int n = 1;; ++n) {
+        char key[64];
+        _snprintf(key, sizeof(key) - 1, "Unit %d", n);             // 0x51ee20("Unit %d", n)
+        key[sizeof(key) - 1] = 0;
+        const char* cls = Props(this)->GetString(sec, key, nullptr);   // 0x660570(section, key, 0)
+        if (!cls)
+            break;
+        int idx = MissionArmy.Size;
+        UnitDefCopy(ArmyAdd(&MissionArmy), &blank);               // grow (16, then 6/5), 0x560290(blank)
+        SUnitDef* d = &MissionArmy.Array[idx];
+        SetStr(&d->ClassName, cls);
+        char cname[260];
+        strncpy(cname, SStr(d->ClassName), sizeof(cname) - 1);
+        cname[sizeof(cname) - 1] = 0;
+        UniqueScriptID(&d->ScriptID, cname, &MissionArmy);        // 0x592640 -> +0x58
+        _snprintf(key, sizeof(key) - 1, "Unit %d stored", n);
+        const char* crew = Props(this)->GetString(sec, key, nullptr);
+        if (crew) {
+            d = &MissionArmy.Array[idx];
+            SArmyArray st = { d->StoredUnits, d->StoredCount, d->StoredMax };
+            UnitDefCopy(ArmyAdd(&st), &blank);                    // +0x4c SDArray add, 0x560290(blank)
+            d->StoredUnits = st.Array;
+            d->StoredCount = st.Size;
+            d->StoredMax = st.Max;
+            SUnitDef* c = &d->StoredUnits[0];
+            SetStr(&c->ClassName, crew);
+            strncpy(cname, SStr(c->ClassName), sizeof(cname) - 1);
+            cname[sizeof(cname) - 1] = 0;
+            UniqueScriptID(&c->ScriptID, cname, &MissionArmy);    // 0x592640 -> stored +0x58
+        }
+        d = &MissionArmy.Array[idx];
+        _snprintf(key, sizeof(key) - 1, "Unit %d slot 1", n);
+        d->Slots[0] = Props(this)->GetInt(sec, key, 0);            // 0x660500 -> +0x40
+        _snprintf(key, sizeof(key) - 1, "Unit %d slot 2", n);
+        d->Slots[1] = Props(this)->GetInt(sec, key, 0);            // -> +0x44
+    }
+    if (Props(this)->GetString(sec, "Intro Anim", nullptr))       // 0x660570(section, "Intro Anim", 0)
+        MenuToLoad = 8;
+    else
+        MenuToLoad = Props(this)->GetInt(sec, "Diary", 1) != 0 ? PZ_MENU_BRIEFING : PZ_MENU_GAMEVIEW;
+    LoadObjectives();                                             // 0x593ba0
+    Logger.g->Log(0, "PZM4: campaign mission [%s] map %s, prestige %d, army %d (%d carried), MenuToLoad %d",
+                  sec, GetMapName(), Prestige, MissionArmy.Size, Army.Size, MenuToLoad);
+}
+
+// PANZERS 0x594f60
+void SPanzersCampaign::RestartMission()
+{
+    _014 = 0;
+    PrepareMission();                                             // 0x592d80
+}
+
+// PANZERS 0x591e30
+const char* SPanzersCampaign::GetBriefingText()
+{
+    SProperties* lp = (SProperties*)LocalProps;                  // +0x04 (0x591e3b)
+    return lp ? lp->GetString(SStr(MissionSection), "Briefing text", "") : "";   // 0x660570
+}
+
+// PANZERS 0x5928b0
+int SPanzersCampaign::GetNextMissionSP()
+{
+    const char* next = Props(this) ? Props(this)->GetString(SStr(MissionSection), "Next Mission", nullptr) : nullptr;
+    if (!next || !*next)
+        return 500;
+    char name[260];
+    strncpy(name, next, sizeof(name) - 1);
+    name[sizeof(name) - 1] = 0;
+    return Props(this)->GetInt(name, "SP", 0);                    // 0x660500(next, "SP", 0)
 }
 
 // PANZERS 0x596600
@@ -369,7 +486,6 @@ int SPanzersCampaign::GetMenuToLoad()
     return MenuToLoad;
 }
 
-static SProperties* Props(SPanzersCampaign* c) { return (SProperties*)c->MissionProps; }
 
 // PANZERS 0x594d50
 void SPanzersCampaign::OnMapLoaded()
@@ -411,10 +527,42 @@ void SPanzersCampaign::LetMapDone()
     }
 }
 
+// PANZERS 0x594e70
+// The results menu's Continue (0x524d1). Campaign: the "Next Mission"
+// becomes the section (none: the main menu), the mission army (its
+// survivors, BackupCampaignUnits) becomes the carried army, StartPrestige = its "SP" + the prestige left, the "Before"
+// save, PrepareMission. Multiplayer: the multiplayer menus; else the main
+// menu.
 void SPanzersCampaign::LetResultsDone()
 {
-    STUB_LOG("SCampaign::LetResultsDone (0x594e70)");
     PZ_M3_TRACE("SCampaign::LetResultsDone (0x594e70)");
+    _014 = 0;
+    if (MenuToLoad != PZ_MENU_RESULTS)
+        Logger.g->Panic("SCampaign::LetResultsDone: Menu order problem.");
+    if (GameMode == PZ_GM_CAMPAIGN) {
+        const char* next = Props(this) ? Props(this)->GetString(SStr(MissionSection), "Next Mission", nullptr) : nullptr;
+        char name[260];
+        name[0] = 0;
+        if (next) {
+            strncpy(name, next, sizeof(name) - 1);
+            name[sizeof(name) - 1] = 0;
+        }
+        SetStr(&MissionSection, name);                            // 0x52c320 on +0xd8
+        if (MissionSection.size == 0) {                           // +0xdc
+            MenuToLoad = 5;
+            return;
+        }
+        ArmyCopyFrom(&Army, &MissionArmy);                        // 0x591500(ECX +0x2c, +0x3c): the mission's survivors are carried
+        StartPrestige = Props(this)->GetInt(SStr(MissionSection), "SP", 0) + Prestige;   // +0x28 = SP + +0x38
+        PzStub_SaveGameBefore(this);                              // SPanzersCampaign::SaveGameBefore (agent S)
+        PrepareMission();                                         // 0x592d80
+        return;
+    }
+    if (GameMode == 4) {                                          // HD: && (no SMulti || !SMulti +0x512c)
+        MenuToLoad = PZ_MENU_MULTI;
+        return;
+    }
+    MenuToLoad = 5;
 }
 
 // PANZERS 0x592040
@@ -518,6 +666,7 @@ void SPanzersCampaign::LoadObjectives()
     for (int i = 0; i < ObjectiveCount; ++i) {                    // 0x591ba0(0): resize to 0
         FreeSString(&Objectives[i].Text);
         free(Objectives[i].Targets);
+        memset((void*)&Objectives[i], 0, sizeof(Objectives[i]));  // (M4) the slot is reused: no stale Targets
     }
     ObjectiveCount = 0;
     SProperties* p = Props(this);
@@ -525,7 +674,8 @@ void SPanzersCampaign::LoadObjectives()
     for (int n = 1; n < 10 && p; ++n) {
         char key[64];
         sprintf(key, "Objective %d Text", n);
-        const char* text = p->GetString(sec, key, nullptr);
+        SProperties* lp = (SProperties*)LocalProps;              // the text: campaign +0x04 (0x593c29)
+        const char* text = lp ? lp->GetString(sec, key, nullptr) : nullptr;
         if (!text)
             break;
         // PANZERS 0x5915d0 (SDArray<SCampaignObjective>::Add)
