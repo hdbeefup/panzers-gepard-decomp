@@ -26,7 +26,7 @@ struct SViewport : SIViewport {
     void Slot_10() override;
     bool NextFullScreenMode(int* w, int* h, int p3) override;
     bool PrevFullScreenMode(int* w, int* h, int p3) override;
-    void Slot_1C() override;
+    void SetViewMatrix(const float* m34) override;
     void SetCamera(float x, float y, float z, float yaw, float pitch) override;
     void GetCamera(float* x, float* y, float* z, float* yaw, float* pitch) override;
     void SetProjection(float fovRadians, float nearZ, float farZ) override;

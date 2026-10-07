@@ -43,7 +43,7 @@ struct SIViewport {
     virtual void Slot_10() = 0;                             // +0x10 HD 0x68b800 (4 arg dwords)
     virtual bool NextFullScreenMode(int* w, int* h, int p3) = 0; // +0x14 HD 0x68b8b0 (3 arg dwords)
     virtual bool PrevFullScreenMode(int* w, int* h, int p3) = 0; // +0x18 HD 0x68bcc0 (3 arg dwords)
-    virtual void Slot_1C() = 0;                             // +0x1c HD 0x68d310 (1 arg dword)
+    virtual void SetViewMatrix(const float* m34) = 0;       // +0x1c HD 0x68d310 (1 arg dword) the view matrix (+0x90) set directly; SModel::ApplyCamera 0x6d62e0
     virtual void SetCamera(float x, float y, float z, float yaw, float pitch) = 0; // +0x20 HD 0x68d370 (5 arg dwords) eye position + angles; SWorld::ComputeCamera
     virtual void GetCamera(float* x, float* y, float* z, float* yaw, float* pitch) = 0; // +0x24 HD 0x68be30 (5 arg dwords) (name guessed)
     virtual void SetProjection(float fovRadians, float nearZ, float farZ) = 0; // +0x28 HD 0x68cfd0 (3 arg dwords) 1/tan(fov/2); world passes 60 deg

@@ -99,6 +99,14 @@ void PzViewLoadMapInPlace(int callback, const char* map)
         reinterpret_cast<SIGameViewCallback*>((intptr_t)callback)->Slot_10((int)(intptr_t)map);
 }
 
+// SGameLogic +0x00 vtbl +0x08: the scene the window renders (the .4d
+// cut-scene's own scene, 0x56f0d0 / 0x5652d0).
+void PzViewSetScene(int callback, SIScene* scene)
+{
+    if (callback)
+        reinterpret_cast<SIGameViewCallback*>((intptr_t)callback)->Slot_08((int)(intptr_t)scene);
+}
+
 // SGameLogic +0x00 vtbl +0x0c: the view clock restarts (0x56f530).
 void PzViewResetClock(int callback)
 {

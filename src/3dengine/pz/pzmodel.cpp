@@ -48,6 +48,24 @@ void Mat34Mul(float* o, const float* a, const float* b)
     memcpy(o, r, sizeof(r));
 }
 
+// PANZERS 0x674910
+// STrackCameraChange: {count, keys (time, node) pairs}. The node of the
+// last key whose time is not after t (the first key's node for t before the
+// second key, and with fewer than two keys).
+static int CameraChangeAt(const STrackCameraChange* cc, float t)
+{
+    const float* k = cc->Keys;
+    int i = 0;
+    if (cc->Count < 2)
+        return *(const int*)&k[1];
+    for (int n = 1; n < cc->Count; ++n) {
+        if (t < k[n * 2])
+            break;
+        ++i;
+    }
+    return *(const int*)&k[i * 2 + 1];
+}
+
 // PANZERS 0x7c59c0 (determinant out-parameter not used by the callers here)
 void Mat34Inverse(float* o, const float* m)
 {
@@ -1349,7 +1367,79 @@ void SModel::Slot_E0()
     SAttachable* a = this;
     static_cast<SModel*>(a->AttachParent)->DetachChild(a->AttachNode, static_cast<SIAttachable*>(a));
 }
-void SModel::Slot_E4() { STUB_LOG("SModel::Slot_E4 (0x6d62e0)"); }
+// PANZERS 0x6d62e0
+// The camera of a .4d cut-scene (SGameLogic::UpdateAnimation 0x582380 calls
+// it with (viewport, -1) every frame). cam < 0: the camera node of the
+// playing sequence's CCHG track at the playing time (0x674910), nothing
+// without sequences, with frame sequences or without a track. The node
+// matrices are brought up to date (SIAttachable +0x04 Update(0, 0)). A
+// camera node with a look-at target (proto node +0x10) sets the eye and the
+// angles towards the target (yaw atan2(dx, dz), pitch -asin(dy)); without
+// one the node's world matrix, its rows over the model scale (the third
+// negated), inverted, is the view matrix (viewport +0x1c). Then the CAM_
+// projection (fov, near 0 -> 1.0, far 0 -> 250.0) and, with CMFG, the
+// scene fog (scene +0x4c(.., 0)).
+void SModel::ApplyCamera(SIViewport* vp, int cam)
+{
+    PZ_TRACE("SModel::ApplyCamera (0x6d62e0)");
+    if (cam < 0) {
+        SPModel* p = Proto;
+        if (p->SequenceCount == 0 || p->FrameSequences)
+            return;
+        STrackCameraChange* cc = p->Sequences[Anim.Seq].CameraChanges;   // seq * 0x38 + 0x30
+        if (!cc)
+            return;
+        cam = CameraChangeAt(cc, Anim.Time);                              // 0x674910(+0x100)
+    }
+    static_cast<SIAttachable*>(this)->Update(0, 0);                       // (+0x04) vtbl +0x04
+    if (cam < 0 || cam >= Proto->NodeCount)
+        Logger.g->Panic("SDArray<%s>::operator[]: invalid index (%d)", "SPModelNode", cam);
+    SPModelNode& pn = Proto->Nodes[cam];
+    if (pn.Link2 >= 0) {                                                  // proto node +0x10: look-at target
+        const float* eye = &Nodes[cam].World[9];                          // node +0x24
+        const float* at = &Nodes[pn.Link2].World[9];
+        float ex = eye[0], ey = eye[1], ez = eye[2];
+        float dx = at[0] - ex;
+        float dy = at[1] - ey;
+        float dz = at[2] - ez;
+        double inv = 1.0 / sqrt((double)(dx * dx + dy * dy + dz * dz));  // 0x7eed98 / 0x78d090
+        dx = (float)((double)dx * inv);
+        dy = (float)((double)dy * inv);
+        dz = (float)((double)dz * inv);
+        float pitch = (float)-asin((double)dy);                           // 0x7a4ac0, sign 0x7f5ab0
+        float yaw = (float)atan2((double)dx, (double)dz);                 // 0x78d07a
+        vp->SetCamera(ex, ey, ez, yaw, pitch);                            // viewport +0x20
+    } else {
+        float m[12];
+        memcpy(m, Nodes[cam].World, sizeof(m));                           // 0x6d4a80, then the node matrix
+        float s = 1.0f / Scl;                                             // 0x7f1b58 / +0x94
+        m[0] *= s; m[1] *= s; m[2] *= s;
+        m[3] *= s; m[4] *= s; m[5] *= s;
+        float s2 = -1.0f / Scl;                                           // 0x7f5a98
+        m[6] *= s2; m[7] *= s2; m[8] *= s2;
+        float v[12];
+        Mat34Inverse(v, m);                                               // 0x7c59c0
+        vp->SetViewMatrix(v);                                             // viewport +0x1c
+    }
+    SPCamera* c = pn.Camera;                                              // proto node +0x4c
+    float fov = c->Data[0];
+    float nearZ = c->Data[1];
+    float farZ = c->Data[2];
+    if (farZ == 0.0f)
+        farZ = 250.0f;                                                    // 0x883bfc
+    if (nearZ == 0.0f)
+        nearZ = 1.0f;                                                     // 0x7f1b58
+    vp->SetProjection(fov, nearZ, farZ);                                  // viewport +0x28
+    if (c->HasCmfg)
+        Scene->SetFog(c->Cmfg[0], c->Cmfg[1], c->Cmfg[2], c->Cmfg[3], c->Cmfg[4], 0.0f);   // scene +0x4c
+}
+
+// PANZERS 0x6d78e0
+float* SModel::GetAmbient(float* rgba)
+{
+    memcpy(rgba, Proto->Ambient, 16);                                     // proto +0x40
+    return rgba;
+}
 
 // PANZERS 0x6dade0
 void SModel::SetSway(float phase, float p2, float p3)

@@ -535,11 +535,25 @@ bool SViewport::PrevFullScreenMode(int* w, int* h, int p3)
     return false;
 }
 
-// HD SViewport vtbl +0x1c -> 0x68d310 (1 arg dword)
-void SViewport::Slot_1C()
+// PANZERS 0x68d310
+// The view matrix (+0x90) set directly (SModel::ApplyCamera 0x6d62e0, a .4d
+// camera node without a look-at target). While selected (+0x71) the device
+// VIEW transform follows at once: HD takes the view of the innermost
+// selected subport (0x68b740, the +0x1f4 chain), which is this one whenever
+// the recompile selects a subport. Then the screen matrix (0x68c070).
+void SViewport::SetViewMatrix(const float* m34)
 {
-    STUB_LOG("SViewport::Slot_1C (0x68d310)");
-    PZ_TRACE("SViewport::Slot_1C (0x68d310)");
+    PZ_TRACE("SViewport::SetViewMatrix (0x68d310)");
+    memcpy(View, m34, sizeof(View));
+    if (Selected) {
+        IDirect3DDevice9* dev = HD().Device;
+        if (dev) {
+            float v[16];
+            Mat34To44(v, View);                                       // 0x676f60
+            dev->SetTransform(D3DTS_VIEW, (const D3DMATRIX*)v);       // device +0xb0(2, m)
+        }
+    }
+    UpdateScreenMatrix();                                             // 0x68c070
 }
 
 // HD SViewport vtbl +0x2c -> 0x68cf00 (6 arg dwords)

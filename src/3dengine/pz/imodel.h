@@ -30,6 +30,7 @@ namespace pz {
 struct SPModel;   // HD 0x54 bytes, owned by the Gepard facade (agent A)
 struct SPAnim;    // HD CANM animation prototype (agent A)
 struct SBlockBitmap; // HD 0x1c-byte cell bitmap (0x661a50), world/blockmaprefresh.h
+struct SIViewport;
 // HD 0x14-byte float grid (ctor 0x6619f0, free of Data 0x661b10): the height
 // patch SIModel +0xb0 returns (a "Platform" node: bridges, SWorld::FixBridges 0x5e65f0).
 // HD SDArray<SVector> (0x0c bytes, element 0x0c): SIModel +0xac output.
@@ -105,7 +106,7 @@ struct SIModel {
     virtual bool HitTestSegment(const float* a, const float* b) = 0; // +0xd8 HD 0x6db550 (2 arg dwords) the world segment a-b crosses a BSP_ collision node (line of fire, eye heights; M3-I)
     virtual void AttachTo(SIModel* parent, int node) = 0;   // +0xdc HD 0x6d5910 (2 arg dwords) parent->AttachChild(node, this) 0x6d5940
     virtual void Slot_E0() = 0;                             // +0xe0 HD 0x6d7310 (0 arg dwords)
-    virtual void Slot_E4() = 0;                             // +0xe4 HD 0x6d62e0 (2 arg dwords)
+    virtual void ApplyCamera(SIViewport* vp, int cam) = 0;  // +0xe4 HD 0x6d62e0 (2 arg dwords) the viewport camera from camera node cam (-1: the sequence's CCHG track at the playing time): look-at node or the node matrix, CAM_ projection, CMFG fog (.4d cut-scenes 0x582380)
     virtual void SetSway(float phase, float p2, float p3) = 0; // +0xe8 HD 0x6dade0 (3 arg dwords) swaying doodads (0.035, 0.035) (name guessed)
     virtual void SetColor(bool on, unsigned color) = 0;     // +0xec HD 0x6da310 (2 arg dwords) first colour override (the heat glow of SSingleUnit 0x5aaaa0) (name guessed)
     virtual void SetColor2(bool on, unsigned color) = 0;    // +0xf0 HD 0x6da2c0 (2 arg dwords) second colour override (fog-of-war tint of buildings)
@@ -114,6 +115,7 @@ struct SIModel {
     virtual void GetWorldBounds(float* minX, float* maxX, float* minY, float* maxY, float* minZ, float* maxZ) = 0; // +0xfc HD 0x6d6f40 (6 arg dwords) world AABB of the mesh-node BBOX corners (tick pose)
     virtual void GetLogicBoundsXZ(float* minX, float* maxX, float* minZ, float* maxZ) = 0; // +0x100 HD 0x6d7150 (4 arg dwords) XZ extent of the mesh-node BBOX corners in the logic pose (M3-I)
     virtual void Slot_104() = 0;                            // +0x104 HD 0x6d7400 (2 arg dwords)
+    virtual float* GetAmbient(float* rgba) = 0;             // +0x108 HD 0x6d78e0 (1 arg dword) the prototype's AMBI colour (+0x40) into rgba, returns rgba (.4d cut-scenes 0x56f0d0)
 
 protected:
     ~SIModel() {}

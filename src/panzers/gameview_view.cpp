@@ -433,7 +433,7 @@ void SGameView::Update()
         return;
     if (!pz::g_World || !pz::g_Scene)                              // recompile: the market moves them aside
         return;
-    if (pz::PzCutsceneUpdateAnimation(Logic)) {                   // 0x582380(viewport)
+    if (pz::PzCutsceneUpdateAnimation(Logic, Viewport)) {         // 0x582380(viewport)
         // A .4d cut-scene plays: the letterbox, the unit visuals, nothing
         // else this frame (no logic tick, no mission-end check).
         if (ViewState != 2) {

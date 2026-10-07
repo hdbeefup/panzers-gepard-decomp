@@ -110,7 +110,7 @@ struct SModel : SIModel, SAttachable {
     bool HitTestSegment(const float* a, const float* b) override; // +0xd8 0x6db550
     void AttachTo(SIModel* parent, int node) override;
     void Slot_E0() override;
-    void Slot_E4() override;
+    void ApplyCamera(SIViewport* vp, int cam) override;      // +0xe4 0x6d62e0
     void SetSway(float phase, float p2, float p3) override;
     void SetColor(bool on, unsigned color) override;
     void SetColor2(bool on, unsigned color) override;
@@ -119,6 +119,7 @@ struct SModel : SIModel, SAttachable {
     void GetWorldBounds(float* minX, float* maxX, float* minY, float* maxY, float* minZ, float* maxZ) override;
     void GetLogicBoundsXZ(float* minX, float* maxX, float* minZ, float* maxZ) override;   // +0x100 0x6d7150
     void Slot_104() override;
+    float* GetAmbient(float* rgba) override;                  // +0x108 0x6d78e0
 
     // SIAttachable (+0x04 vtable 0x883910)
     int Update(int frame, int attachMatrix) override;

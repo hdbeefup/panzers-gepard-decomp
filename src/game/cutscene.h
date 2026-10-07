@@ -18,6 +18,8 @@
 namespace pz {
 
 struct SGameLogic;
+struct SIScene;
+struct SIViewport;
 
 // 0x56ea20(name, len): picks .ingame (0x56f530) or .4d (0x56f0d0).
 void PzCutscenePlay(SGameLogic* gl, const char* name);
@@ -29,7 +31,7 @@ void PzCutsceneEnd(SGameLogic* gl);
 void PzCutsceneCamera(SGameLogic* gl, double interpolation);
 // 0x582380 SGameLogic::UpdateAnimation: true while a .4d cut-scene plays
 // (SGameView::Update then does nothing else).
-bool PzCutsceneUpdateAnimation(SGameLogic* gl);
+bool PzCutsceneUpdateAnimation(SGameLogic* gl, SIViewport* vp);
 // True while an .ingame cut-scene runs (SGameLogic +0x2b8).
 bool PzCutsceneRunning();
 // 0x589860: a camera track of the loaded cut-scene has more than one key.
@@ -63,6 +65,7 @@ void PzCutsceneSoundStop(int id);                                  // Concert +0
 // (src/panzers/gameview_mapcut.cpp).
 void PzViewLoadMapInPlace(int callback, const char* map);          // vtbl +0x10 0x624770
 void PzViewResetClock(int callback);                               // vtbl +0x0c 0x624730
+void PzViewSetScene(int callback, SIScene* scene);                // vtbl +0x08 0x625560
 
 // RunTriggers case 0x38 (triggers.cpp): true when the map cut-scene
 // replaced the map (the running triggers are gone).
