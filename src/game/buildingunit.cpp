@@ -1192,9 +1192,14 @@ void SBuildingUnit::RefreshRadar()
 }
 
 // PANZERS 0x548bf0
+// SGameLogic::IsCargoCheat (name guessed): the "unlimited cargo" cheat
+// byte SGameLogic +0x2d9 (cheats.cpp), not while paused. HD calls it with
+// ECX = DAT_008f2078 (g_GameLogic) at every call site (0x54aec5, 0x5bf49a,
+// 0x5c0380); the unit argument is kept for the callers' signature.
 bool UnitSuppliesForFree(SUnit* u)
 {
-    return ((unsigned char*)u)[0x2d9] != 0 && !(g_GameLogic && g_GameLogic->IsPaused());   // 0x56e150
+    (void)u;
+    return g_GameLogic && ((unsigned char*)g_GameLogic)[0x2d9] != 0 && !g_GameLogic->IsPaused();   // 0x56e150
 }
 
 // PANZERS 0x54a4a0

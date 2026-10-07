@@ -97,7 +97,7 @@ struct SBuildingUnit : SUnit {
     unsigned char _464[0x470 - 0x464];
 };
 
-// 0x548bf0 (name guessed): byte +0x2d9 of the unit && the logic is not
+// 0x548bf0 (name guessed): SGameLogic +0x2d9 (unlimited cargo cheat) && the logic is not
 // paused; a supplier for which it holds (and that is the local player's)
 // does not pay cargo.
 bool UnitSuppliesForFree(SUnit* u);

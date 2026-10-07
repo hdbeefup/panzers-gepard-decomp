@@ -17,6 +17,7 @@
 #include "hud.h"
 #include "ingamemenu.h"
 #include "gameview.h"
+#include "chatline.h"
 #include "ingamemenu.h"
 #include "superwindow.h"
 #include "pzboard.h"
@@ -562,8 +563,7 @@ void SGameView::SetPanelMode(int mode)
     // HD: +0x4d4, +0x52c, +0x7cc SetVisible(mode == 0), board frame +0x2a70
     // shown when mode == 0, +0x5dc / +0x75c hidden, frame +0x5d8 hidden: H's
     // widgets and frames.
-    if (_5d8 >= 0)
-        Board->ShowFrame(_5d8, false);
+    PzChatLineHide(this);                                          // +0x5d8 frame, +0x75c, +0x5dc (chatline.cpp)
     PzHudSetPanelMode(this, mode);                                 // H: the widget part (hud.cpp)
     if (Subport[0] < 0) {
         if (mode == 2)

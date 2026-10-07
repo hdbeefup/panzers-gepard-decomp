@@ -264,3 +264,8 @@ M5 SC (scenario mode, docs/m5/sc.md) replaced `SCampaign::InitScenarioMode (0x59
 load map from command line (0x5944d0)` (PzStub_LoadMapFromCommandLine) and the `SSingleMenu::LoadScenarioMenu
 (0x63b2d0)` line of SSingleMenu::OnAction (SScenarioMenu lifted). Census `2440 lifted + 1316 SWINE-shared +
 171 stubs`.
+
+M5 CH (chat line and cheats, docs/m5/ch.md) replaced the `SGameView::OnKeyDown Enter: chat / cheats
+(0x6255b0, agent H)` StubOnce (the Enter case 0x623728..0x62417e and the cheats lifted; 0x6255b0 itself is the
+bug-report screenshot, still unmapped) and the `SPanzersCampaign 0x597180(0) after Restart Mission (not
+mapped)` STUB_LOG (0x597180 lifted). Census `2529 lifted + 1316 SWINE-shared + 140 stubs`.

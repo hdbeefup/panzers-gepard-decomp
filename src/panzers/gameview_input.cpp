@@ -30,6 +30,7 @@
 #include <string.h>
 #include "gameview.h"
 #include "ingamemenu.h"
+#include "chatline.h"
 #include "superwindow.h"
 #include "m3common.h"
 #include "campaign.h"
@@ -560,7 +561,7 @@ bool SGameView::OnKeyDown(int key, bool repeat)
         if (EndBox)                                               // +0x3e84
             SendAction(PZA_GV_GAMEOVER, 0);                       // the mission is over: Enter leaves
         else
-            StubOnce("SGameView::OnKeyDown Enter: chat / cheats (0x6255b0, agent H)");
+            PzChatLineEnter(this);                                // the chat / cheat line (chatline.cpp)
         break;
     case VK_PAUSE:
         if (gl->Running == 0) {                                   // one logic frame while paused
@@ -572,6 +573,10 @@ bool SGameView::OnKeyDown(int key, bool repeat)
         gl->SetRunning(0);
         break;
     case VK_ESCAPE:
+        if (PzChatLineIsOpen(this)) {                             // +0x615: Esc closes the chat line
+            PzChatLineHide(this);
+            return true;
+        }
         // HD: closes the open dialogs (+0x3e48..+0x3e68, agent H), else the
         // in-game menu 0x620080 (ingamemenu.cpp).
         PzGameViewEscape(this);

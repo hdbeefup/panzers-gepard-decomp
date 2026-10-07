@@ -6,6 +6,7 @@
 #include <windows.h>
 #include <string.h>
 #include "ingamemenu.h"
+#include "cheats.h"
 #include "gameview.h"
 #include "hud.h"
 #include "m3common.h"
@@ -452,7 +453,7 @@ bool PzGameViewMenuAction(SGameView* v, SWidget* source, int action, int param)
         DeleteWidget(RestartBox(v));
         if (action == PZA_MSGBOX_YES) {
             v->SendAction(0x47565, 0);                             // GV_RESTART
-            STUB_LOG("SPanzersCampaign 0x597180(0) after Restart Mission (not mapped)");
+            PzCampaignSetCheated(pz::g_Campaign, 0);               // 0x597180(0) (cheats.cpp)
         }
         return true;
     }

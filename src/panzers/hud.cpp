@@ -13,6 +13,7 @@
 #include <string.h>
 #include <math.h>
 #include "hud.h"
+#include "chatline.h"
 #include "gameview.h"
 #include "ingamemenu.h"
 #include "m3common.h"
@@ -607,7 +608,8 @@ void PzHudCreate(SGameView* v)
     AddButton(&h->TopBar, &h->PlayButton, 0x3af, 0, IF, 0x77, 0x79, 0x78, -1);
     AddButton(&h->TopBar, &h->FastButton, 0x3d4, 0, IF, 0x7a, 0x7c, 0x7b, -1);
     // The chat line (+0x5d8 text, +0x5dc SEditBox, +0x75c "Send message to
-    // allies only" SCheckBox) is multiplayer only: not created.
+    // allies only" SCheckBox): chatline.cpp.
+    PzChatLineCreate(v);
 
     // Minimap (view child at (0xb, 0x24c)).
     v->InsertChild(&h->Minimap);
@@ -748,6 +750,7 @@ void PzHudCreate(SGameView* v)
 
 void PzHudDestroy(SGameView* v)
 {
+    PzChatLineDestroy(v);
     SGameHud* h = PzHud(v);
     if (!h)
         return;
